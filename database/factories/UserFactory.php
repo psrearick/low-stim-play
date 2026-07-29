@@ -42,4 +42,14 @@ class UserFactory extends Factory
             'email_verified_at' => null,
         ]);
     }
+
+    /**
+     * Indicate that the model has chosen a username.
+     */
+    public function withUsername(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'username' => fake()->unique()->userName(),
+        ]);
+    }
 }

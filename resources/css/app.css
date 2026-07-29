@@ -3,7 +3,48 @@
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Low-stim design tokens, ported from legacy/shared.css. Defaults below are the
+ * *light* theme; `.dark` (applied to <html>, see resources/js/app.js) overrides
+ * them with the muted dark palette, which is this app's default appearance.
+ * Lightness values are matched for WCAG contrast between themes, not just
+ * mirrored numerically - see legacy/shared.css for the reasoning.
+ */
 @theme {
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
+
+    --color-bg: oklch(0.95 0.012 85);
+    --color-surface: oklch(0.86 0.016 85);
+    --color-surface-border: oklch(from var(--color-surface) calc(l - 0.10) c h);
+    --color-text: oklch(0.54 0.01 85);
+    --color-accent: oklch(0.51 0.10 248.57);
+    --color-warn: oklch(0.55 0.07 55);
+}
+
+.dark {
+    --color-bg: oklch(0.3073 0.0106 253.99);
+    --color-surface: oklch(0.3838 0.0143 252.26);
+    --color-surface-border: oklch(from var(--color-surface) calc(l - 0.10) c h);
+    --color-text: oklch(0.624 0.0035 247.86);
+    --color-accent: oklch(0.6969 0.1442 248.57);
+    --color-warn: oklch(0.66 0.06 55);
+}
+
+/* No flashing, blinking, or motion of any kind - the whole point of this app. */
+*,
+*::before,
+*::after {
+    animation: none !important;
+    transition: none !important;
+}
+
+/* Browsers' default focus ring is a bright saturated blue - exactly the kind
+   of jarring accent this palette avoids. --color-warn reads clearly without
+   adding a new color and isn't already the heading/link accent color. */
+:focus-visible {
+    outline: 2px solid var(--color-warn);
+    outline-offset: 2px;
 }
