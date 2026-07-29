@@ -38,3 +38,9 @@ Route::get('/boggle/share/{gameSession}', function (GameSession $gameSession) {
         'challenge' => $gameSession->id,
     ]);
 })->name('boggle.share');
+
+// Pass-and-play only for now (no login, no accounts, no Room) -- mirrors
+// legacy/yahtzee.html exactly: one device, everyone takes turns. Online
+// play (per docs/plan.md) can reuse the Room/GameLobby infrastructure
+// Boggle's online rooms already validated, if wanted later.
+Route::livewire('/yahtzee', 'pages::yahtzee.play')->name('yahtzee.play');
