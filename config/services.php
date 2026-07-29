@@ -35,4 +35,12 @@ return [
         ],
     ],
 
+    'openrouter' => [
+        'key' => env('OPENROUTER_API_KEY'),
+        // The tilde is part of the slug -- it's an alias that always
+        // redirects to the newest model in the Claude Haiku family, so
+        // judging quality improves automatically without editing this.
+        'model' => env('FEUD_MODEL', '~anthropic/claude-haiku-latest'),
+    ],
+
 ];

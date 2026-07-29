@@ -29,6 +29,16 @@
                     Play Yahtzee
                 </a>
             </div>
+
+            <div class="flex flex-col items-center gap-3 bg-surface border-2 border-surface-border rounded-lg p-6 flex-1 basis-64 max-w-sm">
+                <h2 class="text-accent font-bold tracking-wide text-lg">Family Feud</h2>
+                <p class="text-sm text-text/80 text-center">
+                    One shared screen for game night &mdash; an AI judges guesses, so there's no hidden host view to manage.
+                </p>
+                <a href="{{ route('family-feud.play') }}" class="w-full text-center rounded px-6 py-2 font-bold tracking-wide bg-accent text-bg">
+                    Play Family Feud
+                </a>
+            </div>
         </div>
 
         @guest
