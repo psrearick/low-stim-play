@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             try {
                 const response = await Passkeys.verify();
-                window.location.href = response.redirect ?? '/home';
+                window.location.href = response.redirect ?? '/dashboard';
             } catch (error) {
                 button.disabled = false;
                 alert(error.message ?? 'Passkey sign-in failed.');
@@ -45,7 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         submit: '/passkeys/confirm',
                     },
                 });
-                window.location.href = response.redirect ?? '/home';
+                window.location.href = response.redirect ?? '/dashboard';
             } catch (error) {
                 button.disabled = false;
                 alert(error.message ?? 'Passkey confirmation failed.');

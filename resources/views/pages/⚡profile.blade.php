@@ -66,6 +66,8 @@ new class extends Component
 ?>
 
 <div class="flex flex-col items-center gap-6 w-full">
+    <a href="{{ route('dashboard') }}" class="self-start text-sm text-text/65 hover:text-text">&larr; Dashboard</a>
+
     <x-panel heading="Profile">
         @if ($saved)
             <p class="text-sm text-accent text-center">Profile saved.</p>

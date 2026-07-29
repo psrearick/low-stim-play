@@ -8,13 +8,18 @@ Route::get('/', function () {
     return view('welcome');
 });
 
-Route::view('/home', 'home')
+Route::livewire('/dashboard', 'pages::dashboard')
     ->middleware(['auth', 'verified'])
-    ->name('home');
+    ->name('dashboard');
 
 Route::livewire('/profile', 'pages::profile')
     ->middleware(['auth', 'verified'])
     ->name('profile');
+
+// Public profile -- distinct route from /profile above (that's the
+// authenticated user's own editable profile); this is a read-only view of
+// anyone's, gated by their own is_public flag rather than auth middleware.
+Route::livewire('/profile/{username}', 'pages::profile.show')->name('profile.show');
 
 Route::livewire('/boggle', 'pages::boggle.lobby')->name('boggle.lobby');
 Route::livewire('/boggle/play', 'pages::boggle.play')->name('boggle.play');

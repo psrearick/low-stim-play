@@ -10,6 +10,11 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * @property GameType $type
+ * @property GameMode $mode
+ * @property array<string, mixed> $settings
+ */
 #[Fillable(['type', 'mode', 'room_code', 'settings', 'started_at', 'ended_at'])]
 class GameSession extends Model
 {

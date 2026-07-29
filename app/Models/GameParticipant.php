@@ -9,6 +9,10 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * @property ?GameResult $result
+ * @property ?array<string, mixed> $stats
+ */
 #[Fillable(['game_session_id', 'user_id', 'guest_name', 'score', 'result', 'stats'])]
 class GameParticipant extends Model
 {

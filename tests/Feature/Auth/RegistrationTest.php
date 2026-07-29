@@ -18,7 +18,7 @@ test('new users can register', function () {
     ]);
 
     $this->assertAuthenticated();
-    $response->assertRedirect('/home');
+    $response->assertRedirect('/dashboard');
 
     expect(User::where('email', 'test@example.com')->exists())->toBeTrue();
 });
