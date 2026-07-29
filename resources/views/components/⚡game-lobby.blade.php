@@ -100,6 +100,13 @@ new class extends Component
         $this->room->update(['status' => RoomStatus::Active]);
 
         RoomGameStarting::dispatch($this->room);
+
+        // A plain (non-broadcast) Livewire event, handled synchronously by
+        // whichever game-specific page hosts this component -- letting each
+        // game (Boggle, Yahtzee, ...) decide what "starting" means for it
+        // (e.g. generating a shared board) without this component knowing
+        // anything game-specific.
+        $this->dispatch('room-game-starting');
     }
 
     public function getAllReadyProperty(): bool

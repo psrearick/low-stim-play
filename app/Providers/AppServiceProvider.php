@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Services\Boggle\Solver;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -11,7 +12,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Building the word trie means reading ~79k words; a singleton
+        // means that only happens once per worker instead of per request.
+        $this->app->singleton(Solver::class);
     }
 
     /**

@@ -25,8 +25,14 @@ RUN docker-php-ext-install \
     pdo_mysql \
     zip
 
-# Install Redis extension via PECL
-RUN pecl install redis && docker-php-ext-enable redis
+# Install Redis extension via PECL. docker-php-ext-install (above) installs
+# its own build tools and removes them again within that same RUN layer, so
+# a separate `pecl install` here has nothing left to compile with unless it
+# brings its own -- hence the explicit $PHPIZE_DEPS add/remove around it.
+RUN apk add --no-cache --virtual .build-deps ${PHPIZE_DEPS} \
+    && pecl install redis \
+    && docker-php-ext-enable redis \
+    && apk del .build-deps
 
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
@@ -37,6 +43,16 @@ WORKDIR /var/www/html
 # PHP-FPM config: use nobody user for dev
 RUN sed -i 's/user = www-data/user = nobody/' /usr/local/etc/php-fpm.d/www.conf \
     && sed -i 's/group = www-data/group = nobody/' /usr/local/etc/php-fpm.d/www.conf
+
+# storage/framework/views is mounted from a dedicated named volume (see
+# docker-compose.yml) rather than the host bind mount, so compiled Blade
+# view caches don't collide with the host's own absolute paths. Docker
+# seeds a fresh named volume from whatever already exists at its mount
+# point in the image, so this directory needs to exist here, owned by the
+# same "nobody" user php-fpm runs as -- otherwise the first request to
+# write a compiled view into the freshly created (root-owned) volume fails.
+RUN mkdir -p storage/framework/views \
+    && chown -R nobody:nobody storage/framework/views
 
 # PHP config: opcache settings for development
 RUN echo "opcache.enable=1" >> /usr/local/etc/php/conf.d/opcache.ini \

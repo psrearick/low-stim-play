@@ -18,6 +18,16 @@
         </include>
     </source>
     <php>
+        <!--
+            Boggle's Solver builds an ~80k-word dictionary per test process
+            (it's bound as a container singleton, but Laravel's TestCase
+            boots a fresh application per test, so it's rebuilt often). At
+            ~30MB a time across a whole test file, plus Xdebug's overhead
+            when enabled, this can exceed PHP CLI's 128M default and fail
+            with an unhelpful empty/truncated test run rather than a clear
+            error. 512M gives comfortable headroom.
+        -->
+        <ini name="memory_limit" value="512M"/>
         <env name="APP_ENV" value="testing"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
