@@ -2,10 +2,26 @@
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
     <head>
         <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+        <link rel="manifest" href="/manifest.json">
         <meta name="theme-color" content="#2c3035">
 
         <title>{{ $title ?? config('app.name') }}</title>
+        <meta name="description" content="{{ $description ?? 'Low Stim Play is a small collection of low-contrast, no-flash, no-motion web games -- Boggle, Yahtzee, and Family Feud. Built to be gentle on migraines, vertigo, and sensitive eyes.' }}">
+        <meta property="og:site_name" content="Low Stim Play">
+        <meta property="og:title" content="{{ $title ?? config('app.name') }}">
+        <meta property="og:description" content="{{ $description ?? 'A small collection of low-contrast, no-flash, no-motion web games. Built to be gentle on migraines, vertigo, and sensitive eyes.' }}">
+        <meta property="og:type" content="website">
+        <meta property="og:image" content="/og-image.png">
+        <meta name="twitter:card" content="summary">
+        <meta name="twitter:title" content="{{ $title ?? config('app.name') }}">
+        <meta name="twitter:description" content="{{ $description ?? 'A small collection of low-contrast, no-flash, no-motion web games. Built to be gentle on migraines, vertigo, and sensitive eyes.' }}">
+        <meta name="twitter:image" content="/web-app-manifest-512x512.png">
+        <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96">
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+        <link rel="shortcut icon" href="/favicon.ico">
+        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+        <meta name="apple-mobile-web-app-title" content="LowStim">
 
         {{--
             Applied before paint to avoid a flash of the wrong theme. Dark is
@@ -25,15 +41,56 @@
 
         @livewireStyles
     </head>
-    <body class="min-h-screen bg-bg text-text flex flex-col items-center justify-center gap-8 p-4 font-sans">
-        <main class="w-full flex flex-col items-center">
-            {{ $slot ?? '' }}
-            @yield('content')
-        </main>
+    <body class="scrollable{{ isset($bodyClass) ? ' '.$bodyClass : '' }}">
+        <div class="button-bar{{ isset($manyButtons) ? ' many-buttons' : '' }}">
+            <div class="left">
+                <a href="{{ url('/') }}"><button type="button">Home</button></a>
+                @isset($rules)
+                    <button type="button" id="rules-btn">Rules</button>
+                @endisset
+            </div>
+            <div class="right">
+                {{ $barRight ?? '' }}
+                @isset($fullscreenToggle)
+                    <button type="button" id="chrome-toggle-btn" class="fullscreen-toggle" aria-pressed="false" aria-label="Hide menu bars for fullscreen">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" aria-hidden="true">
+                            <g class="icon-expand">
+                                <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+                                <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
+                                <path d="M3 16v3a2 2 0 0 0 2 2h3" />
+                                <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+                            </g>
+                            <g class="icon-collapse">
+                                <path d="M8 3v3a2 2 0 0 1-2 2H3" />
+                                <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
+                                <path d="M3 16h3a2 2 0 0 1 2 2v3" />
+                                <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
+                            </g>
+                        </svg>
+                    </button>
+                @endisset
+            </div>
+        </div>
 
-        <footer class="fixed inset-x-0 bottom-0 flex justify-between gap-8 px-4 py-3 border-t border-surface-border bg-bg text-xs tracking-wide">
-            <a href="{{ url('/') }}" class="text-text/65 hover:text-text">Low Stim Play</a>
-            <button type="button" data-theme-toggle class="text-text/65 hover:text-text">Light theme</button>
+        @isset($rules)
+            <dialog class="rules-dialog" id="rules-dialog" aria-labelledby="rules-dialog-title" tabindex="-1">
+                <div class="rules-dialog-header">
+                    <div class="rules-dialog-title" id="rules-dialog-title">{{ $rulesTitle ?? 'Rules' }}</div>
+                    <button type="button" class="rules-dialog-close" id="rules-dialog-close" aria-label="Close">&times;</button>
+                </div>
+
+                {{ $rules }}
+            </dialog>
+        @endisset
+
+        {{ $slot ?? '' }}
+        @yield('content')
+
+        <footer class="site-footer">
+            <a href="{{ route('about') }}">About</a>
+            <a href="https://ko-fi.com/philliprearick" target="_blank" rel="noopener">Support Me</a>
+            <button type="button" data-theme-toggle class="theme-toggle" aria-label="Switch to light theme">Light Theme</button>
         </footer>
 
         @livewireScripts

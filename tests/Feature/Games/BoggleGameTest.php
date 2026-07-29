@@ -84,7 +84,11 @@ test('submitting a valid word scores points and records it as found', function (
         ->assertSet('path', [])
         ->assertSet('foundWords', ['cat' => 1])
         ->assertSet('score', 1)
-        ->assertSet('message', '+1 point!');
+        // Matches legacy/boggle.html: a successful submit doesn't show a
+        // transient message at all -- the score/found-words list updating
+        // is the only feedback. Only failures (too short, already found,
+        // not a word) set a status message.
+        ->assertSet('message', null);
 });
 
 test('submitting an already-found word is rejected', function () {
@@ -114,6 +118,25 @@ test('submitting a path that spells a non-word is rejected', function () {
         ->call('submitWord')
         ->assertSet('score', 0)
         ->assertSet('message', 'Not a word.');
+});
+
+test('submitPath sets the whole path at once and submits it, as the client-side drag interaction does', function () {
+    Livewire::test('pages::boggle.play', ['size' => 4, 'minutes' => 3])
+        ->set('board', boggleCatsBoard())
+        ->call('submitPath', [0, 1, 2])
+        ->assertSet('foundWords', ['cat' => 1])
+        ->assertSet('score', 1);
+});
+
+test('submitPath discards anything after the first non-adjacent or duplicate index', function () {
+    Livewire::test('pages::boggle.play', ['size' => 4, 'minutes' => 3])
+        ->set('board', boggleCatsBoard())
+        // 0 and 2 are adjacent (every cell is mutually adjacent on this
+        // fixture), but a repeated 0 breaks the chain there -- only [0, 2]
+        // should survive, spelling "ct", which is too short to score.
+        ->call('submitPath', [0, 2, 0, 1])
+        ->assertSet('score', 0)
+        ->assertSet('message', 'Too short.');
 });
 
 test('ending the game reveals all valid words and records a solo game session', function () {

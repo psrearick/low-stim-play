@@ -6,9 +6,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const themeToggle = document.querySelector('[data-theme-toggle]');
 
     if (themeToggle) {
+        const meta = document.querySelector('meta[name="theme-color"]');
+
         const setLabel = () => {
             const isLight = document.documentElement.classList.contains('dark') === false;
-            themeToggle.textContent = isLight ? 'Dark theme' : 'Light theme';
+            themeToggle.textContent = isLight ? 'Dark Theme' : 'Light Theme';
+            themeToggle.setAttribute('aria-label', isLight ? 'Switch to dark theme' : 'Switch to light theme');
+            if (meta) {
+                meta.setAttribute('content', isLight ? '#e9ebee' : '#2c3035');
+            }
         };
 
         setLabel();
@@ -17,6 +23,54 @@ document.addEventListener('DOMContentLoaded', () => {
             const isDark = document.documentElement.classList.toggle('dark');
             localStorage.setItem('theme', isDark ? 'dark' : 'light');
             setLabel();
+        });
+    }
+
+    const rulesBtn = document.getElementById('rules-btn');
+    const rulesDialog = document.getElementById('rules-dialog');
+    const rulesDialogClose = document.getElementById('rules-dialog-close');
+
+    if (rulesBtn && rulesDialog) {
+        rulesBtn.addEventListener('click', () => {
+            rulesDialog.showModal();
+            // Avoids an unexplained focus ring landing on the close button --
+            // showModal() would otherwise auto-focus it as the first
+            // focusable element in the dialog. Focusing the dialog itself
+            // keeps Tab cycling through its controls without singling out
+            // the close button as the default one.
+            rulesDialog.focus();
+        });
+
+        rulesDialogClose?.addEventListener('click', () => rulesDialog.close());
+
+        rulesDialog.addEventListener('click', (event) => {
+            if (event.target === rulesDialog) {
+                rulesDialog.close();
+            }
+        });
+    }
+
+    const chromeToggleBtn = document.getElementById('chrome-toggle-btn');
+
+    if (chromeToggleBtn) {
+        let hidden = false;
+
+        const applyChrome = () => {
+            document.body.classList.toggle('chrome-hidden', hidden);
+            chromeToggleBtn.setAttribute('aria-pressed', hidden ? 'true' : 'false');
+            chromeToggleBtn.setAttribute('aria-label', hidden ? 'Show menu bars' : 'Hide menu bars for fullscreen');
+        };
+
+        chromeToggleBtn.addEventListener('click', () => {
+            hidden = !hidden;
+            applyChrome();
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && hidden) {
+                hidden = false;
+                applyChrome();
+            }
         });
     }
 

@@ -15,6 +15,10 @@ use Livewire\Component;
 
 new class extends Component
 {
+    private const WIDE = ['W', 'M', 'Qu'];
+
+    private const DESCENDER = ['Qu'];
+
     #[Url]
     public int $size = 4;
 
@@ -67,7 +71,13 @@ new class extends Component
     public array $board = [];
 
     /**
-     * Indices of the board cells selected so far, in order.
+     * Indices of the board cells selected so far, in order. Only ever
+     * populated as a whole by `submitPath()` -- the real drag/tap
+     * interaction (see the @script block below) tracks the in-progress
+     * path entirely client-side for a responsive feel, and reports the
+     * finished path in a single round trip once a word is ready to submit.
+     * `selectCell()`/`clearPath()` below remain as a step-at-a-time
+     * fallback API (and are what the test suite drives directly).
      *
      * @var list<int>
      */
@@ -144,6 +154,50 @@ new class extends Component
         $this->path = [];
     }
 
+    /**
+     * Sets the whole path at once (each index re-validated for adjacency
+     * and uniqueness server-side, same rules as `selectCell()`) and
+     * immediately submits it -- the single round trip the client-side drag
+     * interaction makes once a word is ready.
+     *
+     * @param  list<int>  $path
+     */
+    public function submitPath(array $path, Solver $solver, Scorer $scorer): void
+    {
+        if ($this->ended) {
+            return;
+        }
+
+        $this->path = $this->sanitizePath($path);
+        $this->submitWord($solver, $scorer);
+    }
+
+    /**
+     * @param  list<int>  $path
+     * @return list<int>
+     */
+    private function sanitizePath(array $path): array
+    {
+        $cellCount = count($this->board['cells']);
+        $clean = [];
+
+        foreach ($path as $raw) {
+            $index = (int) $raw;
+
+            if ($index < 0 || $index >= $cellCount || in_array($index, $clean, true)) {
+                break;
+            }
+
+            if ($clean !== [] && ! in_array($index, $this->board['neighbors'][end($clean)], true)) {
+                break;
+            }
+
+            $clean[] = $index;
+        }
+
+        return $clean;
+    }
+
     public function submitWord(Solver $solver, Scorer $scorer): void
     {
         if ($this->ended || $this->path === []) {
@@ -178,14 +232,7 @@ new class extends Component
         $points = $scorer->pointsFor($word);
         $this->foundWords[$word] = $points;
         $this->score += $points;
-        $this->message = "+{$points} point".($points === 1 ? '' : 's').'!';
-    }
-
-    public function tick(): void
-    {
-        if (! $this->ended && $this->endsAt !== null && now()->timestamp >= $this->endsAt) {
-            $this->endGame();
-        }
+        $this->message = null;
     }
 
     public function endGame(Solver $solver): void
@@ -292,103 +339,437 @@ new class extends Component
 
         return max(0, $this->endsAt - now()->timestamp);
     }
+
+    public function getTimerDisplayProperty(): string
+    {
+        $remaining = $this->remainingSeconds;
+
+        if ($remaining === null) {
+            return '∞';
+        }
+
+        return sprintf('%d:%02d', intdiv($remaining, 60), $remaining % 60);
+    }
+
+    public function getTimerLowProperty(): bool
+    {
+        return $this->remainingSeconds !== null && $this->remainingSeconds <= 30;
+    }
+
+    /**
+     * All valid words grouped by length, ascending -- used by the
+     * post-game reveal panel.
+     *
+     * @return array<int, list<string>>
+     */
+    public function getWordsByLengthProperty(): array
+    {
+        $groups = [];
+
+        foreach ($this->allValidWords ?? [] as $word) {
+            $groups[mb_strlen($word)][] = $word;
+        }
+
+        ksort($groups);
+
+        return $groups;
+    }
+
+    public function letterClass(string $display): string
+    {
+        $classes = ['letter'];
+
+        if (in_array($display, self::WIDE, true)) {
+            $classes[] = 'wide';
+        }
+
+        if (in_array($display, self::DESCENDER, true)) {
+            $classes[] = 'descender';
+        }
+
+        return implode(' ', $classes);
+    }
 };
 ?>
 
-<div class="flex flex-col items-center gap-6 w-full max-w-2xl">
-    @if (! $ended && $endsAt !== null)
-        <div wire:poll.1s="tick"></div>
-    @endif
+<x-slot:title>Boggle — Low Stim Play</x-slot>
+<x-slot:description>Play Boggle online — a shuffled 4x4 or 5x5 letter grid, timed or untimed, with calm low-contrast visuals and no flashing or motion.</x-slot>
+<x-slot:bodyClass>boggle-play</x-slot:bodyClass>
+<x-slot:fullscreenToggle>1</x-slot:fullscreenToggle>
+<x-slot:rulesTitle>Boggle Rules</x-slot:rulesTitle>
+<x-slot:rules>
+    <h3>How to Use This Page</h3>
+    <ul>
+        <li>Choose a board size and time limit (or switch to Untimed), then press Start Game.</li>
+        <li>Drag across adjacent letters, or tap them one at a time, to spell a word.</li>
+        <li>Tap the last letter again, or press Enter, to submit the word. Press Escape or Backspace to clear or undo your selection.</li>
+        <li>The HUD shows time remaining (or &infin; if untimed), your score, and words found.</li>
+        <li>Press End Game any time to stop early &mdash; a timed game also ends on its own when the clock runs out.</li>
+        <li>When the game ends, every word the board could have made is revealed, with the ones you found marked.</li>
+    </ul>
 
-    <div class="flex items-center justify-between w-full max-w-md text-sm text-text/80">
-        <a href="{{ route('boggle.lobby') }}" class="hover:text-text">&larr; Home</a>
-        <span>Score: <span class="text-accent font-bold">{{ $score }}</span></span>
-        <span>
-            @if ($this->remainingSeconds === null)
-                Untimed
-            @else
-                {{ sprintf('%d:%02d', intdiv($this->remainingSeconds, 60), $this->remainingSeconds % 60) }}
-            @endif
-        </span>
+    <h3>Full Rules</h3>
+    <ul>
+        <li>The board is a grid of lettered dice (4&times;4 "Classic" or 5&times;5 "Big"), freshly shuffled every game.</li>
+        <li>Build a word by chaining letters that are adjacent to each other, including diagonally. Each die can only be used once per word.</li>
+        <li>Words must be at least 3 letters long. "Qu" on a die counts as one letter, standing in for both Q and U (e.g. "Qu" + "I" + "T" spells QUIT).</li>
+        <li>Only real dictionary words count, checked against the game's built-in word list. Each word only scores once per game.</li>
+        <li>Scoring is by word length: 3&ndash;4 letters = 1 point, 5 = 2, 6 = 3, 7 = 5, 8 or more = 11 points.</li>
+    </ul>
+</x-slot:rules>
+<x-slot:barRight>
+    @unless ($ended)
+        <button type="button" wire:click="endGame">End Game</button>
+    @else
+        <button type="button" wire:click="resetGame" @if($isSharedSession) disabled @endif>New Game</button>
+    @endunless
+</x-slot:barRight>
+
+<div>
+    <div id="game" class="{{ $ended ? 'with-list' : '' }}">
+        <div class="hud">
+            <div class="hud-item">
+                <div class="hud-label">TIME</div>
+                <div class="hud-value timer {{ $this->timerLow ? 'low' : '' }}" id="timer-value">{{ $this->timerDisplay }}</div>
+            </div>
+            <div class="hud-item">
+                <div class="hud-label">SCORE</div>
+                <div class="hud-value">{{ $score }}</div>
+            </div>
+            <div class="hud-item">
+                <div class="hud-label">WORDS</div>
+                <div class="hud-value">{{ $ended ? count($foundWords).' / '.count($allValidWords ?? []) : count($foundWords) }}</div>
+            </div>
+        </div>
+
+        <div class="board-area" id="board-area">
+            <div class="grid-stack">
+                <div class="grid {{ $ended ? 'inactive' : '' }}" id="grid"
+                    style="grid-template-columns: repeat({{ $size }}, minmax(0, 1fr));">
+                    @foreach ($board['cells'] as $cell)
+                        <div class="die" data-index="{{ $cell['index'] }}" wire:key="die-{{ $cell['index'] }}">
+                            <span class="{{ $this->letterClass($cell['display']) }}">{{ $cell['display'] }}</span>
+                            <span class="order-badge"></span>
+                        </div>
+                    @endforeach
+                </div>
+                <div class="status-line" id="status-line">{{ $message ?? 'Drag or tap adjacent letters to build a word.' }}</div>
+            </div>
+
+            <div class="word-list-panel" id="word-list-panel">
+                @unless ($ended)
+                    <div class="title" id="word-list-title">Words Found</div>
+                    <ul class="word-list" id="found-list">
+                        @foreach ($foundWords as $word => $points)
+                            <li wire:key="found-{{ $word }}">{{ strtoupper($word) }} ({{ $points }})</li>
+                        @endforeach
+                    </ul>
+                @else
+                    <div class="title" id="word-list-title">All Possible Words ({{ count($allValidWords ?? []) }})</div>
+                    <div class="word-columns" id="word-columns">
+                        @foreach ($this->wordsByLength as $length => $words)
+                            <div class="word-column">
+                                <div class="word-column-header">{{ $length }} letters</div>
+                                <ul class="word-list">
+                                    @foreach ($words as $word)
+                                        <li wire:key="reveal-{{ $word }}" class="{{ isset($foundWords[$word]) ? 'found' : '' }}">
+                                            {{ strtoupper($word) }}
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            </div>
+                        @endforeach
+                    </div>
+                @endunless
+            </div>
+        </div>
     </div>
 
-    @if (! $ended)
-        <div class="grid gap-2" style="grid-template-columns: repeat({{ $size }}, minmax(0, 1fr));">
-            @foreach ($board['cells'] as $cell)
-                <button type="button" wire:click="selectCell({{ $cell['index'] }})"
-                    class="aspect-square w-14 sm:w-16 rounded border-2 font-bold text-xl uppercase
-                        {{ in_array($cell['index'], $path, true) ? 'bg-accent text-bg border-accent' : 'bg-surface text-text border-surface-border' }}">
-                    {{ $cell['display'] }}
-                </button>
-            @endforeach
-        </div>
-
-        <div class="flex flex-col items-center gap-2 w-full max-w-md">
-            <p class="min-h-6 text-lg tracking-widest uppercase text-text/80">
-                {{ implode('', array_map(fn ($i) => $board['cells'][$i]['display'], $path)) }}
-            </p>
-
-            @if ($message)
-                <p class="text-sm text-accent">{{ $message }}</p>
+    @if ($ended)
+        <div class="flex flex-col items-center gap-4 w-full max-w-md" style="margin-top: clamp(12px, 2.2vmin, 26px);">
+            @if ($challenge !== null)
+                <div class="flex flex-col items-center gap-2 w-full text-sm" style="color: var(--ink);">
+                    @forelse ($this->otherParticipants as $participant)
+                        <p>{{ $participant->user->name ?? $participant->guest_name }} scored {{ $participant->score }}.</p>
+                    @empty
+                        <p>Waiting for the other player to finish.</p>
+                    @endforelse
+                </div>
             @endif
 
-            <div class="flex gap-2 w-full">
-                <button type="button" wire:click="clearPath" class="flex-1 rounded px-4 py-2 font-bold bg-surface border-2 border-surface-border text-text">
-                    Clear
-                </button>
-                <button type="button" wire:click="submitWord" class="flex-1 rounded px-4 py-2 font-bold bg-accent text-bg">
-                    Submit
-                </button>
-            </div>
-
-            <button type="button" wire:click="endGame" class="text-sm text-text/65 hover:text-text">
-                End game
-            </button>
-        </div>
-
-        <ul class="flex flex-wrap gap-2 justify-center text-sm text-text/80">
-            @foreach ($foundWords as $word => $points)
-                <li wire:key="found-{{ $word }}" class="rounded bg-surface border border-surface-border px-2 py-1">
-                    {{ strtoupper($word) }} ({{ $points }})
-                </li>
-            @endforeach
-        </ul>
-    @else
-        <livewire:boggle-reveal :board="$board" :found-words="$foundWords" :all-valid-words="$allValidWords" :score="$score" />
-
-        @if ($challenge !== null)
-            <div class="flex flex-col items-center gap-2 w-full max-w-md text-sm text-text/80">
-                @forelse ($this->otherParticipants as $participant)
-                    <p>{{ $participant->user->name ?? $participant->guest_name }} scored {{ $participant->score }}.</p>
-                @empty
-                    <p class="text-text/65">Waiting for the other player to finish.</p>
-                @endforelse
-            </div>
-        @endif
-
-        @if ($room !== null)
-            <a href="{{ route('boggle.room', ['code' => $room]) }}" class="w-full max-w-md text-center rounded px-6 py-2 font-bold tracking-wide bg-accent text-bg">
-                Back to room
-            </a>
-        @elseif ($challenge !== null)
-            <a href="{{ route('boggle.lobby') }}" class="w-full max-w-md text-center rounded px-6 py-2 font-bold tracking-wide bg-accent text-bg">
-                Back home
-            </a>
-        @else
-            <div class="flex flex-col gap-2 w-full max-w-md">
+            @if ($room !== null)
+                <a href="{{ route('boggle.room', ['code' => $room]) }}"><button type="button">Back to room</button></a>
+            @elseif ($challenge !== null)
+                <a href="{{ route('boggle.lobby') }}"><button type="button">Back home</button></a>
+            @else
                 <div class="flex gap-2 w-full">
                     <input type="text" readonly value="{{ route('boggle.share', ['gameSession' => $gameSessionId]) }}"
-                        onclick="this.select()" class="flex-1 rounded border-2 border-surface-border bg-bg text-text px-3 py-2 text-sm">
-                    <button type="button" data-copy="{{ route('boggle.share', ['gameSession' => $gameSessionId]) }}"
-                        class="rounded px-4 py-2 font-bold bg-surface border-2 border-surface-border text-text">
+                        onclick="this.select()" style="flex: 1;">
+                    <button type="button" data-copy="{{ route('boggle.share', ['gameSession' => $gameSessionId]) }}">
                         Copy
                     </button>
                 </div>
-
-                <button type="button" wire:click="resetGame" class="w-full rounded px-6 py-2 font-bold tracking-wide bg-accent text-bg">
-                    New game
-                </button>
-            </div>
-        @endif
+            @endif
+        </div>
     @endif
 </div>
+
+@script
+<script>
+    const gridEl = document.getElementById('grid');
+    const statusLineEl = document.getElementById('status-line');
+
+    // body's own reactively-toggled classes (rather than server-rendered,
+    // since a Livewire round trip only re-renders this component's own
+    // root element -- <body>, sitting outside it in the surrounding
+    // layout, never gets touched by that diff) -- matches legacy/
+    // boggle.html's startGame()/endGame() toggling document.body's
+    // classList directly instead.
+    document.body.classList.toggle('in-game', !$wire.ended);
+    $wire.$watch('ended', (ended) => {
+        document.body.classList.toggle('in-game', !ended);
+    });
+
+    // Countdown runs entirely client-side (matching legacy/boggle.html's
+    // own setInterval), rather than a wire:poll round trip every second --
+    // a periodic full-component re-render while a drag might be mid-flight
+    // would let Livewire's morph step clobber the .selected/order-badge
+    // state that JS alone is managing between submits. endGame() is only
+    // ever called once, right when time actually runs out.
+    const timerValueEl = document.getElementById('timer-value');
+    let endsAt = $wire.endsAt;
+    let timerInterval = null;
+
+    function updateTimerDisplay() {
+        if (endsAt === null) {
+            timerValueEl.textContent = '∞';
+            timerValueEl.classList.remove('low');
+            return;
+        }
+        const remaining = Math.max(0, Math.round(endsAt - Date.now() / 1000));
+        const m = Math.floor(remaining / 60);
+        const s = remaining % 60;
+        timerValueEl.textContent = m + ':' + String(s).padStart(2, '0');
+        timerValueEl.classList.toggle('low', remaining <= 30);
+        if (remaining <= 0 && !$wire.ended) {
+            clearInterval(timerInterval);
+            $wire.endGame();
+        }
+    }
+
+    function startTimerLoop() {
+        clearInterval(timerInterval);
+        updateTimerDisplay();
+        if (endsAt !== null) {
+            timerInterval = setInterval(updateTimerDisplay, 1000);
+        }
+    }
+
+    startTimerLoop();
+
+    $wire.$watch('endsAt', (value) => {
+        endsAt = value;
+        startTimerLoop();
+    });
+
+    $wire.$watch('ended', (ended) => {
+        if (ended) {
+            clearInterval(timerInterval);
+        }
+    });
+
+    let path = [];
+    let pointerActive = false;
+    let dragMoved = false;
+    let tapOnTail = false;
+    let lastRawPos = null;
+    let dieCenters = [];
+    let dieHitRadius = 0;
+
+    // Discounts a diagonal candidate's effective distance so a hand-drawn
+    // diagonal drag (never a perfect 45° line) still resolves to the
+    // diagonal die rather than whichever orthogonal neighbor the pointer
+    // strayed closer to -- see legacy/boggle.html's nearestCandidateCell
+    // for the full reasoning.
+    const DIAGONAL_BIAS = 0.65;
+
+    function cacheDieCenters() {
+        dieCenters = [];
+        let size = 0;
+        gridEl.querySelectorAll('.die').forEach((dieEl) => {
+            const idx = Number(dieEl.dataset.index);
+            const r = dieEl.getBoundingClientRect();
+            dieCenters[idx] = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+            size = r.width;
+        });
+        dieHitRadius = size * 1.6;
+    }
+
+    function renderPathHighlight() {
+        gridEl.querySelectorAll('.die').forEach((dieEl) => {
+            const index = Number(dieEl.dataset.index);
+            const pos = path.indexOf(index);
+            dieEl.classList.toggle('selected', pos !== -1);
+            const badge = dieEl.querySelector('.order-badge');
+            if (badge) {
+                badge.textContent = pos !== -1 ? String(pos + 1) : '';
+            }
+        });
+    }
+
+    function resetSelection() {
+        path = [];
+        renderPathHighlight();
+    }
+
+    function stepPath(index, allowRestart) {
+        const neighborsOf = $wire.board.neighbors;
+        const posInPath = path.indexOf(index);
+        if (posInPath !== -1) {
+            if (posInPath === path.length - 1) {
+                return false;
+            }
+            path = path.slice(0, posInPath + 1);
+            return true;
+        }
+        if (path.length === 0) {
+            path.push(index);
+            return true;
+        }
+        const last = path[path.length - 1];
+        if (neighborsOf[last].includes(index)) {
+            path.push(index);
+            return true;
+        }
+        if (allowRestart) {
+            path = [index];
+            return true;
+        }
+        return false;
+    }
+
+    function nearestCandidateCell(x, y) {
+        if (path.length === 0) {
+            return null;
+        }
+        const neighborsOf = $wire.board.neighbors;
+        const cells = $wire.board.cells;
+        const lastIndex = path[path.length - 1];
+        const lastCell = cells[lastIndex];
+        const candidates = new Set([lastIndex, ...neighborsOf[lastIndex], ...path]);
+        let best = null;
+        let bestScore = Infinity;
+        candidates.forEach((i) => {
+            const c = dieCenters[i];
+            if (!c) {
+                return;
+            }
+            let dist = Math.hypot(c.x - x, c.y - y);
+            const cell = cells[i];
+            const isDiagonal = Math.abs(cell.row - lastCell.row) === 1 && Math.abs(cell.col - lastCell.col) === 1;
+            if (isDiagonal) {
+                dist *= DIAGONAL_BIAS;
+            }
+            if (dist < bestScore) {
+                bestScore = dist;
+                best = i;
+            }
+        });
+        if (best === null || bestScore > dieHitRadius) {
+            return null;
+        }
+        return best;
+    }
+
+    function processDragPoint(x, y) {
+        const index = nearestCandidateCell(x, y);
+        if (index === null) {
+            return;
+        }
+        if (path.length && index === path[path.length - 1]) {
+            return;
+        }
+        if (stepPath(index, false)) {
+            dragMoved = true;
+            renderPathHighlight();
+        }
+    }
+
+    function submitCurrentPath() {
+        const submittedPath = path;
+        resetSelection();
+        $wire.submitPath(submittedPath).then(() => {
+            statusLineEl.textContent = $wire.message || 'Drag or tap adjacent letters to build a word.';
+        });
+    }
+
+    gridEl.addEventListener('pointerdown', (e) => {
+        if ($wire.ended) {
+            return;
+        }
+        const dieEl = e.target.closest('.die');
+        if (!dieEl) {
+            return;
+        }
+        pointerActive = true;
+        dragMoved = false;
+        cacheDieCenters();
+        gridEl.setPointerCapture(e.pointerId);
+        const index = Number(dieEl.dataset.index);
+        tapOnTail = path.length > 0 && path[path.length - 1] === index;
+        if (!tapOnTail) {
+            stepPath(index, true);
+            renderPathHighlight();
+        }
+        lastRawPos = { x: e.clientX, y: e.clientY };
+    });
+
+    gridEl.addEventListener('pointermove', (e) => {
+        if ($wire.ended || !pointerActive) {
+            return;
+        }
+        const to = { x: e.clientX, y: e.clientY };
+        const from = lastRawPos || to;
+        const dist = Math.hypot(to.x - from.x, to.y - from.y);
+        const steps = Math.max(1, Math.ceil(dist / (dieHitRadius / 3 || 20)));
+        for (let s = 1; s <= steps; s++) {
+            const t = s / steps;
+            processDragPoint(from.x + (to.x - from.x) * t, from.y + (to.y - from.y) * t);
+        }
+        lastRawPos = to;
+    });
+
+    function endPointerInteraction() {
+        if (!pointerActive) {
+            return;
+        }
+        pointerActive = false;
+        lastRawPos = null;
+        if (!$wire.ended && (dragMoved || tapOnTail)) {
+            submitCurrentPath();
+        }
+        dragMoved = false;
+        tapOnTail = false;
+    }
+
+    gridEl.addEventListener('pointerup', endPointerInteraction);
+    gridEl.addEventListener('pointercancel', endPointerInteraction);
+
+    document.addEventListener('keydown', (e) => {
+        if ($wire.ended) {
+            return;
+        }
+        if (e.key === 'Enter') {
+            if (path.length) {
+                submitCurrentPath();
+            }
+        } else if (e.key === 'Escape') {
+            resetSelection();
+            statusLineEl.textContent = 'Drag or tap adjacent letters to build a word.';
+        } else if (e.key === 'Backspace') {
+            path.pop();
+            renderPathHighlight();
+        }
+    });
+</script>
+@endscript

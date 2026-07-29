@@ -1,51 +1,48 @@
-@extends('layouts.app')
+@component('layouts.app')
+    @slot('title')
+        Low Stim Play
+    @endslot
 
-@section('content')
-    <div class="flex flex-col items-center gap-8 w-full max-w-4xl">
-        <div class="flex flex-col items-center gap-3 text-center">
-            <h1 class="text-accent font-bold tracking-wide text-3xl">Low Stim Play</h1>
-            <p class="text-text/80 max-w-md">
-                A small collection of quiet games. Low contrast, no motion, built to be gentle on sensitive eyes and heads.
-            </p>
-        </div>
+    <div class="heading">Low Stim Play</div>
 
-        <div class="flex flex-wrap justify-center gap-6 w-full">
-            <div class="flex flex-col items-center gap-3 bg-surface border-2 border-surface-border rounded-lg p-6 flex-1 basis-64 max-w-sm">
-                <h2 class="text-accent font-bold tracking-wide text-lg">Boggle</h2>
-                <p class="text-sm text-text/80 text-center">
-                    A shuffled 4&times;4 or 5&times;5 letter grid. Play solo, host an online room, or challenge a friend.
-                </p>
-                <a href="{{ route('boggle.lobby') }}" class="w-full text-center rounded px-6 py-2 font-bold tracking-wide bg-accent text-bg">
-                    Play Boggle
-                </a>
-            </div>
-
-            <div class="flex flex-col items-center gap-3 bg-surface border-2 border-surface-border rounded-lg p-6 flex-1 basis-64 max-w-sm">
-                <h2 class="text-accent font-bold tracking-wide text-lg">Yahtzee</h2>
-                <p class="text-sm text-text/80 text-center">
-                    A full scorecard for 1&ndash;8 players, pass-and-play on one device.
-                </p>
-                <a href="{{ route('yahtzee.play') }}" class="w-full text-center rounded px-6 py-2 font-bold tracking-wide bg-accent text-bg">
-                    Play Yahtzee
-                </a>
-            </div>
-
-            <div class="flex flex-col items-center gap-3 bg-surface border-2 border-surface-border rounded-lg p-6 flex-1 basis-64 max-w-sm">
-                <h2 class="text-accent font-bold tracking-wide text-lg">Family Feud</h2>
-                <p class="text-sm text-text/80 text-center">
-                    One shared screen for game night &mdash; an AI judges guesses, so there's no hidden host view to manage.
-                </p>
-                <a href="{{ route('family-feud.play') }}" class="w-full text-center rounded px-6 py-2 font-bold tracking-wide bg-accent text-bg">
-                    Play Family Feud
-                </a>
-            </div>
-        </div>
-
-        @guest
-            <p class="text-sm text-text/65">
-                <a href="{{ route('register') }}" class="underline hover:text-text">Create an account</a> to track your
-                games and stats, or <a href="{{ route('login') }}" class="underline hover:text-text">sign in</a>.
-            </p>
-        @endguest
+    <div class="intro">
+        <p>A small collection of quiet games. Low contrast, no motion, built to be gentle on sensitive eyes and heads. <a href="{{ route('about') }}">Read why</a>.</p>
     </div>
-@endsection
+
+    <div class="game-grid">
+        <div class="game-card">
+            <div class="game-card-title">Boggle</div>
+            <p class="game-card-desc">A shuffled 4&times;4 or 5&times;5 letter grid. Play it yourself, or put it on a shared screen and find words together as a group.</p>
+            <div class="game-card-actions">
+                <a href="{{ route('boggle.lobby') }}"><button type="button">Boggle</button></a>
+                <a href="{{ route('boggle.group') }}"><button type="button">Boggle (Group Play)</button></a>
+            </div>
+        </div>
+        <div class="game-card">
+            <div class="game-card-title">Yahtzee</div>
+            <p class="game-card-desc">A full scorecard for 1&ndash;8 players, or just the dice if you're keeping score by hand.</p>
+            <div class="game-card-actions">
+                <a href="{{ route('yahtzee.play') }}"><button type="button">Yahtzee</button></a>
+                <a href="{{ route('yahtzee.roller') }}"><button type="button">Yahtzee (Dice Only)</button></a>
+            </div>
+        </div>
+        <div class="game-card">
+            <div class="game-card-title">Family Feud</div>
+            <p class="game-card-desc">A single shared screen for family game night &mdash; an AI judges guesses server-side, so there's no hidden host view to manage.</p>
+            <div class="game-card-actions">
+                <a href="{{ route('family-feud.play') }}"><button type="button">Family Feud</button></a>
+            </div>
+        </div>
+    </div>
+
+    @guest
+        <p class="home-account-links">
+            <a href="{{ route('register') }}">Create an account</a> to track your games and stats, or
+            <a href="{{ route('login') }}">sign in</a>.
+        </p>
+    @else
+        <p class="home-account-links">
+            <a href="{{ route('dashboard') }}">Your dashboard</a>
+        </p>
+    @endguest
+@endcomponent

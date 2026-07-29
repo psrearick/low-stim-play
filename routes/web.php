@@ -8,6 +8,8 @@ Route::get('/', function () {
     return view('welcome');
 });
 
+Route::livewire('/about', 'pages::about')->name('about');
+
 Route::livewire('/dashboard', 'pages::dashboard')
     ->middleware(['auth', 'verified'])
     ->name('dashboard');
@@ -23,6 +25,10 @@ Route::livewire('/profile/{username}', 'pages::profile.show')->name('profile.sho
 
 Route::livewire('/boggle', 'pages::boggle.lobby')->name('boggle.lobby');
 Route::livewire('/boggle/play', 'pages::boggle.play')->name('boggle.play');
+
+// Shared-screen, display-only variant (no word entry, no accounts, no
+// server-tracked score) -- mirrors legacy/boggle-static.html exactly.
+Route::livewire('/boggle/group', 'pages::boggle.group')->name('boggle.group');
 
 // Presence channels (see routes/channels.php) require an authenticated
 // user, so online rooms -- unlike solo play -- aren't open to guests.
@@ -49,6 +55,9 @@ Route::get('/boggle/share/{gameSession}', function (GameSession $gameSession) {
 // play (per docs/plan.md) can reuse the Room/GameLobby infrastructure
 // Boggle's online rooms already validated, if wanted later.
 Route::livewire('/yahtzee', 'pages::yahtzee.play')->name('yahtzee.play');
+
+// Dice-only, no scorecard -- mirrors legacy/yahtzee-roller.html exactly.
+Route::livewire('/yahtzee/roller', 'pages::yahtzee.roller')->name('yahtzee.roller');
 
 // Single shared screen, no host/board split (see docs/progress.md notes) --
 // the LLM is the judge, not a person, so there's no hidden information a

@@ -6,31 +6,65 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
- * Low-stim design tokens, ported from legacy/shared.css. Defaults below are the
- * *light* theme; `.dark` (applied to <html>, see resources/js/app.js) overrides
- * them with the muted dark palette, which is this app's default appearance.
- * Lightness values are matched for WCAG contrast between themes, not just
- * mirrored numerically - see legacy/shared.css for the reasoning.
+ * Low-stim design tokens, ported from legacy/shared.css and
+ * legacy/boggle-shared.css. Tailwind's own --color-* tokens below are kept
+ * for pages that don't have a legacy equivalent (auth, dashboard, profile)
+ * and simply alias the same values as the plain-named custom properties
+ * (--bg, --die, --ink, ...), which the verbatim-ported component classes
+ * further down this file use directly, exactly as legacy/*.css does.
+ * Defaults (no class on <html>) are the *light* theme; `.dark` (applied by
+ * default in resources/js/app.js unless 'light' is stored) overrides them
+ * with the muted dark palette that is this app's default appearance.
  */
 @theme {
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
+}
 
-    --color-bg: oklch(0.95 0.012 85);
-    --color-surface: oklch(0.86 0.016 85);
-    --color-surface-border: oklch(from var(--color-surface) calc(l - 0.10) c h);
-    --color-text: oklch(0.54 0.01 85);
-    --color-accent: oklch(0.51 0.10 248.57);
-    --color-warn: oklch(0.55 0.07 55);
+/*
+ * `inline` because these values reference *other* runtime CSS custom
+ * properties (--bg, --die, ... defined below, themselves swapped by
+ * `.dark`) rather than static colors -- a plain @theme block only
+ * partially resolves utilities built from indirected values like this
+ * (observed: `bg-accent` silently failed to generate at all while
+ * `text-accent`/`border-accent` did), exactly the pitfall Tailwind's own
+ * docs call out under "Referencing other variables".
+ */
+@theme inline {
+    --color-bg: var(--bg);
+    --color-surface: var(--die);
+    --color-surface-border: var(--die-border);
+    --color-text: var(--ink);
+    --color-accent: var(--accent);
+    --color-warn: var(--warn);
+}
+
+:root {
+    --bg: oklch(0.95 0.012 85);
+    --die: oklch(0.86 0.016 85);
+    --die-kept: oklch(from var(--die) calc(l - 0.10) c h);
+    --ink: oklch(0.54 0.01 85);
+    --bar: oklch(0.60 0.05 248.57);
+    --die-border: oklch(from var(--die) calc(l - 0.10) c h);
+    --die-shadow: oklch(from var(--bg) calc(l - 0.28) c h / 0.25);
+    --btn: oklch(from var(--die) calc(l - 0.06) c h);
+    --btn-press: oklch(from var(--die) calc(l - 0.14) c h);
+    --accent: oklch(0.51 0.10 248.57);
+    --warn: oklch(0.55 0.07 55);
 }
 
 .dark {
-    --color-bg: oklch(0.3073 0.0106 253.99);
-    --color-surface: oklch(0.3838 0.0143 252.26);
-    --color-surface-border: oklch(from var(--color-surface) calc(l - 0.10) c h);
-    --color-text: oklch(0.624 0.0035 247.86);
-    --color-accent: oklch(0.6969 0.1442 248.57);
-    --color-warn: oklch(0.66 0.06 55);
+    --bg: oklch(0.3073 0.0106 253.99);
+    --die: oklch(0.3838 0.0143 252.26);
+    --die-kept: oklch(from var(--die) calc(l + 0.06) c h);
+    --ink: oklch(0.624 0.0035 247.86);
+    --bar: oklch(0.5969 0.0442 248.57);
+    --die-border: oklch(from var(--die) calc(l - 0.10) c h);
+    --die-shadow: oklch(from var(--bg) calc(l - 0.28) c h / 0.25);
+    --btn: oklch(from var(--die) calc(l - 0.06) c h);
+    --btn-press: oklch(from var(--die) calc(l - 0.14) c h);
+    --accent: oklch(0.6969 0.1442 248.57);
+    --warn: oklch(0.66 0.06 55);
 }
 
 /* No flashing, blinking, or motion of any kind - the whole point of this app. */
@@ -41,10 +75,1006 @@
     transition: none !important;
 }
 
-/* Browsers' default focus ring is a bright saturated blue - exactly the kind
-   of jarring accent this palette avoids. --color-warn reads clearly without
-   adding a new color and isn't already the heading/link accent color. */
+html,
+body {
+    /* Stop horizontal drags near the edges from being interpreted as a
+       back/forward navigation swipe -- without this, an overshot drag
+       rubber-bands (a visible wiggle) or navigates away mid-game. */
+    overscroll-behavior-x: none;
+}
+
+body {
+    background-color: var(--bg);
+    color: var(--ink);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(16px, 3vmin, 40px);
+    padding: 16px;
+    overflow: hidden;
+}
+
+/* For pages whose content can grow past the viewport (a scorecard, a word
+   list) -- content starts below the fixed button bar instead of centering,
+   and the page is allowed to scroll instead of clipping. */
+body.scrollable {
+    justify-content: safe center;
+    gap: clamp(12px, 2.2vmin, 26px);
+    padding-top: clamp(80px, 10vmin, 96px);
+    padding-bottom: calc(clamp(48px, 7vmin, 72px) + env(safe-area-inset-bottom, 0px));
+    overflow-x: hidden;
+    overflow-y: visible;
+}
+
+/* Every browser's default focus ring is a bright, saturated blue -- exactly
+   the kind of jarring accent this whole palette is built to avoid. */
 :focus-visible {
-    outline: 2px solid var(--color-warn);
+    outline: 2px solid var(--warn);
     outline-offset: 2px;
+}
+
+.button-bar {
+    position: fixed;
+    display: flex;
+    justify-content: space-between;
+    right: 0;
+    top: 0;
+    left: 0;
+    padding: calc(1rem + env(safe-area-inset-top, 0px)) 1rem 1rem 1rem;
+    z-index: 2;
+    background: var(--bg);
+    border-bottom: 1px solid var(--die-border);
+}
+
+@media (max-width: 360px) {
+    .button-bar button {
+        padding-left: clamp(8px, 2vmin, 18px);
+        padding-right: clamp(8px, 2vmin, 18px);
+        font-size: clamp(11px, 1.9vmin, 20px);
+    }
+}
+
+@media (max-width: 480px) {
+    .button-bar.many-buttons button {
+        padding-left: clamp(6px, 1.6vmin, 18px);
+        padding-right: clamp(6px, 1.6vmin, 18px);
+        font-size: clamp(10px, 1.7vmin, 20px);
+    }
+
+    .button-bar.many-buttons .left,
+    .button-bar.many-buttons .right {
+        gap: 6px;
+    }
+}
+
+.button-bar .left,
+.button-bar .right {
+    display: flex;
+    gap: 10px;
+}
+
+.status,
+.heading {
+    color: var(--bar);
+    font-size: clamp(20px, 2.6vmin, 30px);
+    font-weight: bold;
+    letter-spacing: 0.08em;
+    user-select: none;
+    text-align: center;
+}
+
+.controls {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: clamp(12px, 2.4vmin, 28px);
+}
+
+/*
+ * `@layer base` (Tailwind's own lowest-priority layer, same as Preflight)
+ * rather than left unlayered -- these are element-type defaults meant to
+ * be overridden by explicit utility classes on pages not yet ported to
+ * the legacy component classes (dashboard, profile, auth, and a few
+ * setup/reveal panels still using bg-accent, px-6, etc, rather than the
+ * plain <button> element they style here). Cascade layers make source
+ * order irrelevant between layered and unlayered rules: an unlayered
+ * utility class always wins over anything in `base` regardless of
+ * specificity, but a plain (unlayered) rule declared here instead would
+ * have beaten every Tailwind utility class outright, since Tailwind's
+ * own utilities live inside its `utilities` layer.
+ */
+@layer base {
+    button {
+        padding: clamp(7px, 1.1vmin, 13px) clamp(18px, 2.8vmin, 34px);
+        font-size: clamp(13px, 1.9vmin, 20px);
+        font-weight: bold;
+        background: var(--btn);
+        color: var(--ink);
+        border: 2px solid var(--die-border);
+        border-radius: clamp(4px, 0.7vmin, 9px);
+        cursor: pointer;
+        letter-spacing: 0.06em;
+        white-space: nowrap;
+    }
+
+    button:active {
+        background: var(--btn-press);
+    }
+
+    button:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+
+    input[type="number"],
+    input[type="text"] {
+        padding: clamp(6px, 1vmin, 11px) clamp(10px, 1.6vmin, 16px);
+        font-size: clamp(13px, 1.9vmin, 18px);
+        background: var(--btn);
+        color: var(--ink);
+        border: 2px solid var(--die-border);
+        border-radius: clamp(4px, 0.7vmin, 9px);
+    }
+
+    input:focus-visible {
+        outline: none;
+    }
+}
+
+/* ---- Site footer (About + support link, shown on every page) ---- */
+.site-footer {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    justify-content: space-between;
+    gap: clamp(16px, 3vmin, 32px);
+    padding: 0.85rem 1rem calc(0.85rem + env(safe-area-inset-bottom, 0px)) 1rem;
+    z-index: 2;
+    background: var(--bg);
+    border-top: 1px solid var(--die-border);
+}
+
+.site-footer a,
+.theme-toggle {
+    color: var(--ink);
+    opacity: 0.65;
+    font-size: clamp(11px, 1.5vmin, 14px);
+    letter-spacing: 0.04em;
+    text-decoration: none;
+}
+
+.site-footer a:hover,
+.site-footer a:focus-visible,
+.theme-toggle:hover,
+.theme-toggle:focus-visible {
+    opacity: 1;
+}
+
+.theme-toggle {
+    background: none;
+    border: none;
+    padding: 0;
+    border-radius: 0;
+    font-weight: normal;
+    cursor: pointer;
+}
+
+.theme-toggle:active {
+    background: none;
+}
+
+/* ---- Rules dialog, opened via the "Rules" button in the button-bar ---- */
+dialog.rules-dialog {
+    margin: auto;
+    background: var(--die);
+    color: var(--ink);
+    border: 2px solid var(--die-border);
+    border-radius: 10px;
+    width: min(94vw, 720px);
+    max-width: min(94vw, 720px);
+    max-height: min(88vh, 720px);
+    overflow-y: auto;
+    padding: clamp(18px, 3vmin, 30px);
+}
+
+dialog.rules-dialog:focus-visible {
+    outline: none;
+}
+
+dialog.rules-dialog::backdrop {
+    background: oklch(from var(--bg) calc(l - 0.2) c h / 0.6);
+    animation: none !important;
+    transition: none !important;
+}
+
+.rules-dialog-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.rules-dialog-title {
+    color: var(--bar);
+    font-weight: bold;
+    letter-spacing: 0.06em;
+    font-size: clamp(19px, 2.7vmin, 25px);
+}
+
+.rules-dialog-close {
+    background: none;
+    border: none;
+    padding: 2px 8px;
+    color: var(--ink);
+    font-size: clamp(18px, 2.4vmin, 22px);
+    font-weight: bold;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: 6px;
+}
+
+.rules-dialog-close:hover,
+.rules-dialog-close:focus-visible {
+    background: var(--btn);
+}
+
+.rules-dialog h3 {
+    color: var(--bar);
+    font-size: clamp(17px, 2.3vmin, 21px);
+    letter-spacing: 0.05em;
+    margin-top: 14px;
+    margin-bottom: 8px;
+}
+
+.rules-dialog h3:first-of-type {
+    margin-top: 0;
+}
+
+.rules-dialog ul {
+    padding-left: 1.2em;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.rules-dialog li {
+    color: var(--ink);
+    font-size: clamp(16px, 2vmin, 19px);
+    line-height: 1.6;
+}
+
+/* ---- Setup panel (used by any game with a pre-game options screen) ---- */
+.setup {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    background: var(--die);
+    border: 2px solid var(--die-border);
+    border-radius: 10px;
+    padding: clamp(20px, 3vmin, 36px);
+    width: min(94vw, 460px);
+}
+
+/* ---- Fullscreen / chrome toggle (button-bar's rightmost button on pages
+   that opt in). See legacy/shared.css for the full rationale. ---- */
+body.scrollable {
+    transition: padding-top 0.4s ease, padding-bottom 0.4s ease !important;
+}
+
+body.scrollable.chrome-hidden {
+    padding-top: calc(1rem + env(safe-area-inset-top, 0px)) !important;
+    padding-bottom: calc(0.85rem + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+.button-bar,
+.site-footer {
+    transition: background-color 0.4s ease, border-color 0.4s ease !important;
+}
+
+body.chrome-hidden .button-bar {
+    background: transparent;
+    border-bottom-color: transparent;
+    pointer-events: none;
+}
+
+body.chrome-hidden .site-footer {
+    background: transparent;
+    border-top-color: transparent;
+    pointer-events: none;
+}
+
+body.chrome-hidden .fullscreen-toggle {
+    pointer-events: auto;
+}
+
+.button-bar .left,
+.site-footer > * {
+    transition: opacity 0.3s ease !important;
+}
+
+.button-bar .right > button:not(#chrome-toggle-btn) {
+    overflow: hidden;
+    max-width: 240px;
+    transition: opacity 0.3s ease, max-width 0.3s ease, padding-left 0.3s ease, padding-right 0.3s ease, border-left-width 0.3s ease, border-right-width 0.3s ease !important;
+}
+
+body.chrome-hidden .button-bar .left,
+body.chrome-hidden .site-footer > * {
+    opacity: 0;
+    pointer-events: none;
+}
+
+body.chrome-hidden .button-bar .right > button:not(#chrome-toggle-btn) {
+    opacity: 0;
+    pointer-events: none;
+    max-width: 0;
+    padding-left: 0;
+    padding-right: 0;
+    border-left-width: 0;
+    border-right-width: 0;
+}
+
+.fullscreen-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: clamp(34px, 7vmin, 46px);
+    height: clamp(34px, 7vmin, 46px);
+    padding: 0;
+    color: var(--ink);
+}
+
+.fullscreen-toggle svg {
+    display: block;
+    width: clamp(18px, 3.4vmin, 24px);
+    height: clamp(18px, 3.4vmin, 24px);
+    transition: opacity 0.2s ease !important;
+}
+
+.fullscreen-toggle .icon-collapse {
+    display: none;
+}
+
+body.chrome-hidden .fullscreen-toggle .icon-expand {
+    display: none;
+}
+
+body.chrome-hidden .fullscreen-toggle .icon-collapse {
+    display: block;
+}
+
+body.chrome-hidden .fullscreen-toggle {
+    background: transparent;
+    border-color: transparent;
+}
+
+body.chrome-hidden .fullscreen-toggle svg {
+    opacity: 0.45;
+}
+
+body.chrome-hidden .fullscreen-toggle:hover svg,
+body.chrome-hidden .fullscreen-toggle:focus-visible svg,
+body.chrome-hidden .fullscreen-toggle:active svg {
+    opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    body.scrollable,
+    .button-bar,
+    .site-footer,
+    .button-bar .left,
+    .button-bar .right > button,
+    .site-footer > *,
+    .fullscreen-toggle svg {
+        transition: none !important;
+    }
+}
+
+/* =====================================================================
+   Boggle-specific shared styles, ported from legacy/boggle-shared.css.
+   Used by both the solo/online play page and the group-play page.
+   ===================================================================== */
+
+button.option {
+    font-weight: normal;
+    letter-spacing: 0.03em;
+}
+
+button.option.active {
+    background: var(--die-kept);
+    color: var(--accent);
+    font-weight: bold;
+}
+
+.setup-row {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+}
+
+.setup-row .label {
+    color: var(--ink);
+    font-weight: bold;
+    letter-spacing: 0.05em;
+    font-size: clamp(13px, 1.8vmin, 17px);
+}
+
+.setup-row.disabled {
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+.option-group {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.dictionary-status {
+    color: var(--ink);
+    font-size: clamp(12px, 1.5vmin, 15px);
+    opacity: 0.85;
+    text-align: center;
+}
+
+.status-line {
+    min-height: 1.2em;
+    font-size: clamp(12px, 1.6vmin, 16px);
+    color: var(--ink);
+    text-align: center;
+}
+
+.board-area {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: center;
+    gap: clamp(16px, 3vmin, 40px);
+    width: 100%;
+}
+
+#game.with-list .grid,
+#boggle-group-game.with-list .grid {
+    width: min(38vw, 48vh);
+    transition: width 0.8s ease !important;
+}
+
+.grid {
+    display: grid;
+    gap: clamp(6px, 1.1vmin, 14px);
+}
+
+.die {
+    aspect-ratio: 1 / 1;
+    background: var(--die);
+    border: 2px solid var(--die-border);
+    border-radius: clamp(5px, 0.9vmin, 12px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 2px 4px 10px var(--die-shadow);
+    position: relative;
+}
+
+.letter {
+    font-weight: bold;
+    color: var(--ink);
+    line-height: 1;
+    user-select: none;
+}
+
+.letter.descender {
+    transform: translateY(-0.07em);
+}
+
+.word-list-panel {
+    background: var(--die);
+    border: 2px solid var(--die-border);
+    border-radius: 10px;
+    padding: clamp(12px, 1.6vmin, 20px);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: fit-content;
+    max-width: min(66vw, 1400px);
+    min-width: 0;
+    overflow-x: hidden;
+}
+
+@media (max-width: 899px) {
+    .word-list-panel {
+        max-width: 94vw;
+    }
+}
+
+.word-list-panel .title {
+    color: var(--bar);
+    font-weight: bold;
+    letter-spacing: 0.06em;
+    font-size: clamp(15px, 2.2vmin, 20px);
+    text-align: center;
+}
+
+.word-columns {
+    display: flex;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    column-gap: clamp(18px, 2vw, 30px);
+    row-gap: clamp(14px, 1.8vmin, 24px);
+}
+
+.word-column {
+    display: flex;
+    flex-direction: column;
+    min-width: 84px;
+}
+
+.word-column-header {
+    color: var(--bar);
+    font-weight: bold;
+    text-align: center;
+    letter-spacing: 0.04em;
+    font-size: clamp(13px, 1.9vmin, 18px);
+    border-bottom: 1px solid var(--die-border);
+    padding-bottom: 4px;
+    margin-bottom: 4px;
+}
+
+.word-list {
+    list-style: none;
+}
+
+.word-list li {
+    color: var(--ink);
+    font-size: clamp(14px, 2vmin, 19px);
+    letter-spacing: 0.04em;
+    margin-bottom: 3px;
+}
+
+.word-list li.found {
+    color: var(--accent);
+    font-weight: bold;
+}
+
+.word-sublists {
+    display: flex;
+    gap: 16px;
+}
+
+.word-sublists .word-list {
+    width: 84px;
+    flex: 0 0 auto;
+}
+
+/* =====================================================================
+   About page, ported from legacy/about.html's own <style> block.
+   ===================================================================== */
+
+.about-content {
+    display: flex;
+    flex-direction: column;
+    gap: clamp(12px, 2vmin, 20px);
+    width: min(94vw, 640px);
+}
+
+.about-content p {
+    color: var(--ink);
+    line-height: 1.6;
+}
+
+/* =====================================================================
+   Home page, ported from legacy/index.html's own <style> block.
+   ===================================================================== */
+
+.intro {
+    width: min(94vw, 640px);
+    text-align: center;
+}
+
+.intro p {
+    color: var(--ink);
+    line-height: 1.6;
+}
+
+.intro a {
+    color: var(--bar);
+}
+
+.game-grid {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: clamp(16px, 3vmin, 32px);
+    width: min(94vw, 900px);
+}
+
+.game-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    background: var(--die);
+    border: 2px solid var(--die-border);
+    border-radius: 10px;
+    padding: clamp(20px, 3vmin, 32px);
+    flex: 1 1 260px;
+    max-width: 340px;
+}
+
+.game-card-title {
+    color: var(--bar);
+    font-size: clamp(18px, 2.2vmin, 24px);
+    font-weight: bold;
+    letter-spacing: 0.06em;
+}
+
+.game-card-desc {
+    color: var(--ink);
+    text-align: center;
+    font-size: clamp(13px, 1.6vmin, 15px);
+    line-height: 1.5;
+}
+
+.game-card-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+}
+
+.game-card-actions button {
+    width: 100%;
+}
+
+.home-account-links {
+    color: var(--ink);
+    opacity: 0.75;
+    font-size: clamp(12px, 1.6vmin, 15px);
+    text-align: center;
+}
+
+.home-account-links a {
+    color: var(--bar);
+}
+
+/* =====================================================================
+   Boggle (Group Play), ported from legacy/boggle-static.html's own
+   <style> block -- bigger letters and a shared-screen-sized grid, since
+   this variant is meant to be read from across a room.
+   ===================================================================== */
+
+#boggle-group-game {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: clamp(10px, 2vmin, 22px);
+    width: 100%;
+}
+
+.timer-bar-wrap {
+    width: min(80vw, 64vh);
+    height: clamp(7px, 1.3vmin, 16px);
+    background: var(--die);
+    border: 1px solid var(--die-border);
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.timer-bar-fill {
+    height: 100%;
+    width: 100%;
+    background: var(--bar);
+}
+
+.timer-bar-fill.low {
+    background: var(--warn);
+}
+
+#boggle-group-game .grid {
+    width: min(80vw, 64vh);
+}
+
+#boggle-group-game .letter {
+    font-size: clamp(24px, 7vmin, 84px);
+}
+
+#boggle-group-game .letter.wide {
+    font-size: clamp(21px, 6.2vmin, 74px);
+}
+
+/* =====================================================================
+   Boggle (solo / online play), ported from legacy/boggle.html's own
+   <style> block.
+   ===================================================================== */
+
+body.scrollable.boggle-play {
+    padding-top: clamp(76px, 10vmin, 96px);
+}
+
+.hud {
+    display: flex;
+    gap: clamp(16px, 4vmin, 48px);
+    justify-content: center;
+}
+
+.hud-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+
+.hud-label {
+    color: var(--ink);
+    font-size: clamp(10px, 1.2vmin, 13px);
+    letter-spacing: 0.1em;
+    opacity: 0.75;
+}
+
+.hud-value {
+    color: var(--bar);
+    font-size: clamp(18px, 3vmin, 30px);
+    font-weight: bold;
+}
+
+.hud-value.timer.low {
+    color: var(--warn);
+}
+
+#game {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: clamp(12px, 2.2vmin, 26px);
+    width: 100%;
+}
+
+.grid-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    width: min(80vw, 60vh);
+}
+
+#game .grid {
+    width: 100%;
+    touch-action: none;
+}
+
+#game .grid.inactive {
+    touch-action: auto;
+}
+
+#game .die {
+    cursor: pointer;
+    user-select: none;
+}
+
+#game .die.selected {
+    background: var(--die-kept);
+    border-color: var(--accent);
+}
+
+#game .grid.has-valid-word .die.selected {
+    border-width: 4px;
+}
+
+#game .letter {
+    font-size: clamp(24px, 6vmin, 72px);
+}
+
+#game .die.selected .letter {
+    color: var(--accent);
+}
+
+#game .letter.wide {
+    font-size: clamp(21px, 5.3vmin, 63px);
+}
+
+.order-badge {
+    position: absolute;
+    top: clamp(3px, 0.8vmin, 8px);
+    left: clamp(3px, 0.8vmin, 8px);
+    font-size: clamp(9px, 1.2vmin, 13px);
+    font-weight: bold;
+    color: var(--accent);
+    line-height: 1;
+}
+
+@media (min-width: 900px) {
+    #game:not(.with-list) #board-area {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        justify-content: center;
+        align-items: start;
+    }
+
+    #game:not(.with-list) #board-area .grid-stack {
+        flex: 0 0 auto;
+    }
+
+    #game:not(.with-list) #board-area .word-list-panel {
+        flex: 0 1 590px;
+        min-width: 0;
+    }
+}
+
+#found-list {
+    display: flex;
+    justify-content: space-evenly;
+    gap: 12px;
+    height: min(55vh, 480px);
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+@media (min-width: 900px) {
+    #found-list {
+        gap: 16px;
+    }
+}
+
+#found-list .word-list {
+    flex: 0 0 auto;
+}
+
+#found-list li {
+    font-size: clamp(11px, 1.6vmin, 14px);
+}
+
+@media (max-width: 899px) {
+    body.scrollable.boggle-play.in-game {
+        height: 100dvh;
+        justify-content: flex-start;
+        overflow-y: hidden;
+        padding-bottom: var(--footer-space, 84px);
+    }
+
+    body.scrollable.boggle-play.in-game #game {
+        flex: 1;
+        min-height: 0;
+    }
+
+    #game:not(.with-list) #found-list {
+        min-height: min(120px, 30vh);
+    }
+}
+
+@media (max-width: 899px) and (orientation: portrait) {
+    #game:not(.with-list) #board-area {
+        flex-direction: column;
+        flex-wrap: nowrap;
+        align-items: center;
+        width: 100%;
+    }
+
+    #game:not(.with-list) #board-area .grid-stack {
+        flex: 0 0 auto;
+        width: min(72vw, 54vh);
+    }
+
+    #game:not(.with-list) #board-area .word-list-panel {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    #game:not(.with-list) #found-list {
+        min-height: min(120px, 30vh);
+    }
+
+    #game.with-list #board-area {
+        flex-direction: column;
+        flex-wrap: nowrap;
+        align-items: center;
+        width: 100%;
+    }
+
+    #game.with-list #board-area .grid-stack {
+        flex: 0 0 auto;
+    }
+
+    #game.with-list .grid {
+        width: 100% !important;
+        transition: none !important;
+    }
+
+    #game.with-list #board-area .word-list-panel {
+        width: 100%;
+        max-width: 100%;
+    }
+}
+
+@media (max-width: 899px) and (orientation: landscape) {
+    #game {
+        gap: 8px;
+    }
+
+    #game:not(.with-list) #board-area {
+        flex-direction: row;
+        flex-wrap: nowrap;
+        align-items: flex-start;
+        justify-content: flex-start;
+        width: 100%;
+    }
+
+    #game:not(.with-list) #board-area .grid-stack {
+        flex: 0 0 auto;
+        width: min(38vw, 48vh);
+    }
+
+    #game:not(.with-list) #board-area .word-list-panel {
+        flex: 1;
+        min-width: 0;
+        width: auto;
+        max-width: none;
+    }
+
+    #game:not(.with-list) #found-list {
+        height: min(38vh, 320px);
+    }
+
+    #game.with-list #board-area {
+        flex-wrap: nowrap;
+        align-items: flex-start;
+        justify-content: flex-start;
+    }
+
+    #game.with-list #board-area .word-list-panel {
+        max-width: min(58vw, 560px);
+    }
+}
+
+/* =====================================================================
+   Yahtzee (Dice Only), ported from legacy/yahtzee-roller.html's own
+   <style> block.
+   ===================================================================== */
+
+.yahtzee-roller .row {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: clamp(8px, 1.6vmin, 20px);
+    width: min(94vw, 1100px);
+}
+
+.yahtzee-roller .die {
+    aspect-ratio: 1 / 1;
+    background: var(--die);
+    border: 2px solid var(--die-border);
+    border-radius: clamp(6px, 1vmin, 14px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 2px 4px 10px var(--die-shadow);
+    position: relative;
+    cursor: pointer;
+}
+
+.yahtzee-roller .die.kept {
+    background: var(--die-kept);
+}
+
+.yahtzee-roller .number {
+    font-size: clamp(30px, 10vmin, 120px);
+    font-weight: bold;
+    color: var(--ink);
+    line-height: 1;
+    user-select: none;
+}
+
+.yahtzee-roller .roll-status {
+    color: var(--ink);
+    font-size: clamp(13px, 1.6vmin, 16px);
+    font-weight: normal;
 }
