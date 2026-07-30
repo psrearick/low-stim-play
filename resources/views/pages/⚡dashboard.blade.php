@@ -18,6 +18,8 @@ new class extends Component
 };
 ?>
 
+<x-slot:title>Dashboard — Low Stim Play</x-slot>
+
 <div class="flex flex-col items-center gap-6 w-full max-w-2xl">
     <div class="flex items-center gap-4 w-full">
         <x-avatar :name="auth()->user()->name" />
@@ -37,15 +39,11 @@ new class extends Component
 
     <x-player-stats :stats="$this->stats" :recent-games="$this->recentGames" />
 
-    <div class="flex gap-2 w-full max-w-md">
-        <a href="{{ route('profile') }}" class="flex-1 text-center rounded px-6 py-2 font-bold tracking-wide bg-surface border-2 border-surface-border text-text">
-            Edit profile
-        </a>
-        <form method="POST" action="{{ route('logout') }}" class="flex-1">
+    <div class="controls">
+        <a href="{{ route('profile') }}"><button type="button">Edit Profile</button></a>
+        <form method="POST" action="{{ route('logout') }}">
             @csrf
-            <button type="submit" class="w-full rounded px-6 py-2 font-bold tracking-wide bg-surface border-2 border-surface-border text-text">
-                Log out
-            </button>
+            <button type="submit">Log Out</button>
         </form>
     </div>
 </div>

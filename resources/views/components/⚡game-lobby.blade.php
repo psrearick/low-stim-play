@@ -127,36 +127,35 @@ new class extends Component
 };
 ?>
 
-<div class="flex flex-col items-center gap-5 w-full max-w-md bg-surface border-2 border-surface-border rounded-lg p-8">
-    <p class="text-accent font-bold tracking-widest text-3xl">{{ $room->code }}</p>
-    <p class="text-sm text-text/65">Share this code so others can join.</p>
+<div class="setup">
+    <div class="heading" style="font-size: clamp(20px, 2.6vmin, 30px); letter-spacing: 0.15em;">{{ $room->code }}</div>
+    <p class="status-line">Share this code so others can join.</p>
 
     <ul class="w-full flex flex-col gap-2">
         @forelse ($players as $player)
-            <li wire:key="player-{{ $player['id'] }}" class="flex items-center justify-between text-sm text-text/80">
+            <li wire:key="player-{{ $player['id'] }}" class="flex items-center justify-between w-full status-line">
                 <span>
                     {{ $player['name'] }}
                     @if ($player['is_host'])
-                        <span class="text-text/50">(host)</span>
+                        <span style="opacity: 0.6;">(host)</span>
                     @endif
                 </span>
-                <span class="{{ $player['ready'] ? 'text-accent' : 'text-text/50' }}">
+                <span style="{{ $player['ready'] ? 'color: var(--accent);' : '' }}">
                     {{ $player['ready'] ? 'Ready' : 'Not ready' }}
                 </span>
             </li>
         @empty
-            <li class="text-sm text-text/65 text-center">Waiting for players...</li>
+            <li class="status-line">Waiting for players...</li>
         @endforelse
     </ul>
 
-    <button type="button" wire:click="toggleReady" class="w-full rounded px-6 py-2 font-bold tracking-wide bg-surface border-2 border-surface-border text-text">
+    <button type="button" wire:click="toggleReady">
         {{ $this->myReady ? "I'm not ready" : "I'm ready" }}
     </button>
 
     @if ($this->isHost)
-        <button type="button" wire:click="startGame" @disabled(! $this->allReady)
-            class="w-full rounded px-6 py-2 font-bold tracking-wide bg-accent text-bg disabled:opacity-40">
-            Start game
+        <button type="button" wire:click="startGame" @disabled(! $this->allReady)>
+            Start Game
         </button>
     @endif
 </div>

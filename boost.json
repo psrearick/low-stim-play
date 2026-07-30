@@ -13,6 +13,7 @@
         "fortify-development",
         "laravel-best-practices",
         "livewire-development",
+        "echo-development",
         "tailwindcss-development"
     ]
 }

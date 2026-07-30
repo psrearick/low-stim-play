@@ -33,6 +33,8 @@ new class extends Component
 };
 ?>
 
+<x-slot:title>{{ $user->name }} — Low Stim Play</x-slot>
+
 <div class="flex flex-col items-center gap-6 w-full max-w-2xl">
     <div class="flex items-center gap-4 w-full">
         <x-avatar :name="$user->name" size="w-16 h-16 text-2xl" />

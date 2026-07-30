@@ -1078,3 +1078,548 @@ body.scrollable.boggle-play {
     font-size: clamp(13px, 1.6vmin, 16px);
     font-weight: normal;
 }
+
+/* =====================================================================
+   Yahtzee (full scorecard), ported from legacy/yahtzee.html's own
+   <style> block.
+   ===================================================================== */
+
+body.scrollable.yahtzee-play {
+    justify-content: flex-start;
+}
+
+body.scrollable.yahtzee-play.in-game {
+    height: 100dvh;
+}
+
+#yahtzee-game {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+    gap: clamp(10px, 1.2vh, 18px);
+}
+
+.dice-area {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(16px, 2vh, 24px);
+    flex: 0 0 auto;
+}
+
+.yahtzee-play .row {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: clamp(6px, 1vh, 16px);
+    width: min(94vw, 64vh, 1200px);
+}
+
+.yahtzee-play .die {
+    aspect-ratio: 1 / 1;
+    background: var(--die);
+    border: 2px solid var(--die-border);
+    border-radius: clamp(6px, 1vmin, 16px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 2px 4px 10px var(--die-shadow);
+    position: relative;
+    cursor: pointer;
+}
+
+.yahtzee-play .die.kept {
+    background: var(--die-kept);
+}
+
+.yahtzee-play .number {
+    font-size: clamp(26px, 8vmin, 120px);
+    font-weight: bold;
+    color: var(--ink);
+    line-height: 1;
+    user-select: none;
+}
+
+#rollBtn {
+    font-size: clamp(13px, 2.2vh, 26px);
+    padding: clamp(8px, 1.4vh, 20px) clamp(16px, 2.4vh, 36px);
+}
+
+.setup-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    justify-content: space-between;
+}
+
+.setup-row label {
+    color: var(--ink);
+    font-weight: bold;
+    letter-spacing: 0.05em;
+}
+
+.stepper {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.stepper button {
+    width: clamp(32px, 8vmin, 44px);
+    height: clamp(32px, 8vmin, 44px);
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(18px, 4vmin, 24px);
+    line-height: 1;
+}
+
+.stepper-value {
+    min-width: 1.5ch;
+    text-align: center;
+    font-size: clamp(16px, 2.4vmin, 20px);
+    font-weight: bold;
+    color: var(--ink);
+}
+
+.player-names {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+}
+
+.player-names input {
+    width: 100%;
+}
+
+.card-wrap {
+    width: min(97vw, 1700px);
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: safe center;
+}
+
+table.scorecard {
+    border-collapse: collapse;
+    width: 100%;
+    flex: 0 0 auto;
+    color: var(--ink);
+}
+
+table.scorecard th,
+table.scorecard td {
+    border: 1px solid var(--die-border);
+    padding: clamp(2px, 0.32vh, 14px) clamp(3px, 0.6vw, 14px);
+    text-align: center;
+    font-size: clamp(11px, 2.45vh, 32px);
+    white-space: nowrap;
+}
+
+table.scorecard th.category,
+table.scorecard td.category {
+    text-align: left;
+    font-weight: bold;
+    background: var(--die);
+    width: 1%;
+}
+
+table.scorecard th {
+    background: var(--die);
+    letter-spacing: 0.04em;
+}
+
+table.scorecard th.active-player {
+    color: var(--accent);
+}
+
+table.scorecard td.score-cell {
+    cursor: default;
+    background: var(--bg);
+}
+
+table.scorecard td[data-role] {
+    background: var(--bg);
+}
+
+table.scorecard td.score-cell.filled {
+    font-weight: bold;
+}
+
+table.scorecard td.score-cell.pickable {
+    cursor: pointer;
+    color: var(--accent);
+    opacity: 0.75;
+    background: var(--die-kept);
+}
+
+table.scorecard td.score-cell.pickable:hover {
+    opacity: 1;
+}
+
+table.scorecard tbody tr:nth-child(even):not(.subtotal):not(.total) td.category {
+    background: oklch(from var(--die) calc(l + 0.025) c h);
+}
+
+table.scorecard tbody tr:nth-child(even):not(.subtotal):not(.total) td.score-cell:not(.pickable),
+table.scorecard tbody tr:nth-child(even):not(.subtotal):not(.total) td[data-role] {
+    background: oklch(from var(--bg) calc(l + 0.025) c h);
+}
+
+table.scorecard tbody tr:nth-child(even):not(.subtotal):not(.total) td.score-cell.pickable {
+    background: oklch(from var(--die-kept) calc(l + 0.025) c h);
+}
+
+table.scorecard tr.subtotal td,
+table.scorecard tr.total td {
+    background: var(--die-kept);
+    font-weight: bold;
+}
+
+/* =====================================================================
+   Family Feud, ported from legacy/family-feud.html's own <style> block.
+   ===================================================================== */
+
+body.scrollable.family-feud-play {
+    justify-content: flex-start;
+}
+
+.team-inputs {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    width: 100%;
+}
+
+.team-input-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    justify-content: space-between;
+}
+
+.team-input-row label {
+    color: var(--ink);
+    font-weight: bold;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+}
+
+.team-input-row input[type='text'] {
+    flex: 1;
+    min-width: 0;
+}
+
+.setup-note {
+    color: var(--ink);
+    opacity: 0.7;
+    font-size: clamp(11px, 1.5vmin, 13px);
+    text-align: center;
+    margin-top: -6px;
+}
+
+#family-feud-game {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    gap: clamp(14px, 2vmin, 24px);
+}
+
+.scoreboard {
+    display: flex;
+    justify-content: center;
+    align-items: stretch;
+    gap: clamp(14px, 3vmin, 40px);
+    flex-wrap: wrap;
+}
+
+.team-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    min-width: 120px;
+    padding: 4px 0;
+}
+
+.team-card.controlling .team-name {
+    color: var(--accent);
+}
+
+.team-name {
+    color: var(--ink);
+    font-weight: bold;
+    letter-spacing: 0.05em;
+    font-size: clamp(12px, 1.7vmin, 16px);
+    text-align: center;
+}
+
+.team-score {
+    color: var(--bar);
+    font-weight: bold;
+    font-size: clamp(26px, 4.4vmin, 42px);
+}
+
+.round-column {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.round-indicator {
+    color: var(--ink);
+    opacity: 0.75;
+    font-size: clamp(12px, 1.6vmin, 15px);
+    letter-spacing: 0.05em;
+    text-align: center;
+}
+
+.pot {
+    color: var(--bar);
+    font-weight: bold;
+    font-size: clamp(16px, 2.4vmin, 22px);
+}
+
+.board-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: clamp(14px, 2.2vmin, 24px);
+    background: oklch(from var(--bg) calc(l + 0.035) c h);
+    border: 2px solid var(--die-border);
+    border-radius: 12px;
+    padding: clamp(16px, 2.6vmin, 30px);
+    width: min(94vw, 900px);
+    margin-top: clamp(8px, 1.8vmin, 20px);
+}
+
+.prompt {
+    color: var(--bar);
+    font-weight: bold;
+    text-align: center;
+    font-size: clamp(17px, 2.8vmin, 28px);
+    letter-spacing: 0.02em;
+    width: 100%;
+}
+
+.board {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: clamp(8px, 1.4vmin, 16px);
+    width: 100%;
+}
+
+.tile {
+    background: var(--die);
+    border: 2px solid var(--die-border);
+    border-radius: 8px;
+    padding: clamp(8px, 1.4vmin, 14px) clamp(14px, 2vmin, 20px);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: clamp(40px, 6.4vmin, 56px);
+}
+
+.tile-index {
+    color: var(--ink);
+    opacity: 0.6;
+    font-weight: bold;
+    font-size: clamp(14px, 2vmin, 19px);
+    width: 1.6em;
+    text-align: center;
+    flex: 0 0 auto;
+}
+
+.tile-content {
+    flex: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    opacity: 0;
+    transition: opacity 0.25s ease !important;
+}
+
+.tile.revealed .tile-content {
+    opacity: 1;
+}
+
+.tile-text {
+    color: var(--ink);
+    font-weight: bold;
+    font-size: clamp(14px, 2vmin, 19px);
+}
+
+.tile-points {
+    color: var(--bar);
+    font-weight: bold;
+    font-size: clamp(14px, 2vmin, 19px);
+    flex: 0 0 auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tile-content {
+        transition: none !important;
+    }
+}
+
+.strikes {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(10px, 1.8vmin, 16px);
+    margin-top: clamp(10px, 2.2vmin, 24px);
+}
+
+.strikes-label {
+    color: var(--ink);
+    opacity: 0.75;
+    font-size: clamp(12px, 1.6vmin, 15px);
+    letter-spacing: 0.05em;
+}
+
+.strike-mark {
+    width: clamp(30px, 5.2vmin, 44px);
+    height: clamp(30px, 5.2vmin, 44px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: clamp(4px, 0.8vmin, 8px);
+    border: 2px solid var(--die-border);
+    background: var(--die);
+    color: var(--ink);
+    opacity: 0.35;
+    font-weight: bold;
+    font-size: clamp(18px, 3.2vmin, 26px);
+}
+
+.strike-mark.active {
+    opacity: 1;
+    border-color: var(--warn);
+    color: var(--warn);
+}
+
+.link-toggle {
+    background: none;
+    border: none;
+    padding: 4px 0;
+    color: var(--ink);
+    opacity: 0.7;
+    font-weight: bold;
+    font-size: clamp(13px, 1.7vmin, 16px);
+    letter-spacing: 0.04em;
+    cursor: pointer;
+}
+
+.link-toggle:hover,
+.link-toggle:focus-visible {
+    opacity: 1;
+}
+
+.message {
+    min-height: 1.7em;
+    color: var(--ink);
+    font-size: clamp(13px, 1.8vmin, 17px);
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.message.error {
+    color: var(--warn);
+}
+
+.guess-form {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: min(94vw, 560px);
+}
+
+.guess-form input[type='text'] {
+    flex: 1;
+    min-width: 200px;
+    background: var(--bg);
+    border-color: var(--bar);
+    font-size: clamp(15px, 2.1vmin, 20px);
+}
+
+.panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    background: var(--die);
+    border: 2px solid var(--die-border);
+    border-radius: 10px;
+    padding: clamp(18px, 3vmin, 32px);
+    width: min(94vw, 480px);
+    text-align: center;
+}
+
+.panel-title {
+    color: var(--bar);
+    font-weight: bold;
+    font-size: clamp(17px, 2.4vmin, 22px);
+    letter-spacing: 0.04em;
+}
+
+.panel p {
+    color: var(--ink);
+    line-height: 1.5;
+}
+
+.round-summary-scores {
+    display: flex;
+    gap: clamp(20px, 4vmin, 48px);
+}
+
+.round-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.round-table th,
+.round-table td {
+    padding: 6px 10px;
+    text-align: center;
+    font-size: clamp(13px, 1.7vmin, 16px);
+}
+
+.round-table th {
+    color: var(--ink);
+    opacity: 0.75;
+    font-weight: bold;
+    border-bottom: 2px solid var(--die-border);
+}
+
+.round-table td {
+    color: var(--ink);
+}
+
+.round-table td:first-child {
+    text-align: left;
+    opacity: 0.75;
+}
+
+.round-table tfoot td {
+    color: var(--bar);
+    font-weight: bold;
+    border-top: 2px solid var(--die-border);
+}

@@ -200,14 +200,14 @@ new class extends Component
             ]);
         }
 
-        $winnerNames = collect($this->players)
+        $winnerName = collect($this->players)
             ->filter(fn ($player, $i) => $totals[$i] === $topScore)
             ->pluck('name')
-            ->implode(' & ');
+            ->first();
 
         $this->message = $winners > 1
-            ? "It's a tie at {$topScore}! ({$winnerNames})"
-            : "{$winnerNames} wins with {$topScore}!";
+            ? "Game Over — It's a tie at {$topScore}!"
+            : "Game Over — {$winnerName} wins with {$topScore}!";
     }
 
     public function newGame(): void
@@ -265,151 +265,178 @@ new class extends Component
 
         return $this->engine->totalScore($player['scores'], $player['yahtzeeBonusCount']);
     }
+
+    public function getStatusTextProperty(): string
+    {
+        if ($this->gameOver) {
+            return $this->message ?? '';
+        }
+
+        $name = $this->players[$this->currentPlayer]['name'];
+        $rollText = $this->dice === []
+            ? 'Press Roll to Start'
+            : 'Roll '.(3 - $this->rollsLeft).' of 3';
+
+        return "{$name}'s turn — {$rollText}";
+    }
 };
 ?>
 
-<div class="flex flex-col items-center gap-6 w-full max-w-5xl">
-    @if (! $started)
-        <div class="flex flex-col items-center gap-5 w-full max-w-md bg-surface border-2 border-surface-border rounded-lg p-8">
-            <h1 class="text-accent font-bold tracking-wide text-2xl">Yahtzee</h1>
+<x-slot:title>Yahtzee — Low Stim Play</x-slot>
+<x-slot:description>A full Yahtzee scorecard for 1-8 players, including the upper-section bonus and Joker rules, in a calm, low-contrast design.</x-slot>
+<x-slot:bodyClass>yahtzee-play{{ $started ? ' in-game' : '' }}</x-slot:bodyClass>
+<x-slot:fullscreenToggle>1</x-slot:fullscreenToggle>
+<x-slot:rulesTitle>Yahtzee Rules</x-slot:rulesTitle>
+<x-slot:rules>
+    <h3>How to Use This Page</h3>
+    <ul>
+        <li>Set the number of players (1&ndash;8) and optional names, then press Start Game.</li>
+        <li>On your turn, press Roll (up to 3 times); tap a die to hold it so it won't reroll.</li>
+        <li>Once you've rolled at least once, tap a highlighted cell in your column to score that category &mdash; the number shown is exactly what you'd get for picking it right now.</li>
+        <li>Once every player has filled every category, the game ends and the winner is shown.</li>
+    </ul>
 
-            <div class="flex items-center justify-between w-full">
-                <p class="text-sm text-text/80 font-bold">Number of players</p>
-                <div class="flex items-center gap-3">
-                    <button type="button" wire:click="setPlayerCount({{ $playerCount - 1 }})" @disabled($playerCount <= self::MIN_PLAYERS)
-                        class="rounded w-9 h-9 font-bold bg-surface border-2 border-surface-border text-text disabled:opacity-40">
-                        &minus;
-                    </button>
-                    <span class="min-w-[2ch] text-center font-bold text-text">{{ $playerCount }}</span>
-                    <button type="button" wire:click="setPlayerCount({{ $playerCount + 1 }})" @disabled($playerCount >= self::MAX_PLAYERS)
-                        class="rounded w-9 h-9 font-bold bg-surface border-2 border-surface-border text-text disabled:opacity-40">
-                        +
-                    </button>
+    <h3>Full Rules</h3>
+    <ul>
+        <li>Each turn, roll the five dice up to three times total, keeping any dice you like between rolls — you don't have to use all three.</li>
+        <li>After rolling at least once, choose one open category to score for that turn.</li>
+        <li>Ones through Sixes: scores the sum of just the dice matching that number (e.g. three 4s in the Fours box scores 12).</li>
+        <li>If your six Upper Section boxes (Ones&ndash;Sixes) add up to 63 or more, you get a 35-point bonus.</li>
+        <li>3 of a Kind / 4 of a Kind: if at least three (or four) dice match, scores the sum of all five dice; otherwise 0.</li>
+        <li>Full House: scores 25 for three of one number and two of another.</li>
+        <li>Small Straight: scores 30 for four sequential numbers (e.g. 2-3-4-5).</li>
+        <li>Large Straight: scores 40 for five sequential numbers (1-5 or 2-6).</li>
+        <li>Yahtzee: scores 50 for five of a kind.</li>
+        <li>Chance: always scores the sum of all five dice, whatever you rolled.</li>
+        <li>Yahtzee Bonus: once your Yahtzee box shows 50, every additional five-of-a-kind you roll earns a 100-point bonus chip, on top of whatever category you score that turn.</li>
+        <li>Joker rule: once your Yahtzee box has been filled at all (scored 50 or forced to 0), a later five-of-a-kind lets Full House / Small Straight / Large Straight score their fixed value (25 / 30 / 40) automatically &mdash; but only if the Upper Section box matching the number you rolled is already filled. If it's still open, those three categories score 0 for that roll instead, so scoring the matching Upper Section box (or Chance) is usually the better move.</li>
+        <li>The game ends once every player has filled every category; whoever has the highest total wins (ties are possible).</li>
+    </ul>
+</x-slot:rules>
+<div>
+    {{--
+        Teleported (see layouts/app.blade.php's #game-actions anchor) rather
+        than a layout $barRight slot -- this button only appears once
+        $started flips true, which happens after the page's first render,
+        and a layout slot only ever captures its content once, at that
+        first render.
+    --}}
+    @if ($started)
+        @teleport('#game-actions')
+            <button type="button" wire:click="newGame">New Game</button>
+        @endteleport
+    @endif
+
+    @unless ($started)
+        <div class="setup" id="setup">
+            <div class="heading">Yahtzee</div>
+
+            <div class="setup-row">
+                <label id="playerCountLabel">Number of Players</label>
+                <div class="stepper" role="group" aria-labelledby="playerCountLabel">
+                    <button type="button" wire:click="setPlayerCount({{ $playerCount - 1 }})" @disabled($playerCount <= self::MIN_PLAYERS) aria-label="Fewer players">-</button>
+                    <div class="stepper-value" aria-live="polite">{{ $playerCount }}</div>
+                    <button type="button" wire:click="setPlayerCount({{ $playerCount + 1 }})" @disabled($playerCount >= self::MAX_PLAYERS) aria-label="More players">+</button>
                 </div>
             </div>
 
-            <div class="flex flex-col gap-2 w-full">
+            <div class="player-names">
                 @for ($i = 0; $i < $playerCount; $i++)
-                    <input type="text" wire:model="playerNames.{{ $i }}" maxlength="16" placeholder="Player {{ $i + 1 }} name"
-                        class="w-full rounded border-2 border-surface-border bg-bg text-text px-3 py-2">
+                    <input type="text" wire:model="playerNames.{{ $i }}" maxlength="16" placeholder="Player {{ $i + 1 }} name">
                 @endfor
             </div>
 
-            <button type="button" wire:click="startGame" class="w-full rounded px-6 py-2 font-bold tracking-wide bg-accent text-bg">
-                Start game
-            </button>
+            <button type="button" wire:click="startGame">Start Game</button>
         </div>
     @else
-        <div class="flex items-center justify-between w-full max-w-md text-sm text-text/80">
-            <a href="{{ route('yahtzee.play') }}" class="hover:text-text">&larr; Home</a>
-            <span class="text-accent font-bold">
-                @if ($gameOver)
-                    {{ $message }}
-                @else
-                    {{ $players[$currentPlayer]['name'] }}'s turn
-                @endif
-            </span>
-        </div>
+        <div id="yahtzee-game" class="yahtzee-play">
+            <div class="status">{{ $this->statusText }}</div>
 
-        @unless ($gameOver)
-            <div class="flex flex-wrap items-center justify-center gap-4">
-                @for ($i = 0; $i < self::DICE_COUNT; $i++)
-                    <button type="button" wire:click="toggleKeep({{ $i }})"
-                        class="w-16 h-16 sm:w-20 sm:h-20 rounded border-2 flex items-center justify-center font-bold text-3xl
-                            {{ ($kept[$i] ?? false) ? 'bg-accent text-bg border-accent' : 'bg-surface text-text border-surface-border' }}">
-                        {{ $dice[$i] ?? '' }}
-                    </button>
-                @endfor
+            <div class="dice-area">
+                <div class="row">
+                    @for ($i = 0; $i < self::DICE_COUNT; $i++)
+                        <div class="die {{ ($kept[$i] ?? false) ? 'kept' : '' }}" wire:click="toggleKeep({{ $i }})">
+                            <span class="number">{{ $dice[$i] ?? '' }}</span>
+                        </div>
+                    @endfor
+                </div>
+
+                <div class="controls">
+                    <button type="button" id="rollBtn" wire:click="roll" @disabled($gameOver || $rollsLeft <= 0)>Roll</button>
+                </div>
             </div>
 
-            <button type="button" wire:click="roll" @disabled($rollsLeft <= 0)
-                class="rounded px-8 py-3 font-bold tracking-wide bg-accent text-bg disabled:opacity-40">
-                {{ $dice === [] ? 'Roll' : "Roll ({$rollsLeft} left)" }}
-            </button>
-        @endunless
-
-        <div class="w-full overflow-x-auto">
-            <table class="w-full text-sm text-text border-collapse">
-                <thead>
-                    <tr>
-                        <th class="text-left p-2 bg-surface border border-surface-border"></th>
-                        @foreach ($players as $i => $player)
-                            <th class="p-2 bg-surface border border-surface-border {{ ! $gameOver && $i === $currentPlayer ? 'text-accent' : '' }}">
-                                {{ $player['name'] }}
-                            </th>
-                        @endforeach
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (YahtzeeCategory::upper() as $category)
-                        <tr wire:key="row-{{ $category->value }}">
-                            <td class="text-left font-bold p-2 bg-surface border border-surface-border">{{ $category->label() }}</td>
+            <div class="card-wrap">
+                <table class="scorecard">
+                    <thead>
+                        <tr>
+                            <th class="category"></th>
                             @foreach ($players as $i => $player)
-                                <td wire:key="cell-{{ $i }}-{{ $category->value }}"
-                                    @if ($this->isPickable($i, $category->value)) wire:click="scoreCategory('{{ $category->value }}')" @endif
-                                    class="p-2 border border-surface-border text-center
-                                        {{ $this->isPickable($i, $category->value) ? 'cursor-pointer bg-accent/15 text-accent' : 'bg-bg' }}
-                                        {{ $player['scores'][$category->value] !== null ? 'font-bold' : '' }}">
-                                    {{ $this->categoryScore($i, $category->value) }}
+                                <th class="{{ ! $gameOver && $i === $currentPlayer ? 'active-player' : '' }}">{{ $player['name'] }}</th>
+                            @endforeach
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (YahtzeeCategory::upper() as $category)
+                            <tr wire:key="row-{{ $category->value }}">
+                                <td class="category">{{ $category->label() }}</td>
+                                @foreach ($players as $i => $player)
+                                    <td wire:key="cell-{{ $i }}-{{ $category->value }}"
+                                        @if ($this->isPickable($i, $category->value)) wire:click="scoreCategory('{{ $category->value }}')" @endif
+                                        class="score-cell {{ $this->isPickable($i, $category->value) ? 'pickable' : '' }} {{ $player['scores'][$category->value] !== null ? 'filled' : '' }}">
+                                        {{ $this->categoryScore($i, $category->value) }}
+                                    </td>
+                                @endforeach
+                            </tr>
+                        @endforeach
+
+                        <tr class="subtotal">
+                            <td class="category">Upper Subtotal</td>
+                            @foreach ($players as $i => $player)
+                                <td data-role="upperSubtotal">{{ $this->upperSubtotalFor($i) }}</td>
+                            @endforeach
+                        </tr>
+
+                        <tr>
+                            <td class="category">Bonus (63+ = 35)</td>
+                            @foreach ($players as $i => $player)
+                                <td data-role="upperBonus">{{ $this->upperBonusFor($i) }}</td>
+                            @endforeach
+                        </tr>
+
+                        @foreach (YahtzeeCategory::lower() as $category)
+                            <tr wire:key="row-{{ $category->value }}">
+                                <td class="category">{{ $category->label() }}</td>
+                                @foreach ($players as $i => $player)
+                                    <td wire:key="cell-{{ $i }}-{{ $category->value }}"
+                                        @if ($this->isPickable($i, $category->value)) wire:click="scoreCategory('{{ $category->value }}')" @endif
+                                        class="score-cell {{ $this->isPickable($i, $category->value) ? 'pickable' : '' }} {{ $player['scores'][$category->value] !== null ? 'filled' : '' }}">
+                                        {{ $this->categoryScore($i, $category->value) }}
+                                    </td>
+                                @endforeach
+                            </tr>
+                        @endforeach
+
+                        <tr>
+                            <td class="category">Yahtzee Bonus</td>
+                            @foreach ($players as $i => $player)
+                                <td data-role="yahtzeeBonus">
+                                    @if ($player['yahtzeeBonusCount'] > 0)
+                                        {{ str_repeat('✓', $player['yahtzeeBonusCount']) }} {{ $this->yahtzeeBonusPointsFor($i) }}
+                                    @endif
                                 </td>
                             @endforeach
                         </tr>
-                    @endforeach
 
-                    <tr class="font-bold">
-                        <td class="text-left p-2 bg-surface-border border border-surface-border">Upper Subtotal</td>
-                        @foreach ($players as $i => $player)
-                            <td class="p-2 border border-surface-border text-center bg-surface-border">{{ $this->upperSubtotalFor($i) }}</td>
-                        @endforeach
-                    </tr>
-
-                    <tr>
-                        <td class="text-left p-2 bg-surface border border-surface-border">Bonus (63+ = 35)</td>
-                        @foreach ($players as $i => $player)
-                            <td class="p-2 border border-surface-border text-center bg-bg">{{ $this->upperBonusFor($i) }}</td>
-                        @endforeach
-                    </tr>
-
-                    @foreach (YahtzeeCategory::lower() as $category)
-                        <tr wire:key="row-{{ $category->value }}">
-                            <td class="text-left font-bold p-2 bg-surface border border-surface-border">{{ $category->label() }}</td>
+                        <tr class="total">
+                            <td class="category">Total</td>
                             @foreach ($players as $i => $player)
-                                <td wire:key="cell-{{ $i }}-{{ $category->value }}"
-                                    @if ($this->isPickable($i, $category->value)) wire:click="scoreCategory('{{ $category->value }}')" @endif
-                                    class="p-2 border border-surface-border text-center
-                                        {{ $this->isPickable($i, $category->value) ? 'cursor-pointer bg-accent/15 text-accent' : 'bg-bg' }}
-                                        {{ $player['scores'][$category->value] !== null ? 'font-bold' : '' }}">
-                                    {{ $this->categoryScore($i, $category->value) }}
-                                </td>
+                                <td data-role="total">{{ $this->totalScoreFor($i) }}</td>
                             @endforeach
                         </tr>
-                    @endforeach
-
-                    <tr>
-                        <td class="text-left p-2 bg-surface border border-surface-border">Yahtzee Bonus</td>
-                        @foreach ($players as $i => $player)
-                            <td class="p-2 border border-surface-border text-center bg-bg">
-                                @if ($player['yahtzeeBonusCount'] > 0)
-                                    {{ str_repeat('✓', $player['yahtzeeBonusCount']) }} {{ $this->yahtzeeBonusPointsFor($i) }}
-                                @endif
-                            </td>
-                        @endforeach
-                    </tr>
-
-                    <tr class="font-bold">
-                        <td class="text-left p-2 bg-surface-border border border-surface-border">Total</td>
-                        @foreach ($players as $i => $player)
-                            <td class="p-2 border border-surface-border text-center bg-surface-border">{{ $this->totalScoreFor($i) }}</td>
-                        @endforeach
-                    </tr>
-                </tbody>
-            </table>
+                    </tbody>
+                </table>
+            </div>
         </div>
-
-        @if ($gameOver)
-            <button type="button" wire:click="newGame" class="w-full max-w-md rounded px-6 py-2 font-bold tracking-wide bg-accent text-bg">
-                New game
-            </button>
-        @endif
-    @endif
+    @endunless
 </div>

@@ -144,17 +144,25 @@ new class extends Component
 <x-slot:description>A shared-screen Boggle board for group play — big letters, an optional visual timer, and a full word reveal at the end. No typing required.</x-slot>
 <x-slot:fullscreenToggle>1</x-slot:fullscreenToggle>
 
-@if ($started)
-    <x-slot:barRight>
-        @if (! $ended)
-            <button type="button" wire:click="endGame">End Game</button>
-        @else
-            <button type="button" wire:click="returnToSetup">New Game</button>
-        @endif
-    </x-slot:barRight>
-@endif
+<div>
+    {{--
+        Teleported (see layouts/app.blade.php's #game-actions anchor) rather
+        than a layout $barRight slot -- this button's label depends on
+        $started/$ended, which change after the page's first render, and a
+        layout slot only ever captures its content once, at that first
+        render.
+    --}}
+    @if ($started)
+        @teleport('#game-actions')
+            @if (! $ended)
+                <button type="button" wire:click="endGame">End Game</button>
+            @else
+                <button type="button" wire:click="returnToSetup">New Game</button>
+            @endif
+        @endteleport
+    @endif
 
-@unless ($started)
+    @unless ($started)
     <div class="setup" id="setup">
         <div class="heading">Boggle (Group Play)</div>
 
@@ -239,4 +247,5 @@ new class extends Component
 
         <div class="status-line">&nbsp;</div>
     </div>
-@endunless
+    @endunless
+</div>

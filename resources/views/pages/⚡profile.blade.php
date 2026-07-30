@@ -65,6 +65,8 @@ new class extends Component
 }
 ?>
 
+<x-slot:title>Profile — Low Stim Play</x-slot>
+
 <div class="flex flex-col items-center gap-6 w-full">
     <a href="{{ route('dashboard') }}" class="self-start text-sm text-text/65 hover:text-text">&larr; Dashboard</a>
 
@@ -97,9 +99,7 @@ new class extends Component
                 Public profile (visible to other players)
             </label>
 
-            <button type="submit" class="rounded px-6 py-2 font-bold tracking-wide bg-surface border-2 border-surface-border text-text">
-                Save
-            </button>
+            <button type="submit">Save</button>
 
             <p wire:loading.class.remove="hidden" class="hidden text-sm text-text/65 text-center">Saving...</p>
         </form>
@@ -121,8 +121,6 @@ new class extends Component
             @endforelse
         </ul>
 
-        <button type="button" data-passkey-register class="w-full rounded px-6 py-2 font-bold tracking-wide bg-accent text-bg hover:opacity-90">
-            Add a passkey
-        </button>
+        <button type="button" data-passkey-register class="w-full bg-accent text-bg">Add a Passkey</button>
     </x-panel>
 </div>

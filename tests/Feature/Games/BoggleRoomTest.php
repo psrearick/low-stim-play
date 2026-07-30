@@ -72,8 +72,8 @@ test('only the host sees the board size and time limit controls', function () {
     $guest = User::factory()->create();
     $room = Room::factory()->create(['host_user_id' => $host->id]);
 
-    $this->actingAs($host)->get("/boggle/room/{$room->code}")->assertSee('Board size');
-    $this->actingAs($guest)->get("/boggle/room/{$room->code}")->assertDontSee('Board size');
+    $this->actingAs($host)->get("/boggle/room/{$room->code}")->assertSee('Board Size');
+    $this->actingAs($guest)->get("/boggle/room/{$room->code}")->assertDontSee('Board Size');
 });
 
 test('starting the room creates a shared game session and redirects the host into it', function () {

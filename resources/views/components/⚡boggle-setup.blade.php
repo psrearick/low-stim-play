@@ -25,37 +25,31 @@ new class extends Component
 };
 ?>
 
-<div class="flex flex-col items-center gap-5 w-full max-w-md bg-surface border-2 border-surface-border rounded-lg p-8">
-    <div class="flex flex-col items-center gap-2 w-full">
-        <p class="text-sm text-text/80">Board size</p>
-        <div class="flex gap-2">
+<div class="setup">
+    <div class="setup-row">
+        <div class="label">Board Size</div>
+        <div class="option-group">
             @foreach ($sizeOptions as $option)
-                <button type="button" wire:click="$set('size', {{ $option }})"
-                    class="rounded px-6 py-2 font-bold tracking-wide border-2 {{ $size === $option ? 'bg-accent text-bg border-accent' : 'bg-surface text-text border-surface-border' }}">
-                    {{ $option }}&times;{{ $option }}
+                <button type="button" class="option {{ $size === $option ? 'active' : '' }}" wire:click="$set('size', {{ $option }})">
+                    {{ $option === 4 ? 'Classic 4x4' : 'Big 5x5' }}
                 </button>
             @endforeach
         </div>
     </div>
 
-    <div class="flex flex-col items-center gap-2 w-full">
-        <p class="text-sm text-text/80">Time limit</p>
-        <div class="flex flex-wrap justify-center gap-2">
+    <div class="setup-row">
+        <div class="label">Time Limit</div>
+        <div class="option-group">
             @foreach ($minuteOptions as $option)
-                <button type="button" wire:click="$set('minutes', {{ $option }})"
-                    class="rounded px-4 py-2 font-bold tracking-wide border-2 {{ $minutes === $option ? 'bg-accent text-bg border-accent' : 'bg-surface text-text border-surface-border' }}">
+                <button type="button" class="option {{ $minutes === $option ? 'active' : '' }}" wire:click="$set('minutes', {{ $option }})">
                     {{ $option }} min
                 </button>
             @endforeach
-            <button type="button" wire:click="$set('minutes', 0)"
-                class="rounded px-4 py-2 font-bold tracking-wide border-2 {{ $minutes === 0 ? 'bg-accent text-bg border-accent' : 'bg-surface text-text border-surface-border' }}">
+            <button type="button" class="option {{ $minutes === 0 ? 'active' : '' }}" wire:click="$set('minutes', 0)">
                 Untimed
             </button>
         </div>
     </div>
 
-    <button type="button" wire:click="startGame"
-        class="w-full rounded px-6 py-2 font-bold tracking-wide bg-accent text-bg hover:opacity-90">
-        Start solo game
-    </button>
+    <button type="button" wire:click="startGame">Start Solo Game</button>
 </div>

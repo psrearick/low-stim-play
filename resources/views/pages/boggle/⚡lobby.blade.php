@@ -32,38 +32,30 @@ new class extends Component
 };
 ?>
 
-<div class="flex flex-col items-center gap-6 w-full">
-    <h1 class="text-accent font-bold tracking-wide text-3xl">Boggle</h1>
+<x-slot:title>Boggle — Low Stim Play</x-slot>
+<x-slot:description>Play Boggle online — a shuffled 4x4 or 5x5 letter grid, timed or untimed, with calm low-contrast visuals and no flashing or motion.</x-slot>
+
+<div class="flex flex-col items-center" style="gap: inherit;">
+    <div class="heading">Boggle</div>
 
     <livewire:boggle-setup />
 
     @auth
-        <div class="flex flex-col items-center gap-4 w-full max-w-md bg-surface border-2 border-surface-border rounded-lg p-8">
-            <button type="button" wire:click="createRoom" class="w-full rounded px-6 py-2 font-bold tracking-wide bg-accent text-bg hover:opacity-90">
-                Host an online room
-            </button>
+        <div class="setup">
+            <button type="button" wire:click="createRoom">Host an Online Room</button>
 
-            <div class="flex items-center gap-3 w-full text-text/50 text-xs uppercase tracking-widest">
-                <span class="h-px flex-1 bg-surface-border"></span>
-                or
-                <span class="h-px flex-1 bg-surface-border"></span>
-            </div>
+            <div class="status-line">or</div>
 
-            <form wire:submit="joinRoom" class="w-full flex gap-2">
-                <input type="text" wire:model="joinCode" maxlength="6" placeholder="Room code"
-                    class="flex-1 rounded border-2 border-surface-border bg-bg text-text px-3 py-2 uppercase tracking-widest">
-                <button type="submit" class="rounded px-4 py-2 font-bold bg-surface border-2 border-surface-border text-text">
-                    Join
-                </button>
+            <form wire:submit="joinRoom" class="flex gap-2 w-full">
+                <input type="text" wire:model="joinCode" maxlength="6" placeholder="Room code" style="flex: 1; text-transform: uppercase;">
+                <button type="submit">Join</button>
             </form>
 
             @if ($joinError)
-                <p class="text-sm text-warn">{{ $joinError }}</p>
+                <p class="status-line" style="color: var(--warn);">{{ $joinError }}</p>
             @endif
         </div>
     @else
-        <p class="text-sm text-text/65">
-            <a href="{{ route('login') }}" class="underline hover:text-text">Sign in</a> to host or join an online room.
-        </p>
+        <p class="status-line"><a href="{{ route('login') }}" style="color: var(--bar);">Sign in</a> to host or join an online room.</p>
     @endauth
 </div>

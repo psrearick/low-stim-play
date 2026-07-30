@@ -87,29 +87,29 @@ new class extends Component
 };
 ?>
 
-<div class="flex flex-col items-center gap-6 w-full">
-    <h1 class="text-accent font-bold tracking-wide text-3xl">Boggle room</h1>
+<x-slot:title>Boggle Room — Low Stim Play</x-slot>
+
+<div class="flex flex-col items-center" style="gap: inherit;">
+    <div class="heading">Boggle Room</div>
 
     @if ($this->isHost)
-        <div class="flex flex-col items-center gap-4 w-full max-w-md bg-surface border-2 border-surface-border rounded-lg p-6">
-            <div class="flex flex-col items-center gap-2 w-full">
-                <p class="text-sm text-text/80">Board size</p>
-                <div class="flex gap-2">
+        <div class="setup">
+            <div class="setup-row">
+                <div class="label">Board Size</div>
+                <div class="option-group">
                     @foreach ([4, 5] as $option)
-                        <button type="button" wire:click="$set('size', {{ $option }})"
-                            class="rounded px-6 py-2 font-bold tracking-wide border-2 {{ $size === $option ? 'bg-accent text-bg border-accent' : 'bg-surface text-text border-surface-border' }}">
-                            {{ $option }}&times;{{ $option }}
+                        <button type="button" class="option {{ $size === $option ? 'active' : '' }}" wire:click="$set('size', {{ $option }})">
+                            {{ $option === 4 ? 'Classic 4x4' : 'Big 5x5' }}
                         </button>
                     @endforeach
                 </div>
             </div>
 
-            <div class="flex flex-col items-center gap-2 w-full">
-                <p class="text-sm text-text/80">Time limit</p>
-                <div class="flex flex-wrap justify-center gap-2">
+            <div class="setup-row">
+                <div class="label">Time Limit</div>
+                <div class="option-group">
                     @foreach ([1, 2, 3, 5] as $option)
-                        <button type="button" wire:click="$set('minutes', {{ $option }})"
-                            class="rounded px-4 py-2 font-bold tracking-wide border-2 {{ $minutes === $option ? 'bg-accent text-bg border-accent' : 'bg-surface text-text border-surface-border' }}">
+                        <button type="button" class="option {{ $minutes === $option ? 'active' : '' }}" wire:click="$set('minutes', {{ $option }})">
                             {{ $option }} min
                         </button>
                     @endforeach

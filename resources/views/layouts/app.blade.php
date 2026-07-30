@@ -50,7 +50,20 @@
                 @endisset
             </div>
             <div class="right">
-                {{ $barRight ?? '' }}
+                {{--
+                    A stable teleport target (see Livewire's @teleport
+                    directive), not a slot -- game-specific right-side
+                    buttons (End Game/New Game, Reveal, ...) depend on
+                    Livewire state that changes after the initial page
+                    load, and a named layout slot like the old $barRight
+                    is only ever evaluated once at that first render: it
+                    lives outside the component's own root element, so
+                    it's never touched by the AJAX diff a wire:click
+                    triggers afterwards. display: contents so teleported
+                    buttons still lay out as direct flex items of .right,
+                    picking up its gap, rather than as a nested box.
+                --}}
+                <div id="game-actions" style="display: contents;"></div>
                 @isset($fullscreenToggle)
                     <button type="button" id="chrome-toggle-btn" class="fullscreen-toggle" aria-pressed="false" aria-label="Hide menu bars for fullscreen">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
@@ -94,5 +107,13 @@
         </footer>
 
         @livewireScripts
+
+        <script>
+            if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                    navigator.serviceWorker.register('/sw.js');
+                });
+            }
+        </script>
     </body>
 </html>

@@ -417,15 +417,21 @@ new class extends Component
         <li>Scoring is by word length: 3&ndash;4 letters = 1 point, 5 = 2, 6 = 3, 7 = 5, 8 or more = 11 points.</li>
     </ul>
 </x-slot:rules>
-<x-slot:barRight>
-    @unless ($ended)
-        <button type="button" wire:click="endGame">End Game</button>
-    @else
-        <button type="button" wire:click="resetGame" @if($isSharedSession) disabled @endif>New Game</button>
-    @endunless
-</x-slot:barRight>
-
 <div>
+    {{--
+        Teleported (see layouts/app.blade.php's #game-actions anchor) rather
+        than a layout $barRight slot -- this button's label depends on
+        $ended, which changes after the page's first render, and a layout
+        slot only ever captures its content once, at that first render.
+    --}}
+    @teleport('#game-actions')
+        @unless ($ended)
+            <button type="button" wire:click="endGame">End Game</button>
+        @else
+            <button type="button" wire:click="resetGame" @if($isSharedSession) disabled @endif>New Game</button>
+        @endunless
+    @endteleport
+
     <div id="game" class="{{ $ended ? 'with-list' : '' }}">
         <div class="hud">
             <div class="hud-item">
