@@ -67,14 +67,15 @@ Route::get('/boggle/share/{gameSession}', function (GameSession $gameSession) {
 
 // Pass-and-play only for now (no login, no accounts, no Room) -- mirrors
 // legacy/yahtzee.html exactly: one device, everyone takes turns. Online
-// play (per docs/plan.md) can reuse the Room/GameLobby infrastructure
+// play (see docs/TODO.md) can reuse the Room/GameLobby infrastructure
 // Boggle's online rooms already validated, if wanted later.
 Route::livewire('/yahtzee', 'pages::yahtzee.play')->name('yahtzee.play');
 
 // Dice-only, no scorecard -- mirrors legacy/yahtzee-roller.html exactly.
 Route::livewire('/yahtzee/roller', 'pages::yahtzee.roller')->name('yahtzee.roller');
 
-// Single shared screen, no host/board split (see docs/progress.md notes) --
-// the LLM is the judge, not a person, so there's no hidden information a
-// separate host view would need to protect. One device, same as Yahtzee.
+// Single shared screen, no host/board split (see docs/CHANGELOG.md's Phase 6
+// notes) -- the LLM is the judge, not a person, so there's no hidden
+// information a separate host view would need to protect. One device, same
+// as Yahtzee.
 Route::livewire('/family-feud', 'pages::family-feud.play')->name('family-feud.play');

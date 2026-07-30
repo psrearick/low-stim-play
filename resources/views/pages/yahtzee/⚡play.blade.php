@@ -249,7 +249,7 @@ new class extends Component
             };
 
             // Pass-and-play has no way to know which local player is the
-            // account holder in general (see docs/progress.md) -- $meIndex
+            // account holder in general (see docs/CHANGELOG.md) -- $meIndex
             // is the host explicitly declaring it during setup, the same
             // way Boggle's own solo games attribute user_id vs guest_name.
             $isMe = $i === $this->meIndex && Auth::check();

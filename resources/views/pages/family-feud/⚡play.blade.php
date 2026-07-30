@@ -377,7 +377,7 @@ new class extends Component
             };
 
             // Pass-and-play has no way to know which local team is the
-            // account holder in general (see docs/progress.md) --
+            // account holder in general (see docs/CHANGELOG.md) --
             // $meTeamIndex is the host explicitly declaring it during
             // setup, the same way Boggle's own solo games attribute
             // user_id vs guest_name.

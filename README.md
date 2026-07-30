@@ -6,7 +6,7 @@ This repository is a Laravel rewrite of an earlier static HTML/CSS/JS version of
 
 ## Status: migrated, including front-end fidelity
 
-The Laravel rewrite is functional end-to-end and now matches the legacy site's actual look and feel, not just its game logic — every phase of [`docs/plan.md`](docs/plan.md) is built and tested (170+ tests), and a follow-up pass (Phase 8 in [`docs/progress.md`](docs/progress.md)) ported the real CSS design system, the real Boggle drag/tap word-building gesture, the two previously-missing pages (group-play Boggle, dice-only Yahtzee), and a consistent button-bar/site-footer/rules-dialog on every page. See `docs/progress.md` for what was built, what was deliberately descoped (and why), and real bugs found along the way — including two front-end bugs (a Tailwind theme-token config issue and a CSS cascade-layer ordering issue) that were silently breaking accent colors and sizing across the whole site.
+The Laravel rewrite is functional end-to-end and now matches the legacy site's actual look and feel, not just its game logic — every phase of the original migration plan is built and tested (200+ tests), and a follow-up pass ported the real CSS design system, the real Boggle drag/tap word-building gesture, the two previously-missing pages (group-play Boggle, dice-only Yahtzee), and a consistent button-bar/site-footer/rules-dialog on every page. See [`docs/CHANGELOG.md`](docs/CHANGELOG.md) for what was built, what was deliberately descoped (and why), and real bugs found along the way — including two front-end bugs (a Tailwind theme-token config issue and a CSS cascade-layer ordering issue) that were silently breaking accent colors and sizing across the whole site. See [`docs/TODO.md`](docs/TODO.md) for what's still outstanding.
 
 ## What's here
 
@@ -16,7 +16,7 @@ The Laravel rewrite is functional end-to-end and now matches the legacy site's a
 - Accounts via Fortify + passkeys (WebAuthn), password login as a fallback; public profiles and a stats dashboard aggregated from game history
 - The same design language as the legacy site: OKLCH color tokens, `clamp()`-based fluid sizing, no animations/transitions, muted contrast, a real button-bar/site-footer/rules-dialog on every page — ported as actual CSS from `legacy/shared.css`/`legacy/boggle-shared.css`, not a utility-class reinterpretation
 
-Not built (see `docs/progress.md` for why): friends/social features on the dashboard, image avatars, online multiplayer for Yahtzee/Family Feud (both are pass-and-play only; the `Room`/`GameLobby` infrastructure Boggle's online rooms use is there to reuse if that's ever wanted), and a couple of legacy's JS-measured pixel-perfect refinements (dynamic found-word column splitting, exact footer-height measurement) in favor of their CSS fallback equivalents.
+Not built (see [`docs/TODO.md`](docs/TODO.md) for details): online multiplayer for Yahtzee/Family Feud (both are pass-and-play only; the `Room`/`GameLobby` infrastructure Boggle's online rooms use is there to reuse), friends/social features on the dashboard, image avatars, and a couple of legacy's JS-measured pixel-perfect refinements (dynamic found-word column splitting, exact footer-height measurement) in favor of their CSS fallback equivalents.
 
 ## Local development
 
