@@ -4,11 +4,13 @@ use App\Enums\GameMode;
 use App\Enums\GameResult;
 use App\Enums\GameType;
 use App\Enums\RoomStatus;
+use App\Events\RoomGameEnded;
 use App\Models\GameParticipant;
 use App\Models\GameSession;
 use App\Models\Room;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
 use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
@@ -285,6 +287,44 @@ test('a tie for the top score is a draw for everyone tied', function () {
         ->call('endGame');
 
     expect(GameParticipant::pluck('result')->unique()->all())->toBe([GameResult::Draw]);
+});
+
+test('ending the game broadcasts to the room, and receiving that broadcast ends it for another player too', function () {
+    Event::fake([RoomGameEnded::class]);
+
+    $host = User::factory()->create();
+    $guest = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+    $session = GameSession::factory()->create([
+        'type' => GameType::Boggle,
+        'mode' => GameMode::Online,
+        'settings' => ['size' => 4, 'seed' => 1, 'minutes' => 3],
+    ]);
+    $room->update(['game_session_id' => $session->id]);
+
+    Livewire::actingAs($host)
+        ->test('pages::boggle.play', ['size' => 4, 'minutes' => 3, 'seed' => 1, 'room' => $room->code])
+        ->call('endGame')
+        ->assertSet('ended', true);
+
+    Event::assertDispatched(
+        RoomGameEnded::class,
+        fn (RoomGameEnded $event) => $event->roomCode === $room->code,
+    );
+
+    // The guest's own game is still running until they receive the
+    // broadcast above -- onRoomGameEnded() is what a real page's Echo
+    // listener calls when that arrives, ending their game too without
+    // re-announcing it (see the count() assertion below).
+    Event::fake([RoomGameEnded::class]);
+
+    Livewire::actingAs($guest)
+        ->test('pages::boggle.play', ['size' => 4, 'minutes' => 3, 'seed' => 1, 'room' => $room->code])
+        ->assertSet('ended', false)
+        ->call('onRoomGameEnded')
+        ->assertSet('ended', true);
+
+    Event::assertNotDispatched(RoomGameEnded::class);
 });
 
 test('resetting the game is a no-op inside a room', function () {

@@ -6,11 +6,18 @@ use App\Models\Room;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PresenceChannel;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class RoomGameStarting implements ShouldBroadcast
+/**
+ * ShouldBroadcastNow, not ShouldBroadcast -- see RoomPlayerReadyToggled's
+ * own note. This one matters even more: without it, the *only* way other
+ * players ever learn the host started the game is this broadcast, so a
+ * queue worker that isn't running (or isn't deployed at all) means the
+ * game silently never starts for anyone but the host.
+ */
+class RoomGameStarting implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 

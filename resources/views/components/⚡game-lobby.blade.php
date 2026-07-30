@@ -130,7 +130,7 @@ new class extends Component
 <div class="setup">
     <div class="flex gap-2" style="justify-content: center;">
         <input type="text" readonly value="{{ $room->code }}" onclick="this.select()"
-            style="width: 8ch; text-align: center; font-weight: bold; letter-spacing: 0.15em; font-size: clamp(20px, 2.6vmin, 30px); color: var(--bar);">
+            style="width: 14ch; text-align: center; font-weight: bold; letter-spacing: 0.15em; font-size: clamp(20px, 2.6vmin, 30px); color: var(--bar);">
         <button type="button" data-copy="{{ $room->code }}">Copy</button>
     </div>
     <p class="status-line">Share this code so others can join.</p>

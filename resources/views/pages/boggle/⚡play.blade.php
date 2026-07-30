@@ -3,6 +3,7 @@
 use App\Enums\GameMode;
 use App\Enums\GameResult;
 use App\Enums\GameType;
+use App\Events\RoomGameEnded;
 use App\Models\GameParticipant;
 use App\Models\GameSession;
 use App\Models\Room;
@@ -235,7 +236,38 @@ new class extends Component
         $this->message = null;
     }
 
+    /**
+     * @return array<string, string>
+     */
+    protected function getListeners(): array
+    {
+        if ($this->room === null) {
+            return [];
+        }
+
+        return [
+            "echo-presence:room.{$this->room},RoomGameEnded" => 'onRoomGameEnded',
+        ];
+    }
+
     public function endGame(Solver $solver): void
+    {
+        $this->finishGame($solver, broadcast: true);
+    }
+
+    /**
+     * A room-mate's game ended first (see RoomGameEnded) -- end mine too,
+     * without re-broadcasting back out (finishGame() already no-ops via its
+     * own $this->ended guard for anyone who receives this more than once,
+     * but skipping the broadcast here as well avoids every player in a
+     * room re-announcing the same "game ended" a second time).
+     */
+    public function onRoomGameEnded(Solver $solver): void
+    {
+        $this->finishGame($solver, broadcast: false);
+    }
+
+    private function finishGame(Solver $solver, bool $broadcast): void
     {
         if ($this->ended) {
             return;
@@ -275,6 +307,13 @@ new class extends Component
             // reveal screen should show that adjusted score, not the raw
             // as-you-played one.
             $this->score = $participant->fresh()->score;
+        }
+
+        // Online rooms only -- an async challenge link has no "everyone
+        // playing at once" to keep in sync; each side plays it on their own
+        // schedule, sometimes days apart, so there's nothing to broadcast.
+        if ($broadcast && $this->room !== null) {
+            RoomGameEnded::dispatch($this->room);
         }
     }
 
