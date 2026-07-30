@@ -8,6 +8,7 @@ use App\Models\GameParticipant;
 use App\Models\GameSession;
 use App\Services\Yahtzee\DiceRoller;
 use App\Services\Yahtzee\GameEngine;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 
 new class extends Component
@@ -51,6 +52,26 @@ new class extends Component
     public ?string $message = null;
 
     /**
+     * Which local player, if any, is the authenticated account holder --
+     * null means "not attributing this game to my account." Only offered
+     * when logged in; drives user_id vs guest_name in endGame().
+     */
+    public ?int $meIndex = null;
+
+    /**
+     * Snapshots taken right before each mutating action (roll,
+     * scoreCategory), so undo() can step back exactly one such action --
+     * mirrors legacy's pushHistory()/undo() (legacy/yahtzee.html:872-880,
+     * 580-596,956-967). Deliberately not resumable once the game is over:
+     * endGame() already persists a GameSession/GameParticipant the moment
+     * the last category is scored, and unwinding that DB write is out of
+     * scope here.
+     *
+     * @var list<array{dice: list<int>, kept: list<bool>, rollsLeft: int, players: array, currentPlayer: int}>
+     */
+    public array $history = [];
+
+    /**
      * Not a Livewire-synced property (a service instance can't be), so
      * it's re-resolved via `boot()` on every request instead of `mount()`
      * (which only runs once) -- this is also what lets Blade call methods
@@ -74,6 +95,10 @@ new class extends Component
             $this->playerCount,
             '',
         );
+
+        if ($this->meIndex !== null && $this->meIndex >= $this->playerCount) {
+            $this->meIndex = null;
+        }
     }
 
     public function startGame(): void
@@ -91,6 +116,7 @@ new class extends Component
         $this->gameOver = false;
         $this->started = true;
         $this->message = null;
+        $this->history = [];
         $this->startTurn();
     }
 
@@ -99,6 +125,8 @@ new class extends Component
         if ($this->gameOver || $this->rollsLeft <= 0) {
             return;
         }
+
+        $this->pushHistory();
 
         if ($this->dice === []) {
             $this->dice = $diceRoller->initial();
@@ -124,6 +152,8 @@ new class extends Component
         if (! $this->isPickable($this->currentPlayer, $categoryValue)) {
             return;
         }
+
+        $this->pushHistory();
 
         $player = $this->players[$this->currentPlayer];
         $category = YahtzeeCategory::from($categoryValue);
@@ -163,6 +193,33 @@ new class extends Component
         $this->rollsLeft = 3;
     }
 
+    private function pushHistory(): void
+    {
+        $this->history[] = [
+            'dice' => $this->dice,
+            'kept' => $this->kept,
+            'rollsLeft' => $this->rollsLeft,
+            'players' => $this->players,
+            'currentPlayer' => $this->currentPlayer,
+        ];
+    }
+
+    public function undo(): void
+    {
+        if ($this->gameOver || $this->history === []) {
+            return;
+        }
+
+        $snapshot = array_pop($this->history);
+
+        $this->dice = $snapshot['dice'];
+        $this->kept = $snapshot['kept'];
+        $this->rollsLeft = $snapshot['rollsLeft'];
+        $this->players = $snapshot['players'];
+        $this->currentPlayer = $snapshot['currentPlayer'];
+        $this->message = null;
+    }
+
     private function endGame(): void
     {
         $this->gameOver = true;
@@ -191,9 +248,16 @@ new class extends Component
                 default => GameResult::Win,
             };
 
+            // Pass-and-play has no way to know which local player is the
+            // account holder in general (see docs/progress.md) -- $meIndex
+            // is the host explicitly declaring it during setup, the same
+            // way Boggle's own solo games attribute user_id vs guest_name.
+            $isMe = $i === $this->meIndex && Auth::check();
+
             GameParticipant::create([
                 'game_session_id' => $session->id,
-                'guest_name' => $player['name'],
+                'user_id' => $isMe ? Auth::id() : null,
+                'guest_name' => $isMe ? null : $player['name'],
                 'score' => $total,
                 'result' => $result,
                 'stats' => ['yahtzee_bonus_count' => $player['yahtzeeBonusCount']],
@@ -216,6 +280,8 @@ new class extends Component
         $this->gameOver = false;
         $this->players = [];
         $this->message = null;
+        $this->history = [];
+        $this->meIndex = null;
     }
 
     public function categoryScore(int $playerIndex, string $categoryValue): ?int
@@ -346,6 +412,20 @@ new class extends Component
                 @endfor
             </div>
 
+            @auth
+                <div class="setup-row">
+                    <div class="label">Which player is you?</div>
+                    <div class="option-group">
+                        <button type="button" class="option {{ $meIndex === null ? 'active' : '' }}" wire:click="$set('meIndex', null)">Not me</button>
+                        @for ($i = 0; $i < $playerCount; $i++)
+                            <button type="button" class="option {{ $meIndex === $i ? 'active' : '' }}" wire:click="$set('meIndex', {{ $i }})">
+                                Player {{ $i + 1 }}
+                            </button>
+                        @endfor
+                    </div>
+                </div>
+            @endauth
+
             <button type="button" wire:click="startGame">Start Game</button>
         </div>
     @else
@@ -363,6 +443,7 @@ new class extends Component
 
                 <div class="controls">
                     <button type="button" id="rollBtn" wire:click="roll" @disabled($gameOver || $rollsLeft <= 0)>Roll</button>
+                    <button type="button" id="undoBtn" wire:click="undo" @disabled($gameOver || $history === [])>Undo</button>
                 </div>
             </div>
 

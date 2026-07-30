@@ -2,10 +2,12 @@
 
 use App\Enums\GameMode;
 use App\Enums\GameType;
+use App\Enums\YahtzeeCategory;
 use App\Models\GameParticipant;
 use App\Models\GameSession;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
 
@@ -34,6 +36,30 @@ test('the dashboard shows a link into the boggle stats page once the user has pl
     $this->actingAs($user)
         ->get('/dashboard')
         ->assertSee(route('profile.boggle'), escape: false);
+});
+
+test('a local pass-and-play Yahtzee game marked as "you" shows up in recent games', function () {
+    // Regression test for the reported bug: Yahtzee/Family Feud are
+    // single-device pass-and-play games where every player is just a typed
+    // name (guest_name), never tied to user_id, since there's normally no
+    // way to know which local player is the account holder. Picking
+    // yourself via meIndex is what closes that gap -- see
+    // pages::yahtzee.play's endGame().
+    $user = User::factory()->create();
+
+    $component = Livewire::actingAs($user)
+        ->test('pages::yahtzee.play')
+        ->call('setPlayerCount', 1)
+        ->set('meIndex', 0)
+        ->call('startGame');
+
+    foreach (array_map(fn ($c) => $c->value, YahtzeeCategory::all()) as $category) {
+        $component->call('roll')->set('dice', [3, 3, 3, 3, 3])->call('scoreCategory', $category);
+    }
+
+    $this->actingAs($user)
+        ->get('/dashboard')
+        ->assertSee('Yahtzee');
 });
 
 test('a user without a username is prompted to choose one instead of linking to a public profile', function () {

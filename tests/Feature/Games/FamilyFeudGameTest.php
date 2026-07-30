@@ -7,6 +7,7 @@ use App\Enums\GameType;
 use App\Models\FamilyFeudQuestion;
 use App\Models\GameParticipant;
 use App\Models\GameSession;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
@@ -306,6 +307,39 @@ test('ending the game records a session and ranked participants for both teams',
         ->and($reds->result)->toBe(GameResult::Win)
         ->and($blues->score)->toBe(30)
         ->and($blues->result)->toBe(GameResult::Loss);
+});
+
+test('choosing a team as "you" attributes that participant to your account, the other stays a guest', function () {
+    FamilyFeudQuestion::factory()->count(2)->create();
+    $user = User::factory()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::family-feud.play')
+        ->set('teamNames.0', 'Reds')
+        ->set('teamNames.1', 'Blues')
+        ->set('meTeamIndex', 1)
+        ->call('setRounds', 1)
+        ->call('startGame')
+        ->call('endGame');
+
+    $mine = GameParticipant::where('user_id', $user->id)->sole();
+    $other = GameParticipant::whereNull('user_id')->sole();
+
+    expect($mine->guest_name)->toBeNull()
+        ->and($other->guest_name)->toBe('Reds');
+});
+
+test('leaving "not me" selected keeps both teams as guests', function () {
+    FamilyFeudQuestion::factory()->count(2)->create();
+    $user = User::factory()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::family-feud.play')
+        ->call('setRounds', 1)
+        ->call('startGame')
+        ->call('endGame');
+
+    expect(GameParticipant::whereNull('user_id')->count())->toBe(2);
 });
 
 test('a tied game records a draw for both teams', function () {

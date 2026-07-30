@@ -8,6 +8,7 @@ use App\Models\FamilyFeudQuestion;
 use App\Models\GameParticipant;
 use App\Models\GameSession;
 use App\Services\FamilyFeud\JudgeService;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 
 new class extends Component
@@ -79,6 +80,13 @@ new class extends Component
     public bool $turnOptionsOpen = false;
 
     public string $roundEndTitle = '';
+
+    /**
+     * Which local team, if any, is the authenticated account holder --
+     * null means "not attributing this game to my account." Only offered
+     * when logged in; drives user_id vs guest_name in endGame().
+     */
+    public ?int $meTeamIndex = null;
 
     public function mount(): void
     {
@@ -361,16 +369,24 @@ new class extends Component
         $topScore = max($this->teams[0]['score'], $this->teams[1]['score']);
         $tie = $this->teams[0]['score'] === $this->teams[1]['score'];
 
-        foreach ($this->teams as $team) {
+        foreach ($this->teams as $i => $team) {
             $result = match (true) {
                 $tie => GameResult::Draw,
                 $team['score'] === $topScore => GameResult::Win,
                 default => GameResult::Loss,
             };
 
+            // Pass-and-play has no way to know which local team is the
+            // account holder in general (see docs/progress.md) --
+            // $meTeamIndex is the host explicitly declaring it during
+            // setup, the same way Boggle's own solo games attribute
+            // user_id vs guest_name.
+            $isMe = $i === $this->meTeamIndex && Auth::check();
+
             GameParticipant::create([
                 'game_session_id' => $session->id,
-                'guest_name' => $team['name'],
+                'user_id' => $isMe ? Auth::id() : null,
+                'guest_name' => $isMe ? null : $team['name'],
                 'score' => $team['score'],
                 'result' => $result,
             ]);
@@ -384,6 +400,7 @@ new class extends Component
         $this->questions = [];
         $this->message = null;
         $this->pendingGuess = null;
+        $this->meTeamIndex = null;
     }
 
     /**
@@ -520,6 +537,17 @@ new class extends Component
                 </div>
             </div>
             <div class="setup-note">Each round, Team 1 and Team 2 both get a turn — Team 1 goes first.</div>
+
+            @auth
+                <div class="setup-row">
+                    <div class="label">Which team is you?</div>
+                    <div class="option-group">
+                        <button type="button" class="option {{ $meTeamIndex === null ? 'active' : '' }}" wire:click="$set('meTeamIndex', null)">Not me</button>
+                        <button type="button" class="option {{ $meTeamIndex === 0 ? 'active' : '' }}" wire:click="$set('meTeamIndex', 0)">{{ $teamNames[0] ?: 'Team 1' }}</button>
+                        <button type="button" class="option {{ $meTeamIndex === 1 ? 'active' : '' }}" wire:click="$set('meTeamIndex', 1)">{{ $teamNames[1] ?: 'Team 2' }}</button>
+                    </div>
+                </div>
+            @endauth
 
             <button type="button" wire:click="startGame">Start Game</button>
 

@@ -6,6 +6,7 @@ use App\Enums\GameType;
 use App\Enums\YahtzeeCategory;
 use App\Models\GameParticipant;
 use App\Models\GameSession;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 
@@ -207,4 +208,112 @@ test('starting a new game returns to the setup screen', function () {
         ->assertSet('started', false)
         ->assertSet('gameOver', false)
         ->assertSet('players', []);
+});
+
+test('undo reverts the most recent roll', function () {
+    Livewire::test('pages::yahtzee.play')
+        ->call('startGame')
+        ->call('roll')
+        ->assertCount('dice', 5)
+        ->assertSet('rollsLeft', 2)
+        ->call('undo')
+        ->assertSet('dice', [])
+        ->assertSet('rollsLeft', 3)
+        ->assertSet('history', []);
+});
+
+test('undo reverts the most recent scored category', function () {
+    Livewire::test('pages::yahtzee.play')
+        ->call('setPlayerCount', 2)
+        ->call('startGame')
+        ->call('roll')
+        ->set('dice', [4, 4, 4, 2, 1])
+        ->call('scoreCategory', 'fours')
+        ->assertSet('players.0.scores.fours', 12)
+        ->assertSet('currentPlayer', 1)
+        ->call('undo')
+        ->assertSet('players.0.scores.fours', null)
+        ->assertSet('currentPlayer', 0)
+        ->assertSet('dice', [4, 4, 4, 2, 1])
+        ->assertSet('rollsLeft', 2);
+});
+
+test('undo does nothing when there is no history', function () {
+    Livewire::test('pages::yahtzee.play')
+        ->call('startGame')
+        ->call('undo')
+        ->assertSet('history', [])
+        ->assertSet('dice', [])
+        ->assertSet('rollsLeft', 3);
+});
+
+test('undo does nothing once the game is over', function () {
+    Livewire::test('pages::yahtzee.play')
+        ->call('setPlayerCount', 1)
+        ->call('startGame')
+        ->call('roll')
+        ->set('dice', [1, 1, 1, 1, 1])
+        ->call('scoreCategory', 'chance')
+        ->set('gameOver', true)
+        ->call('undo')
+        ->assertSet('players.0.scores.chance', 5);
+});
+
+test('changing player count clears an out-of-range "which player is you" selection', function () {
+    Livewire::test('pages::yahtzee.play')
+        ->call('setPlayerCount', 3)
+        ->set('meIndex', 2)
+        ->call('setPlayerCount', 2)
+        ->assertSet('meIndex', null);
+});
+
+test('changing player count keeps an in-range "which player is you" selection', function () {
+    Livewire::test('pages::yahtzee.play')
+        ->call('setPlayerCount', 3)
+        ->set('meIndex', 1)
+        ->call('setPlayerCount', 2)
+        ->assertSet('meIndex', 1);
+});
+
+test('choosing a player as "you" attributes that participant to your account, others stay guests', function () {
+    $user = User::factory()->create();
+
+    $component = Livewire::actingAs($user)
+        ->test('pages::yahtzee.play')
+        ->call('setPlayerCount', 2)
+        ->set('playerNames.0', 'Alex')
+        ->set('playerNames.1', 'Sam')
+        ->set('meIndex', 0)
+        ->call('startGame');
+
+    $categories = array_map(fn ($c) => $c->value, YahtzeeCategory::all());
+
+    foreach ($categories as $category) {
+        $component->call('roll')->set('dice', [6, 6, 6, 6, 6])->call('scoreCategory', $category);
+        $component->call('roll')->set('dice', [1, 1, 2, 3, 4])->call('scoreCategory', $category);
+    }
+
+    $mine = GameParticipant::where('user_id', $user->id)->sole();
+    $other = GameParticipant::whereNull('user_id')->sole();
+
+    expect($mine->guest_name)->toBeNull()
+        ->and($other->guest_name)->toBe('Sam');
+});
+
+test('leaving "not me" selected keeps every participant a guest', function () {
+    $user = User::factory()->create();
+
+    $component = Livewire::actingAs($user)
+        ->test('pages::yahtzee.play')
+        ->call('setPlayerCount', 2)
+        ->call('startGame');
+
+    $categories = array_map(fn ($c) => $c->value, YahtzeeCategory::all());
+
+    foreach ($categories as $category) {
+        $component->call('roll')->set('dice', [6, 6, 6, 6, 6])->call('scoreCategory', $category);
+        $component->call('roll')->set('dice', [1, 1, 2, 3, 4])->call('scoreCategory', $category);
+    }
+
+    expect(GameParticipant::whereNull('user_id')->count())->toBe(2);
 });
