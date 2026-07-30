@@ -1,7 +1,6 @@
 <?php
 
 use App\Enums\RoomStatus;
-use App\Events\RoomGameStarting;
 use App\Events\RoomPlayerReadyToggled;
 use App\Models\Room;
 use Illuminate\Support\Facades\Auth;
@@ -99,13 +98,16 @@ new class extends Component
 
         $this->room->update(['status' => RoomStatus::Active]);
 
-        RoomGameStarting::dispatch($this->room);
-
         // A plain (non-broadcast) Livewire event, handled synchronously by
         // whichever game-specific page hosts this component -- letting each
         // game (Boggle, Yahtzee, ...) decide what "starting" means for it
         // (e.g. generating a shared board) without this component knowing
-        // anything game-specific.
+        // anything game-specific. That handler is also responsible for
+        // broadcasting RoomGameStarting itself, once it's actually done
+        // preparing the game -- broadcasting it from here, before that
+        // preparation has even happened, raced other players' "is it ready
+        // yet?" check against this component's own separate follow-up
+        // request and could lose.
         $this->dispatch('room-game-starting');
     }
 

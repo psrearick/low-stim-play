@@ -68,9 +68,15 @@ test('the host can start the game once everyone is ready', function () {
         ->call('onJoining', ['id' => $guest->id, 'name' => $guest->name, 'is_host' => false])
         ->call('onReadyToggled', ['user_id' => $host->id, 'ready' => true])
         ->call('onReadyToggled', ['user_id' => $guest->id, 'ready' => true])
-        ->call('startGame');
+        ->call('startGame')
+        // GameLobby itself no longer broadcasts RoomGameStarting -- it just
+        // hands off to this local event, and whichever game-specific page
+        // hosts it (pages::boggle.room here) is responsible for actually
+        // preparing the game and broadcasting only once that's done. See
+        // that component's onRoomStarting() for why the ordering matters.
+        ->assertDispatched('room-game-starting');
 
-    Event::assertDispatched(RoomGameStarting::class);
+    Event::assertNotDispatched(RoomGameStarting::class);
     expect($room->fresh()->status)->toBe(RoomStatus::Active);
 });
 

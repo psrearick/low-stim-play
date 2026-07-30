@@ -3,6 +3,7 @@
 use App\Enums\GameMode;
 use App\Enums\GameType;
 use App\Enums\RoomStatus;
+use App\Events\RoomGameStarting;
 use App\Models\GameSession;
 use App\Models\Room;
 use App\Models\User;
@@ -72,6 +73,21 @@ new class extends Component
             ]);
 
             $this->room->update(['game_session_id' => $session->id]);
+
+            // Broadcast only now that game_session_id is actually set, not
+            // from GameLobby::startGame() (where it used to live) -- that
+            // dispatch is a ShouldBroadcastNow event, so it reaches other
+            // players' onRoomStarted() listener (below) near-instantly.
+            // Firing it before this row was ever written meant a guest
+            // could receive "the game is starting" and check
+            // game_session_id before this same host's own follow-up
+            // request had set it, see null, and silently do nothing --
+            // stranding them on the room page. This is a *different*
+            // Livewire request/response cycle than GameLobby::startGame()
+            // (reached via its local, non-broadcast 'room-game-starting'
+            // dispatch, see getListeners() above), so this ordering is the
+            // only way to guarantee the DB write happens first.
+            RoomGameStarting::dispatch($this->room);
         }
 
         $this->goToGame();

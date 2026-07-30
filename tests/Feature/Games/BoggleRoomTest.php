@@ -5,6 +5,7 @@ use App\Enums\GameResult;
 use App\Enums\GameType;
 use App\Enums\RoomStatus;
 use App\Events\RoomGameEnded;
+use App\Events\RoomGameStarting;
 use App\Models\GameParticipant;
 use App\Models\GameSession;
 use App\Models\Room;
@@ -144,6 +145,29 @@ test('starting the room creates a shared game session and redirects the host int
         ->and($session->settings['size'])->toBe(5)
         ->and($session->settings['minutes'])->toBe(2)
         ->and($room->fresh()->game_session_id)->toBe($session->id);
+});
+
+test('RoomGameStarting is only broadcast after game_session_id is actually set', function () {
+    // Regression test: this event used to be broadcast from
+    // GameLobby::startGame(), *before* this component's own separate
+    // request had created the GameSession and set game_session_id --
+    // fine when broadcasting was queued (a real delay masked the race),
+    // but once it became ShouldBroadcastNow (near-instant), another
+    // player could receive it, check game_session_id, see null, and never
+    // get redirected into the game at all.
+    Event::fake([RoomGameStarting::class]);
+
+    $host = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    Livewire::actingAs($host)
+        ->test('pages::boggle.room', ['code' => $room->code])
+        ->call('onRoomStarting');
+
+    Event::assertDispatched(
+        RoomGameStarting::class,
+        fn (RoomGameStarting $event) => $event->room->game_session_id !== null,
+    );
 });
 
 test('starting the room twice does not create a second game session', function () {
