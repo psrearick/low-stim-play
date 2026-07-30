@@ -321,7 +321,16 @@ new class extends Component
             'user_id' => Auth::id(),
             'guest_name' => Auth::check() ? null : 'Guest',
             'score' => $this->score,
-            'stats' => ['words_found' => count($this->foundWords), 'found_words' => $this->foundWords],
+            'stats' => [
+                'words_found' => count($this->foundWords),
+                'found_words' => $this->foundWords,
+                // The board's full solved word list, already computed above
+                // to render the reveal screen -- persisting just the count
+                // is what lets the profile's Boggle stats show "X% of the
+                // board found" without re-running the Solver (an ~80k-word
+                // dictionary build) for every historical game on every view.
+                'total_valid_words' => count($this->allValidWords),
+            ],
         ]);
 
         if ($this->isSharedSession) {

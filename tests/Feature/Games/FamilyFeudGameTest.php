@@ -45,6 +45,19 @@ test('the setup screen renders', function () {
     $this->get('/family-feud')->assertSeeLivewire('pages::family-feud.play');
 });
 
+test('starting the game with no questions in the bank shows an error instead of crashing', function () {
+    // Regression test: on a fresh/misconfigured deployment where the
+    // family_feud_questions table hasn't been seeded, startGame() used to
+    // silently set $questions to an empty array, and the template's very
+    // next render (currentQuestion()) crashed with an "Undefined array
+    // key 0" fatal instead of a readable error.
+    Livewire::test('pages::family-feud.play')
+        ->call('startGame')
+        ->assertSet('started', false)
+        ->assertSet('messageIsError', true)
+        ->assertSee('question bank needs to be seeded');
+});
+
 test('rounds are bounded by half the question bank size', function () {
     FamilyFeudQuestion::factory()->count(6)->create();
 

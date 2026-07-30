@@ -37,7 +37,7 @@ new class extends Component
         </div>
     </div>
 
-    <x-player-stats :stats="$this->stats" :recent-games="$this->recentGames" />
+    <x-player-stats :stats="$this->stats" :recent-games="$this->recentGames" :linkable="true" />
 
     <div class="controls">
         <a href="{{ route('profile') }}"><button type="button">Edit Profile</button></a>

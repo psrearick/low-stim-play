@@ -80,6 +80,17 @@ new class extends Component
 
     public string $roundEndTitle = '';
 
+    public function mount(): void
+    {
+        // maxRounds() floors to MIN_ROUNDS even when the bank has zero
+        // questions -- it's a *display* bound for the stepper, not a
+        // promise that many rounds actually exist. Clamping the starting
+        // value here just keeps the stepper's initial display honest;
+        // startGame() below is what actually guards against playing with
+        // too few (or no) questions.
+        $this->rounds = min($this->rounds, $this->maxRounds());
+    }
+
     /**
      * setPlayerCount-style stepper for the setup screen, bounded by how
      * many questions are actually in the bank (each round consumes 2).
@@ -96,6 +107,18 @@ new class extends Component
 
     public function startGame(): void
     {
+        // A fresh/misconfigured deployment (seeder never run) or a bank
+        // that's simply been emptied out since leaves nothing to deal --
+        // without this, $questions ended up [], and the very next render
+        // (currentQuestion()) crashed with a fatal "Undefined array key 0"
+        // instead of a readable error.
+        if (FamilyFeudQuestion::count() === 0) {
+            $this->message = 'No Family Feud questions are available yet -- the question bank needs to be seeded.';
+            $this->messageIsError = true;
+
+            return;
+        }
+
         $chosen = FamilyFeudQuestion::inRandomOrder()
             ->limit($this->rounds * 2)
             ->get()
@@ -499,6 +522,10 @@ new class extends Component
             <div class="setup-note">Each round, Team 1 and Team 2 both get a turn — Team 1 goes first.</div>
 
             <button type="button" wire:click="startGame">Start Game</button>
+
+            @if ($message)
+                <div class="message {{ $messageIsError ? 'error' : '' }}">{{ $message }}</div>
+            @endif
         </div>
     @else
         <div id="family-feud-game">

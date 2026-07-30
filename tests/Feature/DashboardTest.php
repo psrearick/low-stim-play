@@ -26,6 +26,16 @@ test('an authenticated user sees their own stats', function () {
         ->assertSee('42', escape: false);
 });
 
+test('the dashboard shows a link into the boggle stats page once the user has played one', function () {
+    $user = User::factory()->create();
+    $session = GameSession::factory()->create(['type' => GameType::Boggle, 'mode' => GameMode::Solo]);
+    GameParticipant::factory()->create(['game_session_id' => $session->id, 'user_id' => $user->id]);
+
+    $this->actingAs($user)
+        ->get('/dashboard')
+        ->assertSee(route('profile.boggle'), escape: false);
+});
+
 test('a user without a username is prompted to choose one instead of linking to a public profile', function () {
     $user = User::factory()->create(['username' => null]);
 

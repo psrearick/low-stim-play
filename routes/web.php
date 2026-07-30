@@ -18,6 +18,18 @@ Route::livewire('/profile', 'pages::profile')
     ->middleware(['auth', 'verified'])
     ->name('profile');
 
+// Registered before /profile/{username} below, which would otherwise treat
+// "boggle" as a username and swallow both these routes -- Laravel matches
+// routes in registration order, and {username} is a single wildcard segment
+// that matches "/profile/boggle" just as readily as a real username.
+Route::livewire('/profile/boggle', 'pages::profile.boggle.index')
+    ->middleware(['auth', 'verified'])
+    ->name('profile.boggle');
+
+Route::livewire('/profile/boggle/{gameParticipant}', 'pages::profile.boggle.show')
+    ->middleware(['auth', 'verified'])
+    ->name('profile.boggle.show');
+
 // Public profile -- distinct route from /profile above (that's the
 // authenticated user's own editable profile); this is a read-only view of
 // anyone's, gated by their own is_public flag rather than auth middleware.
