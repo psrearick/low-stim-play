@@ -96,7 +96,16 @@ new class extends Component
         abort_unless(Auth::id() === $this->room->host_user_id, 403);
         abort_unless($this->allReady, 403);
 
-        $this->room->update(['status' => RoomStatus::Active]);
+        // game_session_id is reset here, not just set once for the room's
+        // whole lifetime -- this room may be replayed (same code, "Back to
+        // room" after a prior game), and pages::boggle.room::onRoomStarting()
+        // only generates a fresh board/session when it finds this null.
+        // Leaving a prior game's id in place would make it silently reuse
+        // that old (already-ended) session/board for the host, and skip
+        // broadcasting RoomGameStarting entirely (that dispatch only
+        // happens inside the same "it's null" branch), stranding the guest
+        // in the lobby.
+        $this->room->update(['status' => RoomStatus::Active, 'game_session_id' => null]);
 
         // A plain (non-broadcast) Livewire event, handled synchronously by
         // whichever game-specific page hosts this component -- letting each

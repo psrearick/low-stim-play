@@ -3,6 +3,7 @@
 use App\Enums\RoomStatus;
 use App\Events\RoomGameStarting;
 use App\Events\RoomPlayerReadyToggled;
+use App\Models\GameSession;
 use App\Models\Room;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -78,6 +79,22 @@ test('the host can start the game once everyone is ready', function () {
 
     Event::assertNotDispatched(RoomGameStarting::class);
     expect($room->fresh()->status)->toBe(RoomStatus::Active);
+});
+
+test('starting the game clears any previous game session so a replayed room gets a fresh one', function () {
+    $host = User::factory()->create();
+    $guest = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id, 'game_session_id' => GameSession::factory()->create()->id]);
+
+    Livewire::actingAs($host)
+        ->test('game-lobby', ['room' => $room])
+        ->call('onJoining', ['id' => $host->id, 'name' => $host->name, 'is_host' => true])
+        ->call('onJoining', ['id' => $guest->id, 'name' => $guest->name, 'is_host' => false])
+        ->call('onReadyToggled', ['user_id' => $host->id, 'ready' => true])
+        ->call('onReadyToggled', ['user_id' => $guest->id, 'ready' => true])
+        ->call('startGame');
+
+    expect($room->fresh()->game_session_id)->toBeNull();
 });
 
 test('a non-host cannot start the game', function () {

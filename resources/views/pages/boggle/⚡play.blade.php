@@ -252,22 +252,47 @@ new class extends Component
 
     public function endGame(Solver $solver): void
     {
-        $this->finishGame($solver, broadcast: true);
+        $this->finishGame($solver);
     }
 
     /**
-     * A room-mate's game ended first (see RoomGameEnded) -- end mine too,
-     * without re-broadcasting back out (finishGame() already no-ops via its
-     * own $this->ended guard for anyone who receives this more than once,
-     * but skipping the broadcast here as well avoids every player in a
-     * room re-announcing the same "game ended" a second time).
+     * A room-mate's game session changed. Either they just ended their game
+     * (this one should cascade-end too), or they finished *after* this one
+     * already had -- which means finalizeSharedSession() just recalculated
+     * every participant's score using the now-complete participant set, and
+     * this player's own $this->score (set back when only a partial set of
+     * participants existed) is stale. Refresh it rather than let it keep
+     * showing a value computed before all the "shared word" exclusions were
+     * known.
      */
     public function onRoomGameEnded(Solver $solver): void
     {
-        $this->finishGame($solver, broadcast: false);
+        if ($this->ended) {
+            $this->refreshMyScore();
+
+            return;
+        }
+
+        $this->finishGame($solver);
     }
 
-    private function finishGame(Solver $solver, bool $broadcast): void
+    private function refreshMyScore(): void
+    {
+        if ($this->gameSessionId === null) {
+            return;
+        }
+
+        $participant = GameParticipant::query()
+            ->where('game_session_id', $this->gameSessionId)
+            ->where('user_id', Auth::id())
+            ->first();
+
+        if ($participant !== null) {
+            $this->score = $participant->score;
+        }
+    }
+
+    private function finishGame(Solver $solver): void
     {
         if ($this->ended) {
             return;
@@ -312,7 +337,12 @@ new class extends Component
         // Online rooms only -- an async challenge link has no "everyone
         // playing at once" to keep in sync; each side plays it on their own
         // schedule, sometimes days apart, so there's nothing to broadcast.
-        if ($broadcast && $this->room !== null) {
+        // Always broadcast here, even when this finish was itself triggered
+        // by a cascade (see onRoomGameEnded()) -- an earlier finisher's own
+        // score may have just changed (finalizeSharedSession() above just
+        // recalculated everyone using this now-larger participant set), and
+        // this is what tells their browser to refresh it.
+        if ($this->room !== null) {
             RoomGameEnded::dispatch($this->room);
         }
     }

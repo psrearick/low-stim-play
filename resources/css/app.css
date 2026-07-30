@@ -993,7 +993,9 @@ body.scrollable.boggle-play {
 
 #found-list {
     display: flex;
-    justify-content: space-evenly;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    justify-content: center;
     gap: 12px;
     height: min(55vh, 480px);
     overflow-y: auto;
@@ -1004,10 +1006,6 @@ body.scrollable.boggle-play {
     #found-list {
         gap: 16px;
     }
-}
-
-#found-list .word-list {
-    flex: 0 0 auto;
 }
 
 #found-list li {

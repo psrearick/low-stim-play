@@ -28,7 +28,18 @@
             error. 512M gives comfortable headroom.
         -->
         <ini name="memory_limit" value="512M"/>
-        <env name="APP_ENV" value="testing"/>
+        <!--
+            docker-compose.yml sets a real container-level APP_ENV=local, for
+            `composer run dev`/`artisan serve` etc, so PHPUnit's own <env>
+            override alone doesn't beat that: Laravel's env() resolution
+            reads $_SERVER, populated from the container's real environment at
+            PHP startup, which <env> never touches. force="true" also makes
+            PHPUnit override an already-set OS env var via putenv()/$_ENV
+            (its default behavior otherwise leaves an existing one alone),
+            and the <server> entry below covers the $_SERVER copy too.
+        -->
+        <env name="APP_ENV" value="testing" force="true"/>
+        <server name="APP_ENV" value="testing"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
