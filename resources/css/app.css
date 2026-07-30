@@ -67,6 +67,7 @@
      * kept a hair short of --accent's own chroma to stay the visually
      * secondary set.
      */
+    --shared: oklch(0.26 0.03 248);
     --rival-1: oklch(0.55 0.13 25);
     --rival-2: oklch(0.50 0.12 150);
     --rival-3: oklch(0.50 0.12 300);
@@ -85,6 +86,7 @@
     --btn-press: oklch(from var(--die) calc(l - 0.14) c h);
     --accent: oklch(0.6969 0.1442 248.57);
     --warn: oklch(0.66 0.06 55);
+    --shared: oklch(0.8 0.03 248);
     --rival-1: oklch(0.72 0.14 25);
     --rival-2: oklch(0.72 0.13 150);
     --rival-3: oklch(0.72 0.13 300);
@@ -680,7 +682,7 @@ button.option.active {
 }
 
 .word-list li.found-shared {
-    color: var(--bar);
+    color: var(--shared);
     font-weight: bold;
 }
 
