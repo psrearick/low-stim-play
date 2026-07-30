@@ -72,7 +72,7 @@ new class extends Component
 
     <x-panel heading="Profile">
         @if ($saved)
-            <p class="text-sm text-accent text-center">Profile saved.</p>
+            <p class="text-sm text-text/80 text-center">Profile saved.</p>
         @endif
 
         <form wire:submit="save" class="w-full flex flex-col gap-4">
@@ -121,6 +121,6 @@ new class extends Component
             @endforelse
         </ul>
 
-        <button type="button" data-passkey-register class="w-full bg-accent text-bg">Add a Passkey</button>
+        <button type="button" data-passkey-register class="w-full">Add a Passkey</button>
     </x-panel>
 </div>

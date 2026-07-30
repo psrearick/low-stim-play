@@ -259,29 +259,60 @@ new class extends Component
             $this->gameSessionId = $session->id;
         }
 
-        GameParticipant::create([
+        $participant = GameParticipant::create([
             'game_session_id' => $session->id,
             'user_id' => Auth::id(),
             'guest_name' => Auth::check() ? null : 'Guest',
             'score' => $this->score,
-            'stats' => ['words_found' => count($this->foundWords)],
+            'stats' => ['words_found' => count($this->foundWords), 'found_words' => $this->foundWords],
         ]);
 
         if ($this->isSharedSession) {
-            $this->rankParticipants($session);
+            $this->finalizeSharedSession($session);
+            // Re-read rather than trust the in-memory $participant -- its
+            // score was just overwritten (to the "only words nobody else
+            // also found" value) by finalizeSharedSession(), and the HUD/
+            // reveal screen should show that adjusted score, not the raw
+            // as-you-played one.
+            $this->score = $participant->fresh()->score;
         }
     }
 
     /**
-     * Ranks every participant recorded so far for an online game session:
-     * the current highest score wins, everyone else loses, and a tie at
-     * the top is a draw for all of them. Re-run every time a participant
-     * finishes, so it's self-correcting as more players finish and
-     * eventually converges once everyone has.
+     * Rescoes and re-ranks every participant recorded so far for an online
+     * game session. A word worth points only if *no one else* in the
+     * session also found it -- shared discoveries score nothing for
+     * anyone, matching the room's "credit for what you alone got" rule.
+     * Re-run every time a participant finishes, so it's self-correcting:
+     * an early finisher's score/rank can still shift as later players'
+     * found-word lists change what counts as "shared", converging once
+     * everyone has finished.
      */
-    private function rankParticipants(GameSession $session): void
+    private function finalizeSharedSession(GameSession $session): void
     {
         $participants = $session->participants()->get();
+
+        /** @var array<string, int> $finderCounts */
+        $finderCounts = [];
+
+        foreach ($participants as $participant) {
+            foreach (array_keys($participant->stats['found_words'] ?? []) as $word) {
+                $finderCounts[$word] = ($finderCounts[$word] ?? 0) + 1;
+            }
+        }
+
+        foreach ($participants as $participant) {
+            $exclusiveScore = 0;
+
+            foreach ($participant->stats['found_words'] ?? [] as $word => $points) {
+                if ($finderCounts[$word] === 1) {
+                    $exclusiveScore += $points;
+                }
+            }
+
+            $participant->update(['score' => $exclusiveScore]);
+        }
+
         $topScore = $participants->max('score');
         $winners = $participants->where('score', $topScore)->count();
 
@@ -328,7 +359,106 @@ new class extends Component
         return GameParticipant::with('user')
             ->where('game_session_id', $this->gameSessionId)
             ->when(Auth::check(), fn ($query) => $query->where('user_id', '!=', Auth::id()))
+            ->orderBy('id')
             ->get();
+    }
+
+    /**
+     * word => list of finder tags ('me', 'other-0', 'other-1', ...), for a
+     * shared session's post-game reveal. The Blade template reads this
+     * once into a local variable and passes each word's own entry to
+     * wordClass() below, rather than calling this (and its
+     * otherParticipants query) once per word in the reveal list.
+     *
+     * @return array<string, list<string>>
+     */
+    public function getWordFindersProperty(): array
+    {
+        $finders = [];
+
+        foreach (array_keys($this->foundWords) as $word) {
+            $finders[$word][] = 'me';
+        }
+
+        foreach ($this->otherParticipants as $index => $participant) {
+            foreach (array_keys($participant->stats['found_words'] ?? []) as $word) {
+                $finders[$word][] = 'other-'.$index;
+            }
+        }
+
+        return $finders;
+    }
+
+    /**
+     * The CSS class for one word in the reveal list -- pass
+     * `$wordFinders[$word] ?? []` (see getWordFindersProperty()), not the
+     * word itself.
+     *
+     * @param  list<string>  $finders
+     */
+    public function wordClass(array $finders): string
+    {
+        if (! $this->isSharedSession) {
+            return $finders !== [] ? 'found' : '';
+        }
+
+        if ($finders === []) {
+            return '';
+        }
+
+        if (count($finders) > 1) {
+            return 'found-shared';
+        }
+
+        if ($finders[0] === 'me') {
+            return 'found-me';
+        }
+
+        $otherIndex = (int) str_replace('other-', '', $finders[0]);
+
+        return 'found-other-'.($otherIndex % 4);
+    }
+
+    /**
+     * @return list<array{label: string, score: int, isMe: bool}>
+     */
+    public function getScoreboardProperty(): array
+    {
+        if (! $this->isSharedSession || ! $this->ended) {
+            return [];
+        }
+
+        $entries = [['label' => 'You', 'score' => $this->score, 'isMe' => true]];
+
+        foreach ($this->otherParticipants as $participant) {
+            $entries[] = [
+                'label' => $participant->user->name ?? $participant->guest_name ?? 'Player',
+                'score' => $participant->score,
+                'isMe' => false,
+            ];
+        }
+
+        return $entries;
+    }
+
+    public function getWinnerLabelProperty(): ?string
+    {
+        $board = $this->scoreboard;
+
+        if (count($board) < 2) {
+            return null;
+        }
+
+        $topScore = max(array_column($board, 'score'));
+        $winners = array_values(array_filter($board, fn (array $entry) => $entry['score'] === $topScore));
+
+        if (count($winners) > 1) {
+            return "It's a tie at {$topScore}!";
+        }
+
+        return $winners[0]['isMe']
+            ? "You win with {$topScore}!"
+            : "{$winners[0]['label']} wins with {$topScore}!";
     }
 
     public function getRemainingSecondsProperty(): ?int
@@ -417,7 +547,7 @@ new class extends Component
         <li>Scoring is by word length: 3&ndash;4 letters = 1 point, 5 = 2, 6 = 3, 7 = 5, 8 or more = 11 points.</li>
     </ul>
 </x-slot:rules>
-<div>
+<div class="flex flex-col items-center w-full">
     {{--
         Teleported (see layouts/app.blade.php's #game-actions anchor) rather
         than a layout $barRight slot -- this button's label depends on
@@ -471,14 +601,31 @@ new class extends Component
                         @endforeach
                     </ul>
                 @else
+                    @php $wordFinders = $this->wordFinders; @endphp
                     <div class="title" id="word-list-title">All Possible Words ({{ count($allValidWords ?? []) }})</div>
+                    @if ($isSharedSession)
+                        <div class="word-legend">
+                            <span class="word-legend-item">
+                                <span class="word-legend-swatch" style="background: var(--accent);"></span> You
+                            </span>
+                            @foreach ($this->otherParticipants as $index => $participant)
+                                <span class="word-legend-item">
+                                    <span class="word-legend-swatch" style="background: var(--rival-{{ ($index % 4) + 1 }});"></span>
+                                    {{ $participant->user->name ?? $participant->guest_name ?? 'Player' }}
+                                </span>
+                            @endforeach
+                            <span class="word-legend-item">
+                                <span class="word-legend-swatch" style="background: var(--bar);"></span> Both/All
+                            </span>
+                        </div>
+                    @endif
                     <div class="word-columns" id="word-columns">
                         @foreach ($this->wordsByLength as $length => $words)
                             <div class="word-column">
                                 <div class="word-column-header">{{ $length }} letters</div>
                                 <ul class="word-list">
                                     @foreach ($words as $word)
-                                        <li wire:key="reveal-{{ $word }}" class="{{ isset($foundWords[$word]) ? 'found' : '' }}">
+                                        <li wire:key="reveal-{{ $word }}" class="{{ $this->wordClass($wordFinders[$word] ?? []) }}">
                                             {{ strtoupper($word) }}
                                         </li>
                                     @endforeach
@@ -493,13 +640,19 @@ new class extends Component
 
     @if ($ended)
         <div class="flex flex-col items-center gap-4 w-full max-w-md" style="margin-top: clamp(12px, 2.2vmin, 26px);">
-            @if ($challenge !== null)
-                <div class="flex flex-col items-center gap-2 w-full text-sm" style="color: var(--ink);">
-                    @forelse ($this->otherParticipants as $participant)
-                        <p>{{ $participant->user->name ?? $participant->guest_name }} scored {{ $participant->score }}.</p>
-                    @empty
-                        <p>Waiting for the other player to finish.</p>
-                    @endforelse
+            @if ($isSharedSession)
+                <div class="flex flex-col items-center gap-1 w-full">
+                    @foreach ($this->scoreboard as $entry)
+                        <p class="status-line" style="{{ $entry['isMe'] ? 'color: var(--accent); font-weight: bold;' : '' }}">
+                            {{ $entry['isMe'] ? 'You' : $entry['label'] }}: {{ $entry['score'] }}
+                        </p>
+                    @endforeach
+
+                    @if ($this->winnerLabel)
+                        <p class="status" style="margin-top: 4px;">{{ $this->winnerLabel }}</p>
+                    @else
+                        <p class="status-line">Waiting for the other player to finish.</p>
+                    @endif
                 </div>
             @endif
 

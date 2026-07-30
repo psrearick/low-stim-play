@@ -42,7 +42,7 @@ new class extends Component
 ?>
 
 <div class="flex flex-col items-center gap-5 w-full max-w-2xl bg-surface border-2 border-surface-border rounded-lg p-8">
-    <p class="text-accent font-bold tracking-wide text-2xl">Final score: {{ $score }}</p>
+    <p class="text-bar font-bold tracking-wide text-2xl">Final score: {{ $score }}</p>
     <p class="text-sm text-text/65">
         You found {{ count($foundWords) }} of {{ count($allValidWords) }} possible words.
     </p>

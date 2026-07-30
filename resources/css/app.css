@@ -37,6 +37,14 @@
     --color-text: var(--ink);
     --color-accent: var(--accent);
     --color-warn: var(--warn);
+    /*
+     * The muted heading/branding blue (see .status, .heading -- e.g. the
+     * "Low Stim Play" title on the home page) -- distinct from --accent,
+     * which legacy reserves for actual interactive highlights (a selected
+     * Boggle die, a found word, the controlling Family Feud team) and
+     * never uses for headings or as a general "primary button" color.
+     */
+    --color-bar: var(--bar);
 }
 
 :root {
@@ -51,6 +59,18 @@
     --btn-press: oklch(from var(--die) calc(l - 0.14) c h);
     --accent: oklch(0.51 0.10 248.57);
     --warn: oklch(0.55 0.07 55);
+    /*
+     * Boggle rooms: distinct per-participant colors for the post-game
+     * "who found what" reveal (--accent is always "me"; these are other
+     * players, in join order). Same lightness/chroma family as --accent so
+     * every color reads with comparable weight, just a different hue --
+     * kept a hair short of --accent's own chroma to stay the visually
+     * secondary set.
+     */
+    --rival-1: oklch(0.55 0.13 25);
+    --rival-2: oklch(0.50 0.12 150);
+    --rival-3: oklch(0.50 0.12 300);
+    --rival-4: oklch(0.48 0.11 190);
 }
 
 .dark {
@@ -65,6 +85,10 @@
     --btn-press: oklch(from var(--die) calc(l - 0.14) c h);
     --accent: oklch(0.6969 0.1442 248.57);
     --warn: oklch(0.66 0.06 55);
+    --rival-1: oklch(0.72 0.14 25);
+    --rival-2: oklch(0.72 0.13 150);
+    --rival-3: oklch(0.72 0.13 300);
+    --rival-4: oklch(0.70 0.12 190);
 }
 
 /* No flashing, blinking, or motion of any kind - the whole point of this app. */
@@ -644,6 +668,62 @@ button.option.active {
 .word-list li.found {
     color: var(--accent);
     font-weight: bold;
+}
+
+/* Shared-session reveal: a word found only by me, only by one other named
+   participant, or by two-or-more people (regardless of who) each get their
+   own color -- see boggle/⚡play.blade.php's wordClass(). A word nobody
+   found at all is left unstyled, same as .word-list li above. */
+.word-list li.found-me {
+    color: var(--accent);
+    font-weight: bold;
+}
+
+.word-list li.found-shared {
+    color: var(--bar);
+    font-weight: bold;
+}
+
+.word-list li.found-other-0 {
+    color: var(--rival-1);
+    font-weight: bold;
+}
+
+.word-list li.found-other-1 {
+    color: var(--rival-2);
+    font-weight: bold;
+}
+
+.word-list li.found-other-2 {
+    color: var(--rival-3);
+    font-weight: bold;
+}
+
+.word-list li.found-other-3 {
+    color: var(--rival-4);
+    font-weight: bold;
+}
+
+.word-legend {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: clamp(10px, 1.8vmin, 20px);
+}
+
+.word-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: clamp(11px, 1.5vmin, 14px);
+    color: var(--ink);
+}
+
+.word-legend-swatch {
+    width: 0.9em;
+    height: 0.9em;
+    border-radius: 3px;
+    flex: 0 0 auto;
 }
 
 .word-sublists {

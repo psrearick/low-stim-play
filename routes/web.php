@@ -30,10 +30,13 @@ Route::livewire('/boggle/play', 'pages::boggle.play')->name('boggle.play');
 // server-tracked score) -- mirrors legacy/boggle-static.html exactly.
 Route::livewire('/boggle/group', 'pages::boggle.group')->name('boggle.group');
 
-// Presence channels (see routes/channels.php) require an authenticated
-// user, so online rooms -- unlike solo play -- aren't open to guests.
+// No auth middleware: presence channels (see routes/channels.php) always
+// require an authenticated guard user, so pages::boggle.room's mount()
+// auto-provisions (and logs in) a throwaway guest account for anyone who
+// arrives here without one -- see User::createGuest(). Joining a room
+// doesn't need a real account; hosting one (boggle-lobby's createRoom())
+// still does.
 Route::livewire('/boggle/room/{code}', 'pages::boggle.room')
-    ->middleware('auth')
     ->name('boggle.room');
 
 // Async challenge link: replays a completed solo game's exact board via

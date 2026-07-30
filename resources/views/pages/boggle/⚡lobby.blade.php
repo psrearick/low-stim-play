@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Room;
+use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 
@@ -8,10 +9,17 @@ new class extends Component
 {
     public string $joinCode = '';
 
+    public string $guestName = '';
+
     public ?string $joinError = null;
 
     public function createRoom(): void
     {
+        // Belt-and-suspenders alongside the template only showing this
+        // button to a real (non-guest) account -- hosting a room always
+        // needs one, unlike joining one.
+        abort_unless(Auth::check() && ! Auth::user()->is_guest, 403);
+
         $room = Room::create(['host_user_id' => Auth::id()]);
 
         $this->redirect(route('boggle.room', ['code' => $room->code]));
@@ -20,14 +28,32 @@ new class extends Component
     public function joinRoom(): void
     {
         $code = strtoupper(trim($this->joinCode));
+        $room = Room::notExpired()->where('code', $code)->first();
 
-        if (! Room::notExpired()->where('code', $code)->exists()) {
+        if (! $room) {
             $this->joinError = 'No active room with that code.';
 
             return;
         }
 
-        $this->redirect(route('boggle.room', ['code' => $code]));
+        // A room's presence channel always authenticates via the guard (see
+        // routes/channels.php) -- there's no "anonymous" option in Laravel's
+        // broadcasting auth -- so joining without a real account still needs
+        // a real `users` row. Only hosting (createRoom() above) is actually
+        // restricted to non-guest accounts.
+        if (Auth::guest()) {
+            Auth::login(User::createGuest($this->guestName));
+
+            // Guarded rather than unconditional -- Livewire::test() drives
+            // this component directly, without the full HTTP kernel/session
+            // middleware a real request goes through, so there's no session
+            // store attached to request() there.
+            if (request()->hasSession()) {
+                request()->session()->regenerate();
+            }
+        }
+
+        $this->redirect(route('boggle.room', ['code' => $room->code]));
     }
 };
 ?>
@@ -40,22 +66,28 @@ new class extends Component
 
     <livewire:boggle-setup />
 
-    @auth
-        <div class="setup">
+    <div class="setup">
+        @if (Auth::check() && ! Auth::user()->is_guest)
             <button type="button" wire:click="createRoom">Host an Online Room</button>
 
             <div class="status-line">or</div>
+        @endif
 
-            <form wire:submit="joinRoom" class="flex gap-2 w-full">
-                <input type="text" wire:model="joinCode" maxlength="6" placeholder="Room code" style="flex: 1; text-transform: uppercase;">
-                <button type="submit">Join</button>
-            </form>
+        @unless (Auth::check() && ! Auth::user()->is_guest)
+            <input type="text" wire:model="guestName" maxlength="24" placeholder="Your name (optional)">
+        @endunless
 
-            @if ($joinError)
-                <p class="status-line" style="color: var(--warn);">{{ $joinError }}</p>
-            @endif
-        </div>
-    @else
-        <p class="status-line"><a href="{{ route('login') }}" style="color: var(--bar);">Sign in</a> to host or join an online room.</p>
-    @endauth
+        <form wire:submit="joinRoom" class="flex gap-2 w-full">
+            <input type="text" wire:model="joinCode" maxlength="6" placeholder="Room code" style="flex: 1; text-transform: uppercase;">
+            <button type="submit">Join</button>
+        </form>
+
+        @if ($joinError)
+            <p class="status-line" style="color: var(--warn);">{{ $joinError }}</p>
+        @endif
+
+        @unless (Auth::check() && ! Auth::user()->is_guest)
+            <p class="status-line"><a href="{{ route('login') }}" style="color: var(--bar);">Sign in</a> to host an online room.</p>
+        @endunless
+    </div>
 </div>

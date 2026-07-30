@@ -3,12 +3,10 @@
 @section('content')
     <x-panel heading="Sign in">
         @if (session('status'))
-            <p class="text-sm text-accent text-center">{{ session('status') }}</p>
+            <p class="text-sm text-text/80 text-center">{{ session('status') }}</p>
         @endif
 
-        <button type="button" data-passkey-login class="w-full font-bold tracking-wide rounded px-6 py-2 bg-accent text-bg hover:opacity-90">
-            Sign in with a passkey
-        </button>
+        <button type="button" data-passkey-login class="w-full">Sign in with a passkey</button>
 
         <div class="flex items-center gap-3 w-full text-text/50 text-xs uppercase tracking-widest">
             <span class="h-px flex-1 bg-surface-border"></span>

@@ -63,12 +63,14 @@ test('finishing a challenge joins the original session instead of creating a new
         'game_session_id' => $session->id,
         'user_id' => $originalPlayer->id,
         'score' => 8,
+        'stats' => ['found_words' => ['cat' => 3, 'dog' => 5]],
     ]);
 
     $friend = User::factory()->create();
 
     Livewire::actingAs($friend)
         ->test('pages::boggle.play', ['size' => 4, 'minutes' => 3, 'challenge' => $session->id])
+        ->set('foundWords', ['owl' => 5, 'fox' => 7])
         ->set('score', 12)
         ->call('endGame');
 
@@ -93,6 +95,7 @@ test('the reveal screen shows the other player once they have also finished', fu
         'game_session_id' => $session->id,
         'user_id' => $originalPlayer->id,
         'score' => 8,
+        'stats' => ['found_words' => ['cat' => 3, 'dog' => 5]],
     ]);
 
     $friend = User::factory()->create();
@@ -100,7 +103,7 @@ test('the reveal screen shows the other player once they have also finished', fu
     Livewire::actingAs($friend)
         ->test('pages::boggle.play', ['size' => 4, 'minutes' => 3, 'challenge' => $session->id])
         ->call('endGame')
-        ->assertSee('Alex scored 8');
+        ->assertSee('Alex: 8');
 });
 
 test('resetting is a no-op for a challenge game', function () {

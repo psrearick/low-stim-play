@@ -13,10 +13,11 @@ use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
 
-test('guests are prompted to sign in instead of seeing room controls', function () {
+test('guests are prompted to sign in to host, but can still see the join form', function () {
     $this->get('/boggle')
         ->assertSee('Sign in')
-        ->assertDontSee('Host an online room');
+        ->assertDontSee('Host an Online Room')
+        ->assertSee('Room code');
 });
 
 test('authenticated users can create a room and are redirected into it', function () {
@@ -55,10 +56,52 @@ test('joining with an invalid code shows an error instead of redirecting', funct
         ->assertSet('joinError', 'No active room with that code.');
 });
 
-test('guests are redirected away from a room page', function () {
+test('a guest can view a room page without an account, and is given a throwaway one', function () {
     $room = Room::factory()->create();
 
-    $this->get("/boggle/room/{$room->code}")->assertRedirect('/login');
+    $this->get("/boggle/room/{$room->code}")->assertOk();
+
+    $guest = User::where('is_guest', true)->sole();
+
+    expect($guest->is_guest)->toBeTrue()
+        ->and($guest->name)->toBe('Guest')
+        ->and(auth()->id())->toBe($guest->id);
+});
+
+test('joining a room from the lobby without an account creates a guest and uses the chosen name', function () {
+    $room = Room::factory()->create();
+
+    Livewire::test('pages::boggle.lobby')
+        ->set('guestName', 'Alex')
+        ->set('joinCode', $room->code)
+        ->call('joinRoom')
+        ->assertRedirect(route('boggle.room', ['code' => $room->code]));
+
+    $guest = User::where('is_guest', true)->sole();
+
+    expect($guest->is_guest)->toBeTrue()
+        ->and($guest->name)->toBe('Alex');
+});
+
+test('a guest cannot host a room', function () {
+    $guest = User::createGuest('Alex');
+
+    Livewire::actingAs($guest)
+        ->test('pages::boggle.lobby')
+        ->call('createRoom')
+        ->assertForbidden();
+
+    expect(Room::count())->toBe(0);
+});
+
+test('the lobby only shows the host button to a real account', function () {
+    $guest = User::createGuest('Alex');
+
+    $this->actingAs($guest)->get('/boggle')->assertDontSee('Host an Online Room');
+
+    $user = User::factory()->create();
+
+    $this->actingAs($user)->get('/boggle')->assertSee('Host an Online Room');
 });
 
 test('an unknown room code 404s', function () {
@@ -164,12 +207,14 @@ test('players in a room play the same board and are ranked against each other', 
     Livewire::actingAs($host)
         ->test('pages::boggle.play', ['size' => 4, 'minutes' => 3, 'seed' => $seed, 'room' => $room->code])
         ->set('board', $hostBoard)
+        ->set('foundWords', ['cat' => 4, 'dog' => 6])
         ->set('score', 10)
         ->call('endGame');
 
     Livewire::actingAs($guest)
         ->test('pages::boggle.play', ['size' => 4, 'minutes' => 3, 'seed' => $seed, 'room' => $room->code])
         ->set('board', $hostBoard)
+        ->set('foundWords', ['rat' => 3])
         ->set('score', 3)
         ->call('endGame');
 
@@ -181,6 +226,41 @@ test('players in a room play the same board and are ranked against each other', 
 
     expect($hostParticipant->result)->toBe(GameResult::Win)
         ->and($guestParticipant->result)->toBe(GameResult::Loss);
+});
+
+test('a word both players found scores nothing for either of them', function () {
+    $host = User::factory()->create();
+    $guest = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+    $session = GameSession::factory()->create([
+        'type' => GameType::Boggle,
+        'mode' => GameMode::Online,
+        'settings' => ['size' => 4, 'seed' => 1, 'minutes' => 3],
+    ]);
+    $room->update(['game_session_id' => $session->id]);
+
+    // Both found "cat" (worth 1) -- shared, so it counts for neither.
+    // The host's "dog" (worth 1) and the guest's "rat" (worth 1) are each
+    // exclusive to that player, so those still count.
+    Livewire::actingAs($host)
+        ->test('pages::boggle.play', ['size' => 4, 'minutes' => 3, 'seed' => 1, 'room' => $room->code])
+        ->set('foundWords', ['cat' => 1, 'dog' => 1])
+        ->set('score', 2)
+        ->call('endGame');
+
+    Livewire::actingAs($guest)
+        ->test('pages::boggle.play', ['size' => 4, 'minutes' => 3, 'seed' => 1, 'room' => $room->code])
+        ->set('foundWords', ['cat' => 1, 'rat' => 1])
+        ->set('score', 2)
+        ->call('endGame');
+
+    $hostParticipant = GameParticipant::where('user_id', $host->id)->sole();
+    $guestParticipant = GameParticipant::where('user_id', $guest->id)->sole();
+
+    expect($hostParticipant->score)->toBe(1)
+        ->and($guestParticipant->score)->toBe(1)
+        ->and($hostParticipant->result)->toBe(GameResult::Draw)
+        ->and($guestParticipant->result)->toBe(GameResult::Draw);
 });
 
 test('a tie for the top score is a draw for everyone tied', function () {

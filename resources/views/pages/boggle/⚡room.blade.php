@@ -5,6 +5,7 @@ use App\Enums\GameType;
 use App\Enums\RoomStatus;
 use App\Models\GameSession;
 use App\Models\Room;
+use App\Models\User;
 use App\Services\Boggle\BoardGenerator;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
@@ -20,6 +21,23 @@ new class extends Component
     public function mount(string $code): void
     {
         $this->room = Room::notExpired()->where('code', strtoupper($code))->firstOrFail();
+
+        // Arriving here directly (a shared room URL) rather than through
+        // boggle-lobby's own "Join" form -- that form already provisions a
+        // guest before redirecting here, but this route has no auth
+        // middleware of its own (see routes/web.php), so a first-time
+        // direct visitor still needs one.
+        if (Auth::guest()) {
+            Auth::login(User::createGuest());
+
+            // Guarded rather than unconditional -- Livewire::test() drives
+            // this component directly, without the full HTTP kernel/session
+            // middleware a real request goes through, so there's no session
+            // store attached to request() there.
+            if (request()->hasSession()) {
+                request()->session()->regenerate();
+            }
+        }
     }
 
     /**

@@ -7,7 +7,7 @@
         </p>
 
         @if (session('status'))
-            <p class="text-sm text-accent text-center">{{ session('status') }}</p>
+            <p class="text-sm text-text/80 text-center">{{ session('status') }}</p>
         @endif
 
         <form method="POST" action="{{ route('password.email') }}" class="w-full flex flex-col gap-4">

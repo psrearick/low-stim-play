@@ -7,7 +7,7 @@
         </p>
 
         @if (session('status') === 'verification-link-sent')
-            <p class="text-sm text-accent text-center">A new verification link has been sent.</p>
+            <p class="text-sm text-text/80 text-center">A new verification link has been sent.</p>
         @endif
 
         <form method="POST" action="{{ route('verification.send') }}" class="w-full">

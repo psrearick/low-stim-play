@@ -26,8 +26,8 @@ new class extends Component
         <div class="flex flex-col">
             <p class="font-bold text-text">{{ auth()->user()->name }}</p>
             @if (auth()->user()->username)
-                <a href="{{ route('profile.show', ['username' => auth()->user()->username]) }}" class="text-sm text-accent hover:underline">
-                    @{{ auth()->user()->username }} &middot; view public profile
+                <a href="{{ route('profile.show', ['username' => auth()->user()->username]) }}" class="text-sm text-text/65 hover:text-text underline">
+                    &commat;{{ auth()->user()->username }} &middot; view public profile
                 </a>
             @else
                 <a href="{{ route('profile') }}" class="text-sm text-text/65 hover:text-text underline">

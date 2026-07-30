@@ -6,9 +6,7 @@
             This is a protected area. Please confirm your password before continuing.
         </p>
 
-        <button type="button" data-passkey-confirm class="w-full font-bold tracking-wide rounded px-6 py-2 bg-accent text-bg hover:opacity-90">
-            Confirm with a passkey
-        </button>
+        <button type="button" data-passkey-confirm class="w-full">Confirm with a passkey</button>
 
         <div class="flex items-center gap-3 w-full text-text/50 text-xs uppercase tracking-widest">
             <span class="h-px flex-1 bg-surface-border"></span>
