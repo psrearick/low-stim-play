@@ -7,6 +7,7 @@
         @endif
 
         <button type="button" data-passkey-login class="w-full">Sign in with a passkey</button>
+        <p data-passkey-login-error class="text-sm text-warn hidden"></p>
 
         <div class="flex items-center gap-3 w-full text-text/50 text-xs uppercase tracking-widest">
             <span class="h-px flex-1 bg-surface-border"></span>

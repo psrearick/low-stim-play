@@ -77,6 +77,23 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Redirects
+    |--------------------------------------------------------------------------
+    |
+    | Overrides Fortify's default (`home`) redirect target for specific
+    | actions. Password confirmation is only ever triggered from the
+    | passkey management UI on `/profile` (see `Features::passkeys()`
+    | below), so send the user back there instead of `/dashboard` once
+    | confirmed.
+    |
+    */
+
+    'redirects' => [
+        'password-confirmation' => '/profile',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Fortify Routes Prefix / Subdomain
     |--------------------------------------------------------------------------
     |

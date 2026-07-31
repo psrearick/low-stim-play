@@ -40,17 +40,6 @@ This is a multi-session project, not a quick pass — plan it properly (probably
 
 Move these into the top bar, matching how other pages put page-specific actions there (either via the `.right` side of the button-bar directly, since `welcome.blade.php` isn't a Livewire component and doesn't need `@teleport`, or following the `$rules`/`$fullscreenToggle` named-slot pattern already used for other static per-page bar content). Needs both states: guest (Sign In / Create Account) and authenticated (Dashboard + Log Out).
 
-## Passkeys: "password confirmation required" dead end
-
-Reported: trying to add a passkey (or similar) sometimes just shows a password-confirmation prompt and doesn't seem to work right from there.
-
-Investigation so far (not fully diagnosed — needs live reproduction with a real/virtual authenticator to confirm):
-
-- `config/fortify.php` sets `Features::passkeys(['confirmPassword' => true])` — this is what makes passkey registration (and presumably deletion) require a fresh password confirmation at all. If the added security isn't wanted, this is the single knob to flip off; if it *is* wanted, the flow around it needs to actually work end to end (see below).
-- `resources/views/auth/confirm-password.blade.php` does offer a "Confirm with a passkey" button (`data-passkey-confirm`) as well as a typed-password fallback, so a passkey-only account (no memorable password) isn't necessarily stuck — *if* that button's ceremony actually completes successfully.
-- **Strongest lead:** `resources/js/app.js`'s `[data-passkey-confirm]` handler (around line 91) redirects to `response.redirect ?? '/dashboard'` after a successful confirmation. Fortify's normal password-confirmation flow is supposed to return the user to whatever protected action they were originally trying to do (e.g. back to `/profile` to actually finish adding the passkey), typically via the session's intended-URL mechanism. If `response.redirect` isn't populated with that intended URL, confirming (even successfully, even via passkey) would just bounce the user to `/dashboard` instead of completing the original "add a passkey" action — which would look exactly like "passkeys don't work," even though the confirmation itself succeeded. Check what Fortify's password-confirmation JSON response actually contains, and whether the intended-URL needs to be read from the session server-side instead of trusted from the JS response.
-- Also worth checking: whether Fortify's confirmation-timeout tracking (`auth.password_timeout` in `config/auth.php`) interacts sensibly with passkey-based sessions at all, versus being designed purely around traditional password logins.
-
 ## Smaller, previously-flagged gaps
 
 - **Friends activity** — the original plan mentioned it once for the dashboard, but no friends/social-graph table (requests? follows? mutual only?) exists anywhere in the schema. Needs an actual design decision before building, not just an omission to quietly fill in.

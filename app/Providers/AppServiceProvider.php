@@ -2,9 +2,11 @@
 
 namespace App\Providers;
 
+use App\Http\Requests\RememberedPasskeyVerificationRequest;
 use App\Services\Boggle\Solver;
 use App\Services\FamilyFeud\JudgeService;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Passkeys\Http\Requests\PasskeyVerificationRequest;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -21,6 +23,11 @@ class AppServiceProvider extends ServiceProvider
             apiKey: config('services.openrouter.key'),
             model: config('services.openrouter.model'),
         ));
+
+        // See RememberedPasskeyVerificationRequest's docblock -- makes
+        // every passkey login "remembered" since the JS package has no way
+        // to request that itself.
+        $this->app->bind(PasskeyVerificationRequest::class, RememberedPasskeyVerificationRequest::class);
     }
 
     /**

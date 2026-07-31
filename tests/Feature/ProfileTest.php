@@ -46,9 +46,9 @@ test('username must be unique', function () {
         ->assertHasErrors(['username']);
 });
 
-test('users can delete a passkey', function () {
+test('the passkey list renders on the profile page', function () {
     $user = User::factory()->create();
-    $passkey = $user->passkeys()->create([
+    $user->passkeys()->create([
         'name' => 'Test device',
         'credential_id' => 'credential-id',
         'credential' => ['type' => 'public-key'],
@@ -56,7 +56,5 @@ test('users can delete a passkey', function () {
 
     Livewire::actingAs($user)
         ->test('pages::profile')
-        ->call('deletePasskey', $passkey->id);
-
-    expect($user->passkeys()->count())->toBe(0);
+        ->assertSee('Test device');
 });

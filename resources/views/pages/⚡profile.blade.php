@@ -42,11 +42,6 @@ new class extends Component
         $this->saved = true;
     }
 
-    public function deletePasskey(int $passkeyId): void
-    {
-        $this->user()->passkeys()->whereKey($passkeyId)->delete();
-    }
-
     /**
      * @return \Illuminate\Database\Eloquent\Collection<int, \Laravel\Passkeys\Passkey>
      */
@@ -112,9 +107,8 @@ new class extends Component
             @forelse ($this->passkeys as $passkey)
                 <li wire:key="passkey-{{ $passkey->id }}" class="flex items-center justify-between gap-3 text-sm text-text/80">
                     <span>{{ $passkey->name }}</span>
-                    <button type="button" wire:click="deletePasskey({{ $passkey->id }})"
-                        wire:confirm="Remove this passkey?"
-                        class="text-warn hover:underline">
+                    <button type="button" data-passkey-remove-trigger data-passkey-id="{{ $passkey->id }}"
+                        data-passkey-name="{{ $passkey->name }}" class="text-warn hover:underline">
                         Remove
                     </button>
                 </li>
@@ -123,6 +117,89 @@ new class extends Component
             @endforelse
         </ul>
 
-        <button type="button" data-passkey-register class="w-full">Add a Passkey</button>
+        <button type="button" data-passkey-add class="w-full">Add a Passkey</button>
     </x-panel>
+
+    {{--
+        These three <dialog>s must stay inside this component's single root
+        element -- Livewire requires exactly one root per template, so
+        placing them as siblings after the closing </div> would break its
+        diffing (the trailing <script> pages like boggle/play get away with
+        is a documented, script-only exception).
+    --}}
+    <dialog class="passkey-dialog m-auto w-[min(94vw,420px)] rounded-lg border-2 border-surface-border bg-surface p-6 text-text backdrop:bg-black/50 focus:outline-none"
+        id="passkey-name-dialog" aria-labelledby="passkey-name-dialog-title">
+        <div class="flex items-center justify-between gap-3 mb-4">
+            <div class="text-bar font-bold tracking-wide text-lg" id="passkey-name-dialog-title">Name this passkey</div>
+            <button type="button" class="rounded px-2 py-0.5 text-lg font-bold leading-none hover:bg-surface-border/40"
+                data-passkey-dialog-close aria-label="Close">&times;</button>
+        </div>
+
+        <form data-passkey-name-form class="w-full flex flex-col gap-4">
+            <div class="flex flex-col gap-1">
+                <label for="passkey-name-input" class="text-sm text-text/80">Name</label>
+                <input id="passkey-name-input" type="text" maxlength="255" placeholder="e.g. MacBook Pro" required
+                    class="rounded border-2 border-surface-border bg-bg text-text px-3 py-2">
+            </div>
+
+            <p data-passkey-name-error class="text-sm text-warn hidden"></p>
+
+            <button type="submit" class="rounded px-6 py-2 font-bold tracking-wide bg-surface border-2 border-surface-border text-text">
+                Add Passkey
+            </button>
+        </form>
+    </dialog>
+
+    <dialog class="passkey-dialog m-auto w-[min(94vw,420px)] rounded-lg border-2 border-surface-border bg-surface p-6 text-text backdrop:bg-black/50 focus:outline-none"
+        id="passkey-password-dialog" aria-labelledby="passkey-password-dialog-title">
+        <div class="flex items-center justify-between gap-3 mb-4">
+            <div class="text-bar font-bold tracking-wide text-lg" id="passkey-password-dialog-title">Confirm your password</div>
+            <button type="button" class="rounded px-2 py-0.5 text-lg font-bold leading-none hover:bg-surface-border/40"
+                data-passkey-dialog-close aria-label="Close">&times;</button>
+        </div>
+
+        <p class="text-sm text-text/80 text-center mb-4">This is a protected action. Please confirm your password to continue.</p>
+
+        <button type="button" data-passkey-password-confirm-with-passkey class="w-full">Confirm with a passkey</button>
+
+        <div class="flex items-center gap-3 w-full text-text/50 text-xs uppercase tracking-widest my-4">
+            <span class="h-px flex-1 bg-surface-border"></span>
+            or
+            <span class="h-px flex-1 bg-surface-border"></span>
+        </div>
+
+        <form data-passkey-password-form class="w-full flex flex-col gap-4">
+            <div class="flex flex-col gap-1">
+                <label for="passkey-password-input" class="text-sm text-text/80">Password</label>
+                <input id="passkey-password-input" type="password" autocomplete="current-password"
+                    class="rounded border-2 border-surface-border bg-bg text-text px-3 py-2">
+            </div>
+
+            <p data-passkey-password-error class="text-sm text-warn hidden"></p>
+
+            <button type="submit" class="rounded px-6 py-2 font-bold tracking-wide bg-surface border-2 border-surface-border text-text">
+                Confirm
+            </button>
+        </form>
+    </dialog>
+
+    <dialog class="passkey-dialog m-auto w-[min(94vw,420px)] rounded-lg border-2 border-surface-border bg-surface p-6 text-text backdrop:bg-black/50 focus:outline-none"
+        id="passkey-remove-dialog" aria-labelledby="passkey-remove-dialog-title">
+        <div class="text-bar font-bold tracking-wide text-lg mb-4" id="passkey-remove-dialog-title">Remove passkey</div>
+
+        <p class="text-sm text-text/80 text-center mb-4">
+            Remove <strong data-passkey-remove-name></strong>? You'll need another way to sign in if this was your only passkey.
+        </p>
+
+        <p data-passkey-remove-error class="text-sm text-warn hidden mb-4"></p>
+
+        <div class="flex gap-3 w-full">
+            <button type="button" data-passkey-remove-cancel class="flex-1 rounded px-6 py-2 font-bold tracking-wide bg-surface border-2 border-surface-border text-text">
+                Cancel
+            </button>
+            <button type="button" data-passkey-remove-confirm class="flex-1 rounded px-6 py-2 font-bold tracking-wide bg-surface border-2 border-warn text-warn">
+                Remove
+            </button>
+        </div>
+    </dialog>
 </div>

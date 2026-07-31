@@ -75,22 +75,32 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     document.querySelectorAll('[data-passkey-login]').forEach((button) => {
+        const errorEl = document.querySelector('[data-passkey-login-error]');
+
         button.addEventListener('click', async () => {
             button.disabled = true;
+            errorEl?.classList.add('hidden');
 
             try {
                 const response = await Passkeys.verify();
                 window.location.href = response.redirect ?? '/dashboard';
             } catch (error) {
                 button.disabled = false;
-                alert(error.message ?? 'Passkey sign-in failed.');
+
+                if (errorEl) {
+                    errorEl.textContent = error.message ?? 'Passkey sign-in failed.';
+                    errorEl.classList.remove('hidden');
+                }
             }
         });
     });
 
     document.querySelectorAll('[data-passkey-confirm]').forEach((button) => {
+        const errorEl = document.querySelector('[data-passkey-confirm-error]');
+
         button.addEventListener('click', async () => {
             button.disabled = true;
+            errorEl?.classList.add('hidden');
 
             try {
                 const response = await Passkeys.verify({
@@ -102,7 +112,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.location.href = response.redirect ?? '/dashboard';
             } catch (error) {
                 button.disabled = false;
-                alert(error.message ?? 'Passkey confirmation failed.');
+
+                if (errorEl) {
+                    errorEl.textContent = error.message ?? 'Passkey confirmation failed.';
+                    errorEl.classList.remove('hidden');
+                }
             }
         });
     });
@@ -129,23 +143,235 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    document.querySelectorAll('[data-passkey-register]').forEach((button) => {
-        button.addEventListener('click', async () => {
-            const name = window.prompt('Name this passkey (e.g. "MacBook Pro"):');
+    // ---- Passkey management (add/remove on /profile) --------------------
+    //
+    // All three flows (naming a new passkey, confirming a password,
+    // removing one) use custom <dialog>s instead of window.prompt()/
+    // confirm()/alert() -- native OS-chrome dialogs are exactly what this
+    // app's low-stim design avoids everywhere else (see the "Rules" dialog
+    // in layouts/app.blade.php for the same pattern).
+    const passkeyNameDialog = document.getElementById('passkey-name-dialog');
+    const passkeyPasswordDialog = document.getElementById('passkey-password-dialog');
+    const passkeyRemoveDialog = document.getElementById('passkey-remove-dialog');
 
-            if (!name) {
-                return;
-            }
+    if (passkeyNameDialog && passkeyPasswordDialog && passkeyRemoveDialog) {
+        document.querySelectorAll('[data-passkey-dialog-close]').forEach((button) => {
+            button.addEventListener('click', () => button.closest('dialog')?.close());
+        });
 
-            button.disabled = true;
+        document.querySelectorAll('dialog.passkey-dialog').forEach((dialog) => {
+            dialog.addEventListener('click', (event) => {
+                if (event.target === dialog) {
+                    dialog.close();
+                }
+            });
+        });
 
+        // Laravel's CSRF cookie, read the same way @laravel/passkeys itself
+        // falls back to reading it (there's no csrf-token <meta> tag in
+        // layouts/app.blade.php) -- needed here because the passkey removal
+        // endpoint is called directly, outside that package's own fetch
+        // helpers.
+        const csrfHeaders = () => {
+            const match = document.cookie.split('; ').find((row) => row.startsWith('XSRF-TOKEN='));
+
+            return match ? { 'X-XSRF-TOKEN': decodeURIComponent(match.slice('XSRF-TOKEN='.length)) } : {};
+        };
+
+        // Opens the password-confirmation dialog and resolves once the
+        // user's session is actually confirmed (by typed password or by
+        // passkey) -- rejects if they back out instead. Confirming still
+        // counts as the user gesture WebAuthn requires for whatever passkey
+        // action gets retried right after this resolves, since that retry
+        // happens synchronously in the same call chain as the "Confirm"
+        // click, not after a fresh page load.
+        const confirmPassword = () => new Promise((resolve, reject) => {
+            const form = passkeyPasswordDialog.querySelector('[data-passkey-password-form]');
+            const passwordInput = document.getElementById('passkey-password-input');
+            const passkeyButton = passkeyPasswordDialog.querySelector('[data-passkey-password-confirm-with-passkey]');
+            const errorEl = passkeyPasswordDialog.querySelector('[data-passkey-password-error]');
+
+            const showError = (message) => {
+                errorEl.textContent = message;
+                errorEl.classList.remove('hidden');
+            };
+
+            const cleanup = () => {
+                form.removeEventListener('submit', onSubmit);
+                passkeyButton.removeEventListener('click', onPasskeyConfirm);
+                passkeyPasswordDialog.removeEventListener('close', onClose);
+            };
+
+            const succeed = () => {
+                cleanup();
+                passwordInput.value = '';
+                passkeyPasswordDialog.close('confirmed');
+                resolve();
+            };
+
+            const onSubmit = async (event) => {
+                event.preventDefault();
+                errorEl.classList.add('hidden');
+
+                try {
+                    const response = await fetch('/user/confirm-password', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...csrfHeaders() },
+                        credentials: 'same-origin',
+                        body: JSON.stringify({ password: passwordInput.value }),
+                    });
+
+                    if (!response.ok) {
+                        const body = await response.json().catch(() => null);
+                        showError(body?.errors?.password?.[0] ?? body?.message ?? 'That password is incorrect.');
+                        return;
+                    }
+
+                    succeed();
+                } catch {
+                    showError('Something went wrong confirming your password.');
+                }
+            };
+
+            const onPasskeyConfirm = async () => {
+                errorEl.classList.add('hidden');
+
+                try {
+                    await Passkeys.verify({
+                        routes: { options: '/passkeys/confirm/options', submit: '/passkeys/confirm' },
+                    });
+                    succeed();
+                } catch (error) {
+                    showError(error.message ?? 'Passkey confirmation failed.');
+                }
+            };
+
+            const onClose = () => {
+                cleanup();
+
+                if (passkeyPasswordDialog.returnValue !== 'confirmed') {
+                    reject(new Error('Password confirmation cancelled.'));
+                }
+            };
+
+            form.addEventListener('submit', onSubmit);
+            passkeyButton.addEventListener('click', onPasskeyConfirm);
+            passkeyPasswordDialog.addEventListener('close', onClose);
+
+            errorEl.classList.add('hidden');
+            passwordInput.value = '';
+            // Reset explicitly -- dialog.close() with no argument (a plain
+            // cancel) leaves returnValue untouched, so a stale 'confirmed'
+            // from a *previous* successful confirmation would otherwise
+            // make the next cancel look like a confirmation too.
+            passkeyPasswordDialog.returnValue = '';
+            passkeyPasswordDialog.showModal();
+            passwordInput.focus();
+        });
+
+        // ---- Add a passkey ----
+        const nameForm = passkeyNameDialog.querySelector('[data-passkey-name-form]');
+        const nameInput = document.getElementById('passkey-name-input');
+        const nameError = passkeyNameDialog.querySelector('[data-passkey-name-error]');
+        const nameSubmit = nameForm.querySelector('button[type="submit"]');
+
+        const registerPasskey = async (name) => {
             try {
                 await Passkeys.register({ name });
+                passkeyNameDialog.close();
                 window.location.reload();
             } catch (error) {
-                button.disabled = false;
-                alert(error.message ?? 'Passkey registration failed.');
+                // See config/fortify.php's Features::passkeys() -- adding a
+                // passkey requires a fresh password confirmation, which
+                // @laravel/passkeys surfaces as a plain Error carrying
+                // Laravel's own RequirePassword middleware message (no
+                // status code survives its fetch wrapper).
+                if (error.message === 'Password confirmation required.') {
+                    try {
+                        await confirmPassword();
+                    } catch {
+                        return; // Cancelled -- stay on the name dialog, no alarming error for a deliberate back-out.
+                    }
+
+                    return registerPasskey(name);
+                }
+
+                nameError.textContent = error.message ?? 'Passkey registration failed.';
+                nameError.classList.remove('hidden');
+            }
+        };
+
+        document.querySelectorAll('[data-passkey-add]').forEach((button) => {
+            button.addEventListener('click', () => {
+                nameError.classList.add('hidden');
+                nameInput.value = '';
+                passkeyNameDialog.showModal();
+                nameInput.focus();
+            });
+        });
+
+        nameForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            nameError.classList.add('hidden');
+            nameSubmit.disabled = true;
+            await registerPasskey(nameInput.value.trim());
+            nameSubmit.disabled = false;
+        });
+
+        // ---- Remove a passkey ----
+        const removeNameEl = passkeyRemoveDialog.querySelector('[data-passkey-remove-name]');
+        const removeError = passkeyRemoveDialog.querySelector('[data-passkey-remove-error]');
+        const removeConfirmBtn = passkeyRemoveDialog.querySelector('[data-passkey-remove-confirm]');
+        const removeCancelBtn = passkeyRemoveDialog.querySelector('[data-passkey-remove-cancel]');
+        let pendingRemoveId = null;
+
+        const removePasskey = async (id) => {
+            const response = await fetch(`/user/passkeys/${id}`, {
+                method: 'DELETE',
+                headers: { Accept: 'application/json', ...csrfHeaders() },
+                credentials: 'same-origin',
+            });
+
+            if (response.status === 423) {
+                await confirmPassword();
+
+                return removePasskey(id);
+            }
+
+            if (!response.ok) {
+                const body = await response.json().catch(() => null);
+
+                throw new Error(body?.message ?? 'Could not remove passkey.');
+            }
+        };
+
+        document.querySelectorAll('[data-passkey-remove-trigger]').forEach((button) => {
+            button.addEventListener('click', () => {
+                pendingRemoveId = button.dataset.passkeyId;
+                removeNameEl.textContent = button.dataset.passkeyName ?? '';
+                removeError.classList.add('hidden');
+                passkeyRemoveDialog.showModal();
+            });
+        });
+
+        removeCancelBtn.addEventListener('click', () => passkeyRemoveDialog.close());
+
+        removeConfirmBtn.addEventListener('click', async () => {
+            removeError.classList.add('hidden');
+            removeConfirmBtn.disabled = true;
+
+            try {
+                await removePasskey(pendingRemoveId);
+                passkeyRemoveDialog.close();
+                window.location.reload();
+            } catch (error) {
+                if (error.message !== 'Password confirmation cancelled.') {
+                    removeError.textContent = error.message ?? 'Could not remove passkey.';
+                    removeError.classList.remove('hidden');
+                }
+            } finally {
+                removeConfirmBtn.disabled = false;
             }
         });
-    });
+    }
 });

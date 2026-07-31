@@ -7,6 +7,7 @@
         </p>
 
         <button type="button" data-passkey-confirm class="w-full">Confirm with a passkey</button>
+        <p data-passkey-confirm-error class="text-sm text-warn hidden"></p>
 
         <div class="flex items-center gap-3 w-full text-text/50 text-xs uppercase tracking-widest">
             <span class="h-px flex-1 bg-surface-border"></span>

@@ -78,7 +78,7 @@ new class extends Component
         @endunless
 
         <form wire:submit="joinRoom" class="flex gap-2 w-full">
-            <input type="text" wire:model="joinCode" maxlength="6" placeholder="Room code" style="flex: 1; text-transform: uppercase;">
+            <input type="text" id="join-code" wire:model="joinCode" maxlength="6" placeholder="Room code" style="flex: 1; text-transform: uppercase;">
             <button type="submit">Join</button>
         </form>
 
@@ -91,3 +91,17 @@ new class extends Component
         @endunless
     </div>
 </div>
+
+<script>
+    // iOS Safari's back-forward cache restores whichever element was
+    // focused when the page was left -- landing back on this lobby (e.g.
+    // after "Join" fails and the user backs out of a room) reopens the
+    // keyboard on the room code field even though nothing here sets
+    // autofocus. Blur it on bfcache restore so the keyboard stays closed
+    // until the user taps in.
+    window.addEventListener('pageshow', (event) => {
+        if (event.persisted && document.activeElement === document.getElementById('join-code')) {
+            document.activeElement.blur();
+        }
+    });
+</script>

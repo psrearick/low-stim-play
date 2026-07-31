@@ -19,13 +19,13 @@ class Room extends Model
     /**
      * The default lifetime of a room before it expires.
      */
-    public const LIFETIME_MINUTES = 60;
+    public const int LIFETIME_MINUTES = 60;
 
     /**
      * Room codes are read aloud and typed on phone keyboards, so visually
      * ambiguous characters (0/O, 1/I) are excluded from the alphabet.
      */
-    private const CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+    private const string CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
 
     protected static function booted(): void
     {
