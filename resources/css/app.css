@@ -1286,6 +1286,13 @@ body.scrollable.yahtzee-play.in-game {
     display: flex;
     flex-direction: column;
     justify-content: safe center;
+    /* Sized entirely by the surrounding flex layout (the space left over
+       after the dice area), not by its own content -- lets the scorecard's
+       17 rows (see the row-count comment below) size themselves as a
+       fraction of *that* space via cqh, rather than raw viewport vh, which
+       has no idea how tall the dice area above it actually ended up being. */
+    container-type: size;
+    container-name: scorecard;
 }
 
 table.scorecard {
@@ -1295,12 +1302,19 @@ table.scorecard {
     color: var(--ink);
 }
 
+/* 17 rows total (1 header + 6 upper + subtotal + bonus + 6 lower +
+   Yahtzee bonus + total) -- font-size/padding are cqh-based (a % of
+   .card-wrap's own height) so all 17 always sum to roughly the container's
+   full height without an internal scrollbar, regardless of player count
+   (which only affects column width) or how much vertical room the dice
+   area above happened to take. */
 table.scorecard th,
 table.scorecard td {
     border: 1px solid var(--die-border);
-    padding: clamp(2px, 0.32vh, 14px) clamp(3px, 0.6vw, 14px);
+    padding: clamp(1px, 0.22cqh, 10px) clamp(3px, 0.6vw, 14px);
     text-align: center;
-    font-size: clamp(11px, 2.45vh, 32px);
+    font-size: clamp(10px, 3.9cqh, 28px);
+    line-height: 1.15;
     white-space: nowrap;
 }
 

@@ -350,7 +350,7 @@ new class extends Component
 
 <x-slot:title>Yahtzee — Low Stim Play</x-slot>
 <x-slot:description>A full Yahtzee scorecard for 1-8 players, including the upper-section bonus and Joker rules, in a calm, low-contrast design.</x-slot>
-<x-slot:bodyClass>yahtzee-play{{ $started ? ' in-game' : '' }}</x-slot:bodyClass>
+<x-slot:bodyClass>yahtzee-play</x-slot:bodyClass>
 <x-slot:fullscreenToggle>1</x-slot:fullscreenToggle>
 <x-slot:rulesTitle>Yahtzee Rules</x-slot:rulesTitle>
 <x-slot:rules>
@@ -379,7 +379,7 @@ new class extends Component
         <li>The game ends once every player has filled every category; whoever has the highest total wins (ties are possible).</li>
     </ul>
 </x-slot:rules>
-<div>
+<div class="flex flex-col items-center w-full flex-1 min-h-0">
     {{--
         Teleported (see layouts/app.blade.php's #game-actions anchor) rather
         than a layout $barRight slot -- this button only appears once
@@ -521,3 +521,19 @@ new class extends Component
         </div>
     @endunless
 </div>
+
+@script
+<script>
+    // body's own reactively-toggled class (rather than the server-rendered
+    // $bodyClass slot, since a Livewire round trip only re-renders this
+    // component's own root element -- <body>, sitting outside it in the
+    // surrounding layout, never gets touched by that diff; $started flips
+    // true via the startGame() AJAX call, well after the layout's one and
+    // only render of that slot). Matches the same fix already applied to
+    // Boggle's play page.
+    document.body.classList.toggle('in-game', $wire.started);
+    $wire.$watch('started', (started) => {
+        document.body.classList.toggle('in-game', started);
+    });
+</script>
+@endscript
