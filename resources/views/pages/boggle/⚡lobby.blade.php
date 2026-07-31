@@ -78,7 +78,7 @@ new class extends Component
         @endunless
 
         <form wire:submit="joinRoom" class="flex gap-2 w-full">
-            <input type="text" id="join-code" wire:model="joinCode" maxlength="6" placeholder="Room code" style="flex: 1; text-transform: uppercase;">
+            <input type="text" id="join-code" wire:model="joinCode" maxlength="6" placeholder="Room code" autocomplete="off" style="flex: 1; text-transform: uppercase;">
             <button type="submit">Join</button>
         </form>
 
@@ -93,15 +93,24 @@ new class extends Component
 </div>
 
 <script>
+    // Nothing here sets autofocus, but the room code field still ends up
+    // focused (keyboard and all) without the user tapping it -- both when
     // iOS Safari's back-forward cache restores whichever element was
-    // focused when the page was left -- landing back on this lobby (e.g.
-    // after "Join" fails and the user backs out of a room) reopens the
-    // keyboard on the room code field even though nothing here sets
-    // autofocus. Blur it on bfcache restore so the keyboard stays closed
-    // until the user taps in.
-    window.addEventListener('pageshow', (event) => {
-        if (event.persisted && document.activeElement === document.getElementById('join-code')) {
-            document.activeElement.blur();
+    // focused when the page was left (e.g. after "Join" fails and the user
+    // backs out of a room), and, on a completely fresh load, from Safari's
+    // verification-code autofill heuristics treating the short, "code"-
+    // labeled field as an OTP input. Blur it whenever it's focused before
+    // the user has actually interacted with the page.
+    let userInteracted = false;
+    window.addEventListener('pointerdown', () => { userInteracted = true; }, { once: true, capture: true });
+
+    const blurAutofocusedJoinCode = () => {
+        const joinCode = document.getElementById('join-code');
+        if (! userInteracted && document.activeElement === joinCode) {
+            joinCode.blur();
         }
-    });
+    };
+
+    window.addEventListener('pageshow', blurAutofocusedJoinCode);
+    window.addEventListener('load', () => setTimeout(blurAutofocusedJoinCode, 0));
 </script>
