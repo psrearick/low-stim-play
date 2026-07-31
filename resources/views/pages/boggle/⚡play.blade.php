@@ -1,7 +1,6 @@
 <?php
 
 use App\Enums\GameMode;
-use App\Enums\GameResult;
 use App\Enums\GameType;
 use App\Events\RoomGameEnded;
 use App\Models\GameParticipant;
@@ -9,6 +8,7 @@ use App\Models\GameSession;
 use App\Models\Room;
 use App\Services\Boggle\BoardGenerator;
 use App\Services\Boggle\Scorer;
+use App\Services\Boggle\SharedSessionFinalizer;
 use App\Services\Boggle\Solver;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Url;
@@ -250,9 +250,9 @@ new class extends Component
         ];
     }
 
-    public function endGame(Solver $solver): void
+    public function endGame(Solver $solver, SharedSessionFinalizer $finalizer): void
     {
-        $this->finishGame($solver);
+        $this->finishGame($solver, $finalizer);
     }
 
     /**
@@ -265,7 +265,7 @@ new class extends Component
      * showing a value computed before all the "shared word" exclusions were
      * known.
      */
-    public function onRoomGameEnded(Solver $solver): void
+    public function onRoomGameEnded(Solver $solver, SharedSessionFinalizer $finalizer): void
     {
         if ($this->ended) {
             $this->refreshMyScore();
@@ -273,7 +273,7 @@ new class extends Component
             return;
         }
 
-        $this->finishGame($solver);
+        $this->finishGame($solver, $finalizer);
     }
 
     private function refreshMyScore(): void
@@ -292,7 +292,7 @@ new class extends Component
         }
     }
 
-    private function finishGame(Solver $solver): void
+    private function finishGame(Solver $solver, SharedSessionFinalizer $finalizer): void
     {
         if ($this->ended) {
             return;
@@ -334,7 +334,7 @@ new class extends Component
         ]);
 
         if ($this->isSharedSession) {
-            $this->finalizeSharedSession($session);
+            $finalizer->finalize($session);
             // Re-read rather than trust the in-memory $participant -- its
             // score was just overwritten (to the "only words nobody else
             // also found" value) by finalizeSharedSession(), and the HUD/
@@ -353,55 +353,6 @@ new class extends Component
         // this is what tells their browser to refresh it.
         if ($this->room !== null) {
             RoomGameEnded::dispatch($this->room);
-        }
-    }
-
-    /**
-     * Rescoes and re-ranks every participant recorded so far for an online
-     * game session. A word worth points only if *no one else* in the
-     * session also found it -- shared discoveries score nothing for
-     * anyone, matching the room's "credit for what you alone got" rule.
-     * Re-run every time a participant finishes, so it's self-correcting:
-     * an early finisher's score/rank can still shift as later players'
-     * found-word lists change what counts as "shared", converging once
-     * everyone has finished.
-     */
-    private function finalizeSharedSession(GameSession $session): void
-    {
-        $participants = $session->participants()->get();
-
-        /** @var array<string, int> $finderCounts */
-        $finderCounts = [];
-
-        foreach ($participants as $participant) {
-            foreach (array_keys($participant->stats['found_words'] ?? []) as $word) {
-                $finderCounts[$word] = ($finderCounts[$word] ?? 0) + 1;
-            }
-        }
-
-        foreach ($participants as $participant) {
-            $exclusiveScore = 0;
-
-            foreach ($participant->stats['found_words'] ?? [] as $word => $points) {
-                if ($finderCounts[$word] === 1) {
-                    $exclusiveScore += $points;
-                }
-            }
-
-            $participant->update(['score' => $exclusiveScore]);
-        }
-
-        $topScore = $participants->max('score');
-        $winners = $participants->where('score', $topScore)->count();
-
-        foreach ($participants as $participant) {
-            $result = match (true) {
-                $participant->score !== $topScore => GameResult::Loss,
-                $winners > 1 => GameResult::Draw,
-                default => GameResult::Win,
-            };
-
-            $participant->update(['result' => $result]);
         }
     }
 
