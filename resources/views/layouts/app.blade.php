@@ -64,6 +64,16 @@
                     picking up its gap, rather than as a nested box.
                 --}}
                 <div id="game-actions" style="display: contents;"></div>
+                {{--
+                    A plain slot, not a teleport target -- #game-actions
+                    above exists specifically because a Livewire round trip
+                    only re-renders that component's own root, never the
+                    surrounding layout. Non-Livewire pages (currently just
+                    welcome.blade.php's guest/auth links) never trigger that
+                    round trip in the first place, so a normal slot works
+                    exactly like $rules/$fullscreenToggle below.
+                --}}
+                {{ $barRight ?? '' }}
                 @isset($fullscreenToggle)
                     <button type="button" id="chrome-toggle-btn" class="fullscreen-toggle" aria-pressed="false" aria-label="Hide menu bars for fullscreen">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"

@@ -24,12 +24,6 @@ Where this stands: explored in depth already (see the "Later additions" entry in
 
 This is a multi-session project, not a quick pass — plan it properly (probably its own `EnterPlanMode` round) before starting.
 
-## Homepage: move auth links into the top bar
-
-`resources/views/welcome.blade.php` currently puts "Create an account"/"sign in" (guests) or "Your dashboard" (logged in) as a plain text line below the game grid (`.home-account-links`), not in the shared button-bar every other page uses (`resources/views/layouts/app.blade.php`'s `.button-bar`). There's also no direct logout button anywhere on the homepage today (logout only exists as a form on `/dashboard`).
-
-Move these into the top bar, matching how other pages put page-specific actions there (either via the `.right` side of the button-bar directly, since `welcome.blade.php` isn't a Livewire component and doesn't need `@teleport`, or following the `$rules`/`$fullscreenToggle` named-slot pattern already used for other static per-page bar content). Needs both states: guest (Sign In / Create Account) and authenticated (Dashboard + Log Out).
-
 ## Smaller, previously-flagged gaps
 
 - **Friends activity** — the original plan mentioned it once for the dashboard, but no friends/social-graph table (requests? follows? mutual only?) exists anywhere in the schema. Needs an actual design decision before building, not just an omission to quietly fill in.

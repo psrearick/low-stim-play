@@ -3,6 +3,23 @@
         Low Stim Play
     @endslot
 
+    @slot('manyButtons')
+        1
+    @endslot
+
+    @slot('barRight')
+        @guest
+            <a href="{{ route('login') }}"><button type="button">Sign In</button></a>
+            <a href="{{ route('register') }}"><button type="button">Create an Account</button></a>
+        @else
+            <a href="{{ route('dashboard') }}"><button type="button">Dashboard</button></a>
+            <form method="POST" action="{{ route('logout') }}">
+                @csrf
+                <button type="submit">Log Out</button>
+            </form>
+        @endguest
+    @endslot
+
     <div class="heading">Low Stim Play</div>
 
     <div class="intro">
@@ -35,14 +52,4 @@
         </div>
     </div>
 
-    @guest
-        <p class="home-account-links">
-            <a href="{{ route('register') }}">Create an account</a> to track your games and stats, or
-            <a href="{{ route('login') }}">sign in</a>.
-        </p>
-    @else
-        <p class="home-account-links">
-            <a href="{{ route('dashboard') }}">Your dashboard</a>
-        </p>
-    @endguest
 @endcomponent

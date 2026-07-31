@@ -818,17 +818,6 @@ button.option.active {
     width: 100%;
 }
 
-.home-account-links {
-    color: var(--ink);
-    opacity: 0.75;
-    font-size: clamp(12px, 1.6vmin, 15px);
-    text-align: center;
-}
-
-.home-account-links a {
-    color: var(--bar);
-}
-
 /* =====================================================================
    Boggle (Group Play), ported from legacy/boggle-static.html's own
    <style> block -- bigger letters and a shared-screen-sized grid, since
