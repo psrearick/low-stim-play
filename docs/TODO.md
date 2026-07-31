@@ -2,16 +2,6 @@
 
 Incomplete/deferred items only. Once something here is done, move its writeup into `docs/CHANGELOG.md` and delete it from this file rather than checking it off in place.
 
-## Bug: a Boggle room game isn't saved to a signed-in non-host's profile
-
-Reported: playing an online Boggle room game as a joiner (not the host), while signed in, doesn't show up in that player's own recent games/stats afterward — even though they were logged in the whole time, not an anonymous guest.
-
-Investigation so far (not fully diagnosed):
-
-- The participant-creation code itself (`pages::boggle.play`'s `finishGame()`) doesn't special-case the host at all — every participant gets `'user_id' => Auth::id()` / `'guest_name' => Auth::check() ? null : 'Guest'` identically, host or not. This exact scenario (a second, real-account, non-host player in a room) is also directly covered by an existing passing test (`tests/Feature/Games/BoggleRoomTest.php`, "players in a room play the same board and are ranked against each other") — but that test drives both players calling `endGame()` **directly** themselves, which isn't necessarily how it plays out for a real non-host player in practice.
-- **Strongest lead:** a non-host player who doesn't proactively click "End Game" themselves — e.g. they just wait for the host to end the session for everyone — relies entirely on the `RoomGameEnded` broadcast reaching their own browser and triggering `onRoomGameEnded()` to create *their* `GameParticipant` row. If that broadcast doesn't reliably reach every connected client outside of local testing, the non-host's participant row would simply never get created at all (not mis-attributed — just missing), which would look exactly like "my game isn't saved." This session already found and fixed more than one broadcast-reliability/ordering bug in this exact family (see `docs/CHANGELOG.md`'s Phase 8/"Later additions" notes on `RoomGameStarting`/`ShouldBroadcastNow`) that only ever showed up once actually deployed, not locally — `RoomGameEnded` reaching every player reliably (not just the one who manually clicked "End Game") hasn't specifically been re-verified the same way.
-- Worth checking as a starting point: does a non-host player who never clicks "End Game" themselves ever get a `GameParticipant` row created at all, in a real (deployed, not local) multi-device session? If not, that's the bug — not an attribution mixup, but the cascade-triggered save path for everyone except whoever manually ends the game.
-
 ## Online rooms for Yahtzee & Family Feud (host/TV screen + per-player phones)
 
 The big deferred feature. Requested shape, in full:
