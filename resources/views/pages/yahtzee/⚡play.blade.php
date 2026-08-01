@@ -4,11 +4,17 @@ use App\Enums\GameMode;
 use App\Enums\GameResult;
 use App\Enums\GameType;
 use App\Enums\YahtzeeCategory;
+use App\Events\RoomGameStateUpdated;
 use App\Models\GameParticipant;
 use App\Models\GameSession;
+use App\Models\Room;
+use App\Models\RoomSeat;
+use App\Models\User;
 use App\Services\Yahtzee\DiceRoller;
 use App\Services\Yahtzee\GameEngine;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 
 new class extends Component
@@ -58,6 +64,34 @@ new class extends Component
      */
     public ?int $meIndex = null;
 
+    public string $joinCode = '';
+
+    public string $guestName = '';
+
+    public ?string $joinError = null;
+
+    /**
+     * The online room this play-through belongs to, if any -- mirrors
+     * pages::boggle.play's own `$room`. When set, `$players`/`$dice`/
+     * `$kept`/`$rollsLeft`/`$currentPlayer`/`$gameOver` are all hydrated
+     * from the room's shared GameSession (see mount()) instead of running
+     * local setup, every mutating action is gated to whichever seat's turn
+     * it actually is, and every successful mutation persists + broadcasts
+     * the new state so every other seat/spectator stays in sync.
+     */
+    #[Url]
+    public ?string $room = null;
+
+    public ?int $gameSessionId = null;
+
+    /**
+     * This connection's seat in the online room, or null -- null means
+     * either purely local play, or an online room where this account
+     * doesn't occupy a seat (a spectator/host view: no dice, no roll/score
+     * controls, just the read-only scorecard).
+     */
+    public ?int $mySeatIndex = null;
+
     /**
      * Snapshots taken right before each mutating action (roll,
      * scoreCategory), so undo() can step back exactly one such action --
@@ -84,6 +118,161 @@ new class extends Component
     public function boot(GameEngine $engine): void
     {
         $this->engine = $engine;
+    }
+
+    public function mount(): void
+    {
+        if ($this->room === null) {
+            return;
+        }
+
+        $roomModel = $this->resolveRoom();
+        $session = $roomModel->gameSession;
+
+        $this->gameSessionId = $session->id;
+        $this->hydrateFromState($session->state);
+
+        $this->mySeatIndex = RoomSeat::where('room_id', $roomModel->id)
+            ->where('user_id', Auth::id())
+            ->value('seat_index');
+    }
+
+    /**
+     * @param  array<string, mixed>  $state
+     */
+    private function hydrateFromState(array $state): void
+    {
+        $this->players = array_map(
+            fn (array $seat) => [
+                'name' => $seat['name'],
+                'scores' => $seat['scores'],
+                'yahtzeeBonusCount' => $seat['yahtzeeBonusCount'],
+            ],
+            $state['seats'],
+        );
+
+        $this->currentPlayer = $state['currentSeat'];
+        $this->dice = $state['dice'];
+        $this->kept = $state['kept'];
+        $this->rollsLeft = $state['rollsLeft'];
+        $this->gameOver = $state['gameOver'];
+        $this->started = true;
+    }
+
+    private function resolveRoom(): Room
+    {
+        return Room::where('code', $this->room)->firstOrFail();
+    }
+
+    /**
+     * Persists the current shared state onto the room's GameSession and
+     * broadcasts it to every other seat/spectator -- called after every
+     * successful mutating action while online (see roll()/toggleKeep()/
+     * scoreCategory() below). Wrapped in a transaction with a row lock
+     * more as cheap insurance against a single seat's own double-tap/retry
+     * racing itself than as a full concurrency solution -- only the
+     * current seat can ever mutate state (every action is gated on
+     * `$this->mySeatIndex === $this->currentPlayer`), so cross-seat races
+     * aren't possible here the way they would be for, say, Family Feud's
+     * steal window.
+     */
+    private function syncOnlineState(): void
+    {
+        $state = [
+            'seats' => array_map(
+                fn (array $player, int $index) => [
+                    'seatIndex' => $index,
+                    'name' => $player['name'],
+                    'scores' => $player['scores'],
+                    'yahtzeeBonusCount' => $player['yahtzeeBonusCount'],
+                ],
+                $this->players,
+                array_keys($this->players),
+            ),
+            'currentSeat' => $this->currentPlayer,
+            'dice' => $this->dice,
+            'kept' => $this->kept,
+            'rollsLeft' => $this->rollsLeft,
+            'gameOver' => $this->gameOver,
+        ];
+
+        DB::transaction(function () use ($state) {
+            GameSession::where('id', $this->gameSessionId)->lockForUpdate()->first();
+            GameSession::find($this->gameSessionId)->update(['state' => $state]);
+        });
+
+        RoomGameStateUpdated::dispatch($this->resolveRoom(), $state);
+    }
+
+    /**
+     * The Echo callback for a custom broadcast event delivers the whole
+     * broadcastWith() payload as one positional argument (unlike a local,
+     * same-request Livewire dispatch, which binds by name) -- matches
+     * game-lobby's own onReadyToggled(array $event) for the same reason.
+     *
+     * @param  array{state: array<string, mixed>}  $event
+     */
+    public function onStateUpdated(array $event): void
+    {
+        $this->hydrateFromState($event['state']);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function getListeners(): array
+    {
+        if ($this->room === null) {
+            return [];
+        }
+
+        return [
+            "echo-presence:room.{$this->room},RoomGameStateUpdated" => 'onStateUpdated',
+        ];
+    }
+
+    public function createRoom(): void
+    {
+        // Belt-and-suspenders alongside the template only showing this
+        // button to a real (non-guest) account -- hosting a room always
+        // needs one, unlike joining one. See boggle/⚡lobby.blade.php's
+        // own createRoom(), which this mirrors exactly.
+        abort_unless(Auth::check() && ! Auth::user()->is_guest, 403);
+
+        $room = Room::create(['host_user_id' => Auth::id()]);
+
+        $this->redirect(route('yahtzee.room', ['code' => $room->code]));
+    }
+
+    public function joinRoom(): void
+    {
+        $code = strtoupper(trim($this->joinCode));
+        $room = Room::notExpired()->where('code', $code)->first();
+
+        if (! $room) {
+            $this->joinError = 'No active room with that code.';
+
+            return;
+        }
+
+        // A room's presence channel always authenticates via the guard (see
+        // routes/channels.php) -- there's no "anonymous" option in Laravel's
+        // broadcasting auth -- so joining without a real account still needs
+        // a real `users` row. Only hosting (createRoom() above) is actually
+        // restricted to non-guest accounts.
+        if (Auth::guest()) {
+            Auth::login(User::createGuest($this->guestName));
+
+            // Guarded rather than unconditional -- Livewire::test() drives
+            // this component directly, without the full HTTP kernel/session
+            // middleware a real request goes through, so there's no session
+            // store attached to request() there.
+            if (request()->hasSession()) {
+                request()->session()->regenerate();
+            }
+        }
+
+        $this->redirect(route('yahtzee.room', ['code' => $room->code]));
     }
 
     public function setPlayerCount(int $count): void
@@ -122,6 +311,8 @@ new class extends Component
 
     public function roll(DiceRoller $diceRoller): void
     {
+        abort_unless($this->room === null || $this->mySeatIndex === $this->currentPlayer, 403);
+
         if ($this->gameOver || $this->rollsLeft <= 0) {
             return;
         }
@@ -136,19 +327,27 @@ new class extends Component
         }
 
         $this->rollsLeft--;
+
+        $this->syncOnlineStateIfNeeded();
     }
 
     public function toggleKeep(int $index): void
     {
+        abort_unless($this->room === null || $this->mySeatIndex === $this->currentPlayer, 403);
+
         if ($this->gameOver || $this->dice === []) {
             return;
         }
 
         $this->kept[$index] = ! $this->kept[$index];
+
+        $this->syncOnlineStateIfNeeded();
     }
 
     public function scoreCategory(string $categoryValue): void
     {
+        abort_unless($this->room === null || $this->mySeatIndex === $this->currentPlayer, 403);
+
         if (! $this->isPickable($this->currentPlayer, $categoryValue)) {
             return;
         }
@@ -168,6 +367,20 @@ new class extends Component
         $this->players[$this->currentPlayer] = $player;
 
         $this->advanceTurn();
+
+        // After advanceTurn(), not before -- this covers both "next turn"
+        // and "that was the last category" (advanceTurn() calls endGame()
+        // internally) with a single broadcast either way, so other seats
+        // learn "game over" from the same state update rather than needing
+        // a second, separate event.
+        $this->syncOnlineStateIfNeeded();
+    }
+
+    private function syncOnlineStateIfNeeded(): void
+    {
+        if ($this->room !== null) {
+            $this->syncOnlineState();
+        }
     }
 
     private function advanceTurn(): void
@@ -206,7 +419,13 @@ new class extends Component
 
     public function undo(): void
     {
-        if ($this->gameOver || $this->history === []) {
+        // Not supported online -- rewinding shared state that other seats
+        // may have already seen broadcast is a real design problem (whose
+        // view wins?) with no user request driving it, so it's cut here
+        // rather than half-solved. The button is hidden in Blade for the
+        // same reason; this guard is defense in depth against a stale
+        // client still showing it.
+        if ($this->room !== null || $this->gameOver || $this->history === []) {
             return;
         }
 
@@ -231,13 +450,32 @@ new class extends Component
         $topScore = $totals->max();
         $winners = $totals->filter(fn (int $total) => $total === $topScore)->count();
 
-        $session = GameSession::create([
-            'type' => GameType::Yahtzee,
-            'mode' => GameMode::Local,
-            'settings' => ['player_count' => count($this->players)],
-            'started_at' => now(),
-            'ended_at' => now(),
-        ]);
+        if ($this->room !== null) {
+            // The GameSession already exists (pages::yahtzee.room's
+            // onRoomStarting() created it when the game started) -- just
+            // mark it ended, rather than creating a second one.
+            $session = GameSession::findOrFail($this->gameSessionId);
+            $session->update(['ended_at' => now()]);
+
+            // Every seat is a real (if possibly guest) account -- see
+            // pages::yahtzee.room::onRoomStarting() -- so online games
+            // never need $meIndex's guessing; every seat's own user_id is
+            // known for certain, and every distinct logged-in account gets
+            // its own correctly attributed GameParticipant row.
+            $seatUserIds = RoomSeat::where('room_id', $this->resolveRoom()->id)
+                ->orderBy('seat_index')
+                ->pluck('user_id')
+                ->all();
+        } else {
+            $session = GameSession::create([
+                'type' => GameType::Yahtzee,
+                'mode' => GameMode::Local,
+                'settings' => ['player_count' => count($this->players)],
+                'started_at' => now(),
+                'ended_at' => now(),
+            ]);
+            $seatUserIds = null;
+        }
 
         foreach ($this->players as $i => $player) {
             $total = $totals[$i];
@@ -248,19 +486,27 @@ new class extends Component
                 default => GameResult::Win,
             };
 
-            // Pass-and-play has no way to know which local player is the
-            // account holder in general (see docs/CHANGELOG.md) -- $meIndex
-            // is the host explicitly declaring it during setup, the same
-            // way Boggle's own solo games attribute user_id vs guest_name.
-            $isMe = $i === $this->meIndex && Auth::check();
+            if ($seatUserIds !== null) {
+                $userId = $seatUserIds[$i];
+                $guestName = null;
+            } else {
+                // Pass-and-play has no way to know which local player is
+                // the account holder in general (see docs/CHANGELOG.md) --
+                // $meIndex is the host explicitly declaring it during
+                // setup, the same way Boggle's own solo games attribute
+                // user_id vs guest_name.
+                $isMe = $i === $this->meIndex && Auth::check();
+                $userId = $isMe ? Auth::id() : null;
+                $guestName = $isMe ? null : $player['name'];
+            }
 
             GameParticipant::create([
                 'game_session_id' => $session->id,
-                'user_id' => $isMe ? Auth::id() : null,
-                'guest_name' => $isMe ? null : $player['name'],
+                'user_id' => $userId,
+                'guest_name' => $guestName,
                 'score' => $total,
                 'result' => $result,
-                'stats' => ['yahtzee_bonus_count' => $player['yahtzeeBonusCount']],
+                'stats' => ['scores' => $player['scores'], 'yahtzee_bonus_count' => $player['yahtzeeBonusCount']],
             ]);
         }
 
@@ -276,6 +522,13 @@ new class extends Component
 
     public function newGame(): void
     {
+        // Hidden in Blade for online games too (see the room's own "Back
+        // to room" link instead) -- resetting to local setup would orphan
+        // the shared room. Guarded here as well in case of a stale client.
+        if ($this->room !== null) {
+            return;
+        }
+
         $this->started = false;
         $this->gameOver = false;
         $this->players = [];
@@ -330,6 +583,26 @@ new class extends Component
         $player = $this->players[$playerIndex];
 
         return $this->engine->totalScore($player['scores'], $player['yahtzeeBonusCount']);
+    }
+
+    /**
+     * True only for an online room connection that doesn't occupy a seat
+     * -- never true for local pass-and-play, which has no seat concept at
+     * all. Drives the read-only host/spectator view (no dice, no roll/
+     * score controls, just the scorecard).
+     */
+    public function getIsSpectatorProperty(): bool
+    {
+        return $this->room !== null && $this->mySeatIndex === null;
+    }
+
+    /**
+     * Always true for local pass-and-play (no seat to check); for an
+     * online room, true only for the seat whose turn it actually is.
+     */
+    public function getIsMyTurnProperty(): bool
+    {
+        return $this->room === null || $this->mySeatIndex === $this->currentPlayer;
     }
 
     public function getStatusTextProperty(): string
@@ -389,13 +662,48 @@ new class extends Component
     --}}
     @if ($started)
         @teleport('#game-actions')
-            <button type="button" wire:click="newGame">New Game</button>
+            <div style="display: contents;">
+                @if ($room !== null && ! $this->isSpectator)
+                    <button type="button" onclick="document.getElementById('scoreboard-drawer').showModal()">Scores</button>
+                @endif
+
+                @if ($room === null)
+                    <button type="button" wire:click="newGame">New Game</button>
+                @elseif ($gameOver)
+                    <a href="{{ route('yahtzee.room', ['code' => $room]) }}"><button type="button">Back to room</button></a>
+                @endif
+            </div>
         @endteleport
     @endif
 
     @unless ($started)
         <div class="setup" id="setup">
             <div class="heading">Yahtzee</div>
+
+            @if (Auth::check() && ! Auth::user()->is_guest)
+                <button type="button" wire:click="createRoom">Host an Online Room</button>
+
+                <div class="status-line">or</div>
+            @endif
+
+            @unless (Auth::check() && ! Auth::user()->is_guest)
+                <input type="text" wire:model="guestName" maxlength="24" placeholder="Your name (optional)">
+            @endunless
+
+            <form wire:submit="joinRoom" class="flex gap-2 w-full">
+                <input type="text" id="join-code" wire:model="joinCode" maxlength="6" placeholder="Room code" autocomplete="off" style="flex: 1; text-transform: uppercase;">
+                <button type="submit">Join</button>
+            </form>
+
+            @if ($joinError)
+                <p class="status-line" style="color: var(--warn);">{{ $joinError }}</p>
+            @endif
+
+            @unless (Auth::check() && ! Auth::user()->is_guest)
+                <p class="status-line"><a href="{{ route('login') }}" style="color: var(--bar);">Sign in</a> to host an online room.</p>
+            @endunless
+
+            <div class="status-line">or play locally:</div>
 
             <div class="setup-row">
                 <label id="playerCountLabel">Number of Players</label>
@@ -432,93 +740,66 @@ new class extends Component
         <div id="yahtzee-game" class="yahtzee-play">
             <div class="status">{{ $this->statusText }}</div>
 
-            <div class="dice-area">
-                <div class="row">
-                    @for ($i = 0; $i < self::DICE_COUNT; $i++)
-                        <div class="die {{ ($kept[$i] ?? false) ? 'kept' : '' }}" wire:click="toggleKeep({{ $i }})">
-                            <span class="number">{{ $dice[$i] ?? '' }}</span>
-                        </div>
-                    @endfor
+            {{--
+                Host/spectator (an online connection with no seat) never
+                gets a dice area or turn controls at all -- the read-only
+                scorecard below is the entire view for them, satisfying "no
+                individual turn controls" directly. A seated-but-not-
+                current-turn player still sees the dice (so they can watch
+                the active seat's rolls live via the broadcast state), just
+                with Roll/keep disabled until it's their turn.
+            --}}
+            @unless ($this->isSpectator)
+                <div class="dice-area">
+                    <div class="row">
+                        @for ($i = 0; $i < self::DICE_COUNT; $i++)
+                            <div class="die {{ ($kept[$i] ?? false) ? 'kept' : '' }}" @if ($this->isMyTurn) wire:click="toggleKeep({{ $i }})" @endif>
+                                <span class="number">{{ $dice[$i] ?? '' }}</span>
+                            </div>
+                        @endfor
+                    </div>
+
+                    <div class="controls">
+                        <button type="button" id="rollBtn" wire:click="roll" @disabled($gameOver || $rollsLeft <= 0 || ! $this->isMyTurn)>Roll</button>
+                        {{-- Undo isn't supported online at all (see undo()'s own note) --}}
+                        @if ($room === null)
+                            <button type="button" id="undoBtn" wire:click="undo" @disabled($gameOver || $history === [])>Undo</button>
+                        @endif
+                    </div>
                 </div>
+            @endunless
 
-                <div class="controls">
-                    <button type="button" id="rollBtn" wire:click="roll" @disabled($gameOver || $rollsLeft <= 0)>Roll</button>
-                    <button type="button" id="undoBtn" wire:click="undo" @disabled($gameOver || $history === [])>Undo</button>
-                </div>
-            </div>
-
-            <div class="card-wrap">
-                <table class="scorecard">
-                    <thead>
-                        <tr>
-                            <th class="category"></th>
-                            @foreach ($players as $i => $player)
-                                <th class="{{ ! $gameOver && $i === $currentPlayer ? 'active-player' : '' }}">{{ $player['name'] }}</th>
-                            @endforeach
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (YahtzeeCategory::upper() as $category)
-                            <tr wire:key="row-{{ $category->value }}">
-                                <td class="category">{{ $category->label() }}</td>
-                                @foreach ($players as $i => $player)
-                                    <td wire:key="cell-{{ $i }}-{{ $category->value }}"
-                                        @if ($this->isPickable($i, $category->value)) wire:click="scoreCategory('{{ $category->value }}')" @endif
-                                        class="score-cell {{ $this->isPickable($i, $category->value) ? 'pickable' : '' }} {{ $player['scores'][$category->value] !== null ? 'filled' : '' }}">
-                                        {{ $this->categoryScore($i, $category->value) }}
-                                    </td>
-                                @endforeach
-                            </tr>
-                        @endforeach
-
-                        <tr class="subtotal">
-                            <td class="category">Upper Subtotal</td>
-                            @foreach ($players as $i => $player)
-                                <td data-role="upperSubtotal">{{ $this->upperSubtotalFor($i) }}</td>
-                            @endforeach
-                        </tr>
-
-                        <tr>
-                            <td class="category">Bonus (63+ = 35)</td>
-                            @foreach ($players as $i => $player)
-                                <td data-role="upperBonus">{{ $this->upperBonusFor($i) }}</td>
-                            @endforeach
-                        </tr>
-
-                        @foreach (YahtzeeCategory::lower() as $category)
-                            <tr wire:key="row-{{ $category->value }}">
-                                <td class="category">{{ $category->label() }}</td>
-                                @foreach ($players as $i => $player)
-                                    <td wire:key="cell-{{ $i }}-{{ $category->value }}"
-                                        @if ($this->isPickable($i, $category->value)) wire:click="scoreCategory('{{ $category->value }}')" @endif
-                                        class="score-cell {{ $this->isPickable($i, $category->value) ? 'pickable' : '' }} {{ $player['scores'][$category->value] !== null ? 'filled' : '' }}">
-                                        {{ $this->categoryScore($i, $category->value) }}
-                                    </td>
-                                @endforeach
-                            </tr>
-                        @endforeach
-
-                        <tr>
-                            <td class="category">Yahtzee Bonus</td>
-                            @foreach ($players as $i => $player)
-                                <td data-role="yahtzeeBonus">
-                                    @if ($player['yahtzeeBonusCount'] > 0)
-                                        {{ str_repeat('✓', $player['yahtzeeBonusCount']) }} {{ $this->yahtzeeBonusPointsFor($i) }}
-                                    @endif
-                                </td>
-                            @endforeach
-                        </tr>
-
-                        <tr class="total">
-                            <td class="category">Total</td>
-                            @foreach ($players as $i => $player)
-                                <td data-role="total">{{ $this->totalScoreFor($i) }}</td>
-                            @endforeach
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+            <x-yahtzee-scorecard-table
+                :livewire="$this"
+                :players="$players"
+                :currentPlayer="$currentPlayer"
+                :gameOver="$gameOver"
+                :readOnly="$this->isSpectator"
+            />
         </div>
+
+        {{--
+            The mobile scoreboard drawer -- lets a seated player check the
+            full shared board on demand without needing a separate host/TV
+            device, per docs/TODO.md. Read-only regardless of whose turn it
+            is; scoring happens in the main view above, not here.
+        --}}
+        @if ($room !== null && ! $this->isSpectator)
+            <dialog id="scoreboard-drawer" aria-labelledby="scoreboard-drawer-title">
+                <div class="rules-dialog-header">
+                    <div class="rules-dialog-title" id="scoreboard-drawer-title">Scores</div>
+                    <button type="button" aria-label="Close" onclick="document.getElementById('scoreboard-drawer').close()">&times;</button>
+                </div>
+
+                <x-yahtzee-scorecard-table
+                    :livewire="$this"
+                    :players="$players"
+                    :currentPlayer="$currentPlayer"
+                    :gameOver="$gameOver"
+                    :readOnly="true"
+                />
+            </dialog>
+        @endif
     @endunless
 </div>
 
@@ -537,3 +818,24 @@ new class extends Component
     });
 </script>
 @endscript
+
+<script>
+    // Same fix as boggle/⚡lobby.blade.php's own join-code field: nothing
+    // here sets autofocus, but mobile Safari can still focus this field
+    // and raise the keyboard on its own (back-forward cache restore, or
+    // its verification-code autofill heuristics treating a short,
+    // "code"-labeled field as an OTP input) -- blur it whenever it's
+    // focused before the user has actually interacted with the page.
+    let userInteracted = false;
+    window.addEventListener('pointerdown', () => { userInteracted = true; }, { once: true, capture: true });
+
+    const blurAutofocusedJoinCode = () => {
+        const joinCode = document.getElementById('join-code');
+        if (! userInteracted && joinCode && document.activeElement === joinCode) {
+            joinCode.blur();
+        }
+    };
+
+    window.addEventListener('pageshow', blurAutofocusedJoinCode);
+    window.addEventListener('load', () => setTimeout(blurAutofocusedJoinCode, 0));
+</script>

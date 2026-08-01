@@ -117,7 +117,14 @@ new class extends Component
         // preparation has even happened, raced other players' "is it ready
         // yet?" check against this component's own separate follow-up
         // request and could lose.
-        $this->dispatch('room-game-starting');
+        //
+        // $this->players is passed along too, for games (Yahtzee's online
+        // room) that need to assign a seat per present player at start
+        // time -- Livewire binds dispatched payload args to listener
+        // params by name, so Boggle's own onRoomStarting(BoardGenerator
+        // $boardGenerator), which never declares a $players param, simply
+        // never receives it and keeps working unmodified.
+        $this->dispatch('room-game-starting', players: $this->players);
     }
 
     public function getAllReadyProperty(): bool

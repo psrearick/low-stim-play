@@ -30,6 +30,15 @@ Route::livewire('/profile/boggle/{gameParticipant}', 'pages::profile.boggle.show
     ->middleware(['auth', 'verified'])
     ->name('profile.boggle.show');
 
+// Same registration-order reasoning as /profile/boggle above.
+Route::livewire('/profile/yahtzee', 'pages::profile.yahtzee.index')
+    ->middleware(['auth', 'verified'])
+    ->name('profile.yahtzee');
+
+Route::livewire('/profile/yahtzee/{gameParticipant}', 'pages::profile.yahtzee.show')
+    ->middleware(['auth', 'verified'])
+    ->name('profile.yahtzee.show');
+
 // Public profile -- distinct route from /profile above (that's the
 // authenticated user's own editable profile); this is a read-only view of
 // anyone's, gated by their own is_public flag rather than auth middleware.
@@ -65,14 +74,21 @@ Route::get('/boggle/share/{gameSession}', function (GameSession $gameSession) {
     ]);
 })->name('boggle.share');
 
-// Pass-and-play only for now (no login, no accounts, no Room) -- mirrors
-// legacy/yahtzee.html exactly: one device, everyone takes turns. Online
-// play (see docs/TODO.md) can reuse the Room/GameLobby infrastructure
-// Boggle's online rooms already validated, if wanted later.
+// Pass-and-play (no room param) mirrors legacy/yahtzee.html exactly: one
+// device, everyone takes turns. Also handles the online room's own
+// gameplay once started, via the #[Url] $room param -- see
+// pages::yahtzee.room below for how a room actually gets there.
 Route::livewire('/yahtzee', 'pages::yahtzee.play')->name('yahtzee.play');
 
 // Dice-only, no scorecard -- mirrors legacy/yahtzee-roller.html exactly.
 Route::livewire('/yahtzee/roller', 'pages::yahtzee.roller')->name('yahtzee.roller');
+
+// No auth middleware -- same reasoning as boggle.room: pages::yahtzee.room's
+// mount() auto-provisions a guest account for anyone arriving without one.
+// Hosting (creating the Room, from pages::yahtzee.play's own setup screen)
+// still requires a real, non-guest account.
+Route::livewire('/yahtzee/room/{code}', 'pages::yahtzee.room')
+    ->name('yahtzee.room');
 
 // Single shared screen, no host/board split (see docs/CHANGELOG.md's Phase 6
 // notes) -- the LLM is the judge, not a person, so there's no hidden

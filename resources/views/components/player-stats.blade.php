@@ -3,12 +3,16 @@
 <div class="flex flex-wrap justify-center gap-4 w-full">
     @forelse ($stats as $stat)
         @php
-            $isBoggle = $stat['type'] === \App\Enums\GameType::Boggle;
-            $tag = $linkable && $isBoggle ? 'a' : 'div';
+            $statsRoute = match ($stat['type']) {
+                \App\Enums\GameType::Boggle => 'profile.boggle',
+                \App\Enums\GameType::Yahtzee => 'profile.yahtzee',
+                default => null,
+            };
+            $tag = $linkable && $statsRoute ? 'a' : 'div';
         @endphp
         <{{ $tag }}
             wire:key="stat-{{ $stat['type']->value }}"
-            @if ($linkable && $isBoggle) href="{{ route('profile.boggle') }}" @endif
+            @if ($linkable && $statsRoute) href="{{ route($statsRoute) }}" @endif
             class="flex flex-col items-center gap-2 bg-surface border-2 border-surface-border rounded-lg p-5 flex-1 basis-40"
         >
             <p class="text-bar font-bold tracking-wide">{{ $stat['type']->label() }}</p>

@@ -14,8 +14,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property GameType $type
  * @property GameMode $mode
  * @property array<string, mixed> $settings
+ * @property array<string, mixed>|null $state
  */
-#[Fillable(['type', 'mode', 'room_code', 'settings', 'started_at', 'ended_at'])]
+#[Fillable(['type', 'mode', 'room_code', 'settings', 'state', 'started_at', 'ended_at'])]
 class GameSession extends Model
 {
     /** @use HasFactory<GameSessionFactory> */
@@ -38,6 +39,7 @@ class GameSession extends Model
             'type' => GameType::class,
             'mode' => GameMode::class,
             'settings' => 'array',
+            'state' => 'array',
             'started_at' => 'datetime',
             'ended_at' => 'datetime',
         ];
