@@ -78,7 +78,7 @@ new class extends Component
         @endunless
 
         <form wire:submit="joinRoom" class="flex gap-2 w-full">
-            <input type="text" id="join-code" wire:model="joinCode" maxlength="6" placeholder="Room code" autocomplete="off" style="flex: 1; text-transform: uppercase;">
+            <input type="text" id="join-code" wire:model="joinCode" placeholder="Room code" autocomplete="off" style="flex: 1; text-transform: uppercase;">
             <button type="submit">Join</button>
         </form>
 
