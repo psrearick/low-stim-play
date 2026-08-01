@@ -7,7 +7,7 @@ use Livewire\Component;
 
 new class extends Component
 {
-    public string $joinCode = '';
+    public string $joinID = '';
 
     public string $guestName = '';
 
@@ -27,7 +27,7 @@ new class extends Component
 
     public function joinRoom(): void
     {
-        $code = strtoupper(trim($this->joinCode));
+        $code = strtoupper(trim($this->joinID));
         $room = Room::notExpired()->where('code', $code)->first();
 
         if (! $room) {
@@ -78,7 +78,7 @@ new class extends Component
         @endunless
 
         <form wire:submit="joinRoom" class="flex gap-2 w-full">
-            <input type="text" id="join" wire:model="joinCode" placeholder="Room code" autocomplete="off" style="flex: 1; text-transform: uppercase;">
+            <input type="text" id="join" wire:model="joinID" placeholder="Room ID" autocomplete="off" style="flex: 1; text-transform: uppercase;">
             <button type="submit">Join</button>
         </form>
 
@@ -104,13 +104,13 @@ new class extends Component
     let userInteracted = false;
     window.addEventListener('pointerdown', () => { userInteracted = true; }, { once: true, capture: true });
 
-    const blurAutofocusedJoinCode = () => {
-        const joinCode = document.getElementById('join');
-        if (! userInteracted && document.activeElement === joinCode) {
-            joinCode.blur();
+    const blurAutofocusedJoinID = () => {
+        const joinID = document.getElementById('join');
+        if (! userInteracted && document.activeElement === joinID) {
+            joinID.blur();
         }
     };
 
-    window.addEventListener('pageshow', blurAutofocusedJoinCode);
-    window.addEventListener('load', () => setTimeout(blurAutofocusedJoinCode, 0));
+    window.addEventListener('pageshow', blurAutofocusedJoinID);
+    window.addEventListener('load', () => setTimeout(blurAutofocusedJoinID, 0));
 </script>
