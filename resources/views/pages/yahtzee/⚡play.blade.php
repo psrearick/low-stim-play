@@ -890,6 +890,20 @@ new class extends Component
     $wire.$watch('started', (started) => {
         document.body.classList.toggle('in-game', started);
     });
+
+    // Online rooms can show up to 3 right-side buttons at once (Scores,
+    // Watch only/Player view, New Game/Back to room) on top of Home/Rules
+    // on the left -- .many-buttons' existing compact padding/gap (see
+    // app.css, already used by welcome.blade.php for its own 3-button
+    // case) is what keeps that from crowding the fullscreen toggle off a
+    // narrow phone screen. $wire.room never changes after mount, so
+    // (unlike $wire.started above) this only needs to run once, not watch
+    // for changes -- but still has to happen here, in JS, rather than via
+    // a server-rendered class, for the same "layout is outside this
+    // component's own re-rendered root" reason as document.body itself.
+    if ($wire.room !== null) {
+        document.querySelector('.button-bar')?.classList.add('many-buttons');
+    }
 </script>
 @endscript
 

@@ -20,7 +20,34 @@
     *everyone*) and for a spectator (nothing is "mine" to narrow down to).
 --}}
 <div class="card-wrap">
-    <table class="scorecard {{ $mySeatIndex !== null ? 'single-seat-mobile' : '' }}">
+    {{--
+        Two things had to be true together for this table to render
+        correctly, both confirmed the hard way (live, not assumed):
+        1. table-layout: fixed with the table's own width left "auto"
+           still let a longer name's column render wider than a short
+           one's, despite every <col> below declaring the identical 10ch
+           -- an explicit, definite total width (--player-count here) is
+           what actually makes the browser divide it up by those <col>
+           ratios instead of falling back to content-sensitive sizing.
+        2. That total has to match however many columns are *actually
+           visible*, which isn't always every player: single-seat-mobile
+           (see its own comment below) hides every not-mine column via
+           CSS alone, with no server-side knowledge of viewport width.
+           Hiding just the *cells* left their <col>s still contributing
+           their share of --player-count's total, reserving a dead gap
+           where they used to be -- collapsing the <col> itself (not just
+           the cells) is what actually lets the table shrink.
+    --}}
+    <table
+        class="scorecard {{ $mySeatIndex !== null ? 'single-seat-mobile' : '' }}"
+        style="--player-count: {{ count($players) }};"
+    >
+        <colgroup>
+            <col class="category-col">
+            @foreach ($players as $i => $player)
+                <col class="player-col {{ $mySeatIndex !== null && $i !== $mySeatIndex ? 'not-mine' : '' }}">
+            @endforeach
+        </colgroup>
         <thead>
             <tr>
                 <th class="category"></th>

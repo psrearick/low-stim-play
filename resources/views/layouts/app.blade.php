@@ -46,7 +46,7 @@
             <div class="left">
                 <a href="{{ url('/') }}"><button type="button">Home</button></a>
                 @isset($rules)
-                    <button type="button" id="rules-btn">Rules</button>
+                    <button type="button" id="rules-btn" aria-label="Rules">?</button>
                 @endisset
             </div>
             <div class="right">

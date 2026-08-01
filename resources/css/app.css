@@ -145,6 +145,16 @@ body.scrollable {
     position: fixed;
     display: flex;
     justify-content: space-between;
+    /* A floor on the space between the .left and .right groups themselves
+       -- matches .left/.right's own internal button-to-button gap below,
+       so all three gaps (within .left, within .right, and between the two
+       groups) read as one consistent rhythm. Without this, `space-between`
+       alone gives no minimum at all: it only pushes .left/.right toward
+       the bar's edges and hands whatever's left over to the gap between
+       them, which shrinks to zero (buttons touching) once both groups
+       together are wide enough to fill the bar -- exactly what happened
+       once Yahtzee's online room added two more right-side buttons. */
+    gap: 10px;
     right: 0;
     top: 0;
     left: 0;
@@ -163,6 +173,10 @@ body.scrollable {
 }
 
 @media (max-width: 480px) {
+    .button-bar.many-buttons {
+        gap: 6px;
+    }
+
     .button-bar.many-buttons button {
         padding-left: clamp(6px, 1.6vmin, 18px);
         padding-right: clamp(6px, 1.6vmin, 18px);
@@ -398,6 +412,17 @@ body.scrollable.chrome-hidden {
     padding-bottom: calc(0.85rem + env(safe-area-inset-bottom, 0px)) !important;
 }
 
+/* #scores-btn is the one button that stays visible/opaque through
+   fullscreen/chrome-hidden mode (see its own dedicated rule below) --
+   every other page this padding shrink applies to has nothing left
+   showing in the bar at all once chrome-hidden, so content safely
+   scrolls up underneath it. Yahtzee's online room is the exception, and
+   without this override its own status text ends up visually colliding
+   with the still-visible Scores button occupying that same space. */
+body.scrollable.chrome-hidden:has(#scores-btn) {
+    padding-top: clamp(80px, 10vmin, 96px) !important;
+}
+
 .button-bar,
 .site-footer {
     transition: background-color 0.4s ease, border-color 0.4s ease !important;
@@ -424,7 +449,20 @@ body.chrome-hidden .fullscreen-toggle {
     transition: opacity 0.3s ease !important;
 }
 
-.button-bar .right > button:not(#chrome-toggle-btn) {
+/* Descendant selector, not `.right > button` -- every game-action button
+   here (Boggle's End Game/New Game, Family Feud's Reveal/End Game,
+   Yahtzee's Scores/Watch only/New Game/Back to room, ...) is teleported
+   in via Livewire's @teleport (see layouts/app.blade.php's #game-actions
+   anchor), landing inside a chain of `display: contents` wrapper divs
+   (#game-actions itself, plus @teleport's own wrapper). `display:
+   contents` only affects box generation/layout -- it flattens these
+   wrappers out of the rendered box tree, making their children look like
+   direct flex items of `.right` visually, but the actual DOM tree (what a
+   `>` combinator matches against) still has them nested two levels deep.
+   A direct-child selector silently matched nothing here, for any game,
+   ever -- confirmed live (`.matches('.right > button')` false on an
+   actual teleported button) rather than assumed. */
+.button-bar .right button:not(#chrome-toggle-btn) {
     overflow: hidden;
     max-width: 240px;
     transition: opacity 0.3s ease, max-width 0.3s ease, padding-left 0.3s ease, padding-right 0.3s ease, border-left-width 0.3s ease, border-right-width 0.3s ease !important;
@@ -436,7 +474,7 @@ body.chrome-hidden .site-footer > * {
     pointer-events: none;
 }
 
-body.chrome-hidden .button-bar .right > button:not(#chrome-toggle-btn) {
+body.chrome-hidden .button-bar .right button:not(#chrome-toggle-btn) {
     opacity: 0;
     pointer-events: none;
     max-width: 0;
@@ -456,7 +494,7 @@ body.chrome-hidden .button-bar .right > button:not(#chrome-toggle-btn) {
    values here, not a bare `revert`, since @layer base's own `button`
    rule (where these values normally come from) is a *layered* rule that
    never wins over this unlayered one regardless of source order. */
-body.chrome-hidden .button-bar .right > button#scores-btn {
+body.chrome-hidden .button-bar .right button#scores-btn {
     opacity: 1;
     pointer-events: auto;
     max-width: 240px;
@@ -515,7 +553,7 @@ body.chrome-hidden .fullscreen-toggle:active svg {
     .button-bar,
     .site-footer,
     .button-bar .left,
-    .button-bar .right > button,
+    .button-bar .right button,
     .site-footer > *,
     .fullscreen-toggle svg {
         transition: none !important;
@@ -1315,12 +1353,21 @@ body.scrollable.yahtzee-play.in-game {
 
 table.scorecard {
     border-collapse: collapse;
-    /* Not 100% -- see .card-wrap's align-items above. auto (the initial
-       value, spelled out for clarity) lets the table size to its own
-       columns' natural content width instead of stretching to fill
-       .card-wrap, which only matters/kicks in once there are enough
-       columns to actually need the space. */
-    width: auto;
+    /* Definite, not auto -- confirmed live that table-layout: fixed with
+       an auto table width still let a longer name's column render wider
+       than a short one's, despite every <col> (see the colgroup in
+       yahtzee-scorecard-table.blade.php) declaring the identical 10ch.
+       --player-count (set inline by that same component) is what makes
+       this concrete; single-seat-mobile below overrides it back down to
+       exactly 1 for the one case where fewer columns are actually
+       visible than were rendered. */
+    width: calc(18ch + var(--player-count) * 10ch);
+    /* table-layout: fixed is what actually makes <col>'s widths binding
+       -- under the default `auto` algorithm, they're only a hint the
+       browser can (and, confirmed live, does) override to fit a longer
+       name, which is exactly why two player columns weren't landing at
+       the same width before this. */
+    table-layout: fixed;
     flex: 0 0 auto;
     color: var(--ink);
 }
@@ -1341,12 +1388,52 @@ table.scorecard td {
     white-space: nowrap;
 }
 
+/* <col> (see yahtzee-scorecard-table.blade.php's own <colgroup>) is what
+   actually sizes each column under table-layout: fixed -- a plain
+   width/max-width declared on the cells themselves turned out not to be
+   reliably binding in practice (confirmed live: two columns both declared
+   "width: 10ch" still rendered at visibly different widths). 18ch on the
+   category column comfortably fits "Bonus (63+ = 35)", the longest label,
+   at the mobile font-size below (that column shrinks its own font there,
+   not its width); 10ch keeps every player column equal regardless of how
+   long any individual name is. */
+col.category-col {
+    width: 18ch;
+}
+
+col.player-col {
+    width: 10ch;
+}
+
 table.scorecard th.category,
 table.scorecard td.category {
     text-align: left;
     font-weight: bold;
     background: var(--die);
-    width: 1%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    /* Stays put horizontally while scrolling through more players than
+       fit on screen at once (the "Scores" drawer's own reason for
+       existing) -- so the row you're looking at is always identifiable,
+       not just a number floating with no label in view. .card-wrap's own
+       `overflow: auto` is what makes it the scrolling ancestor `left: 0`
+       pins against. */
+    position: sticky;
+    left: 0;
+    z-index: 1;
+}
+
+/* Every player column shares one width (set on <col> above), rather than
+   each sizing to its own name's length -- otherwise a short name's column
+   ended up much narrower than a long one's, an uneven-looking scorecard
+   for no functional reason. Overflow is genuinely possible for an
+   unusually long real account name, so it truncates with an ellipsis
+   rather than bleeding into the next column (nowrap alone, with no
+   overflow handling, would just paint past the cell's edge). */
+table.scorecard th:not(.category),
+table.scorecard td:not(.category) {
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 table.scorecard th {
@@ -1419,6 +1506,36 @@ table.scorecard tr.total td {
     table.scorecard.single-seat-mobile td.not-mine {
         display: none;
     }
+
+    /* Collapsing the *cells* above hides the visible content but leaves
+       each not-mine column's own <col> still contributing its 10ch to
+       --player-count's total (see table.scorecard's own docblock) --
+       confirmed live this left a large dead gap where those columns used
+       to be, exactly the width they would've taken up were they still
+       shown. Collapsing the <col> itself, plus overriding the table's own
+       width down to exactly one column's worth (--player-count still
+       reflects every player, since it's set once at render time with no
+       way to know viewport width), is what actually lets the table shrink
+       down to just category + the one visible column. */
+    table.scorecard.single-seat-mobile col.not-mine {
+        width: 0;
+    }
+
+    table.scorecard.single-seat-mobile {
+        width: calc(18ch + 1 * 10ch);
+    }
+
+    /* The row-label column was getting squeezed hard enough on a real
+       phone width to visibly cut labels off, competing with the (fixed-
+       width, see above) data column for whatever room the narrow
+       viewport actually has. Smaller and regular (not bold) weight frees
+       up horizontal room without needing to shrink the data column or
+       truncate labels instead. */
+    table.scorecard th.category,
+    table.scorecard td.category {
+        font-size: clamp(9px, 3.2cqh, 20px);
+        font-weight: normal;
+    }
 }
 
 @media (min-width: 900px) {
@@ -1434,8 +1551,19 @@ table.scorecard tr.total td {
    #scores-btn (and so this dialog) is desktop-hidden above, meaning it's
    only ever opened at a width narrow enough that a small centered box
    would just be a second, smaller version of the cramped table it exists
-   to replace. */
-dialog.scoreboard-dialog {
+   to replace.
+
+   [open] matters here, badly -- native <dialog> is only hidden via the UA
+   stylesheet's `dialog:not([open]) { display: none }`, which an author
+   rule setting `display` unconditionally silently overrides (author
+   styles always beat UA styles, regardless of specificity). Without
+   [open], this became a permanent full-viewport `position: absolute;
+   inset: 0` overlay covering the entire page -- invisibly, since nothing
+   here painted anything opaque over the game beneath it, but very much
+   still THERE, intercepting layout and (given a stray click) input --
+   even while "closed". .rules-dialog never had this bug only because it
+   happens to not set `display` at all, leaving the UA default intact. */
+dialog.scoreboard-dialog[open] {
     margin: 0;
     inset: 0;
     width: 100vw;
@@ -1453,7 +1581,7 @@ dialog.scoreboard-dialog {
     padding-bottom: calc(clamp(18px, 3vmin, 30px) + env(safe-area-inset-bottom, 0px));
 }
 
-dialog.scoreboard-dialog:focus-visible {
+dialog.scoreboard-dialog[open]:focus-visible {
     outline: none;
 }
 

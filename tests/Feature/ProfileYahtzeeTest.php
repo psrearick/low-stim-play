@@ -51,12 +51,19 @@ test('the yahtzee stats index only shows the current user\'s own games', functio
     $otherUser = User::factory()->create();
 
     yahtzeeParticipantFor($user, ['ones' => 3], 3);
-    yahtzeeParticipantFor($otherUser, ['sixes' => 30], 30);
+    $otherGame = yahtzeeParticipantFor($otherUser, ['sixes' => 30], 30);
 
+    // Not assertDontSee('30') -- Livewire's own randomly-generated
+    // wire:id can coincidentally contain any given short numeric
+    // substring (confirmed live: this flaked on a wire:id containing
+    // "30" purely by chance), making a bare 1-2 digit assertion
+    // fundamentally unreliable here regardless of the real behavior
+    // under test. The other user's specific show-page link is a far
+    // more specific, collision-resistant thing to assert is absent.
     Livewire::actingAs($user)
         ->test('pages::profile.yahtzee.index')
         ->assertCount('games', 1)
-        ->assertDontSee('30');
+        ->assertDontSee(route('profile.yahtzee.show', $otherGame), escape: false);
 });
 
 test('the yahtzee stats index links each personal best to the game it came from', function () {
