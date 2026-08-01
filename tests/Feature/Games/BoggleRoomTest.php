@@ -20,7 +20,7 @@ test('guests are prompted to sign in to host, but can still see the join form', 
     $this->get('/boggle')
         ->assertSee('Sign in')
         ->assertDontSee('Host an Online Room')
-        ->assertSee('Room code');
+        ->assertSee('Room ID');
 });
 
 test('authenticated users can create a room and are redirected into it', function () {
@@ -43,7 +43,7 @@ test('joining with a valid code redirects to the room', function () {
 
     Livewire::actingAs($user)
         ->test('pages::boggle.lobby')
-        ->set('joinCode', strtolower($room->code))
+        ->set('joinID', strtolower($room->code))
         ->call('joinRoom')
         ->assertRedirect(route('boggle.room', ['code' => $room->code]));
 });
@@ -53,7 +53,7 @@ test('joining with an invalid code shows an error instead of redirecting', funct
 
     Livewire::actingAs($user)
         ->test('pages::boggle.lobby')
-        ->set('joinCode', 'NOPE99')
+        ->set('joinID', 'NOPE99')
         ->call('joinRoom')
         ->assertNoRedirect()
         ->assertSet('joinError', 'No active room with that code.');
@@ -76,7 +76,7 @@ test('joining a room from the lobby without an account creates a guest and uses 
 
     Livewire::test('pages::boggle.lobby')
         ->set('guestName', 'Alex')
-        ->set('joinCode', $room->code)
+        ->set('joinID', $room->code)
         ->call('joinRoom')
         ->assertRedirect(route('boggle.room', ['code' => $room->code]));
 
