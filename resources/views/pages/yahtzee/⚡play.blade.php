@@ -691,7 +691,7 @@ new class extends Component
             @endunless
 
             <form wire:submit="joinRoom" class="flex gap-2 w-full">
-                <input type="text" id="join-code" wire:model="joinCode" maxlength="6" placeholder="Room code" autocomplete="off" style="flex: 1; text-transform: uppercase;">
+                <input type="text" id="join" wire:model="joinCode" maxlength="6" placeholder="Room code" autocomplete="off" style="flex: 1; text-transform: uppercase;">
                 <button type="submit">Join</button>
             </form>
 
@@ -820,7 +820,7 @@ new class extends Component
 @endscript
 
 <script>
-    // Same fix as boggle/⚡lobby.blade.php's own join-code field: nothing
+    // Same fix as boggle/⚡lobby.blade.php's own join field: nothing
     // here sets autofocus, but mobile Safari can still focus this field
     // and raise the keyboard on its own (back-forward cache restore, or
     // its verification-code autofill heuristics treating a short,
@@ -830,7 +830,7 @@ new class extends Component
     window.addEventListener('pointerdown', () => { userInteracted = true; }, { once: true, capture: true });
 
     const blurAutofocusedJoinCode = () => {
-        const joinCode = document.getElementById('join-code');
+        const joinCode = document.getElementById('join');
         if (! userInteracted && joinCode && document.activeElement === joinCode) {
             joinCode.blur();
         }
