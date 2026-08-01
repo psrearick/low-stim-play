@@ -71,7 +71,7 @@ test('joining with a valid code redirects to the yahtzee room', function () {
 
     Livewire::actingAs($user)
         ->test('pages::yahtzee.play')
-        ->set('joinCode', strtolower($room->code))
+        ->set('joinID', strtolower($room->code))
         ->call('joinRoom')
         ->assertRedirect(route('yahtzee.room', ['code' => $room->code]));
 });
