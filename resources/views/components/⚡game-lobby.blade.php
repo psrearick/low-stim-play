@@ -4,6 +4,7 @@ use App\Enums\RoomStatus;
 use App\Events\RoomPlayerReadyToggled;
 use App\Models\Room;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Livewire\Component;
 
 new class extends Component
@@ -44,7 +45,7 @@ new class extends Component
     public function onHere(array $members): void
     {
         foreach ($members as $member) {
-            $this->players[$member['id']] = [...$member, 'ready' => false];
+            $this->players[$member['id']] = [...$member, 'ready' => $this->cachedReady($member['id'])];
         }
     }
 
@@ -53,7 +54,7 @@ new class extends Component
      */
     public function onJoining(array $member): void
     {
-        $this->players[$member['id']] = [...$member, 'ready' => false];
+        $this->players[$member['id']] = [...$member, 'ready' => $this->cachedReady($member['id'])];
     }
 
     /**
@@ -88,7 +89,27 @@ new class extends Component
             $this->players[$userId]['ready'] = $ready;
         }
 
+        // Persisted, not just broadcast -- RoomPlayerReadyToggled only ever
+        // reaches whoever's actively connected to the presence channel at
+        // the instant it fires. A reconnecting client's onHere()/onJoining()
+        // (above) has no way to recover another member's current ready
+        // status from the presence payload alone (it only ever carries
+        // id/name/is_host, see routes/channels.php), so without this,
+        // everyone re-appears "not ready" to a client that just reconnected
+        // -- even players who never actually un-readied.
+        Cache::put($this->readyCacheKey($userId), $ready, now()->addHours(3));
+
         RoomPlayerReadyToggled::dispatch($this->room, $userId, $ready);
+    }
+
+    private function cachedReady(int $userId): bool
+    {
+        return Cache::get($this->readyCacheKey($userId), false);
+    }
+
+    private function readyCacheKey(int $userId): string
+    {
+        return "room:{$this->room->code}:ready:{$userId}";
     }
 
     public function startGame(): void
@@ -106,6 +127,16 @@ new class extends Component
         // happens inside the same "it's null" branch), stranding the guest
         // in the lobby.
         $this->room->update(['status' => RoomStatus::Active, 'game_session_id' => null]);
+
+        // Clear every present player's cached ready flag now that it's
+        // actually been consumed -- otherwise a replayed room ("Back to
+        // room" after a finished game) would have every returning player's
+        // onHere()/onJoining() immediately read back "ready" from the
+        // *previous* round, enabling Start Game again before anyone
+        // actually re-confirms for the new one.
+        foreach (array_keys($this->players) as $userId) {
+            Cache::forget($this->readyCacheKey($userId));
+        }
 
         // A plain (non-broadcast) Livewire event, handled synchronously by
         // whichever game-specific page hosts this component -- letting each

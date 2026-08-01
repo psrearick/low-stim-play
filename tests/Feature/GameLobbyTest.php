@@ -107,3 +107,49 @@ test('a non-host cannot start the game', function () {
         ->call('startGame')
         ->assertForbidden();
 });
+
+test('a reconnecting player sees other players\' real ready status, not a stale "not ready"', function () {
+    // Regression test: onHere()'s presence payload only ever carries
+    // id/name/is_host (see routes/channels.php) -- it used to hardcode
+    // every present member's ready flag to false, so a client that
+    // reconnects to the presence channel after someone else has already
+    // readied up would incorrectly show them as "not ready" until another
+    // RoomPlayerReadyToggled broadcast happened to fire while it was
+    // actually connected.
+    $host = User::factory()->create();
+    $guest = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    Livewire::actingAs($host)
+        ->test('game-lobby', ['room' => $room])
+        ->call('onJoining', ['id' => $host->id, 'name' => $host->name, 'is_host' => true])
+        ->call('toggleReady');
+
+    // A brand-new component instance, as a fresh reconnect would be --
+    // learns the host is ready purely from onHere()'s own payload, with no
+    // RoomPlayerReadyToggled broadcast involved at all.
+    Livewire::actingAs($guest)
+        ->test('game-lobby', ['room' => $room])
+        ->call('onHere', [['id' => $host->id, 'name' => $host->name, 'is_host' => true]])
+        ->assertSet("players.{$host->id}.ready", true);
+});
+
+test('starting the game clears cached ready status so a replayed room requires everyone to re-ready', function () {
+    $host = User::factory()->create();
+    $guest = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    Livewire::actingAs($host)
+        ->test('game-lobby', ['room' => $room])
+        ->call('onJoining', ['id' => $host->id, 'name' => $host->name, 'is_host' => true])
+        ->call('onJoining', ['id' => $guest->id, 'name' => $guest->name, 'is_host' => false])
+        ->call('onReadyToggled', ['user_id' => $host->id, 'ready' => true])
+        ->call('onReadyToggled', ['user_id' => $guest->id, 'ready' => true])
+        ->call('startGame');
+
+    // A fresh mount, as "Back to room" after the game ends would be.
+    Livewire::actingAs($host)
+        ->test('game-lobby', ['room' => $room])
+        ->call('onHere', [['id' => $host->id, 'name' => $host->name, 'is_host' => true]])
+        ->assertSet("players.{$host->id}.ready", false);
+});

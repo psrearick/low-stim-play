@@ -87,10 +87,22 @@ new class extends Component
     /**
      * This connection's seat in the online room, or null -- null means
      * either purely local play, or an online room where this account
-     * doesn't occupy a seat (a spectator/host view: no dice, no roll/score
-     * controls, just the read-only scorecard).
+     * doesn't occupy a seat (spectator/host view: dice are still shown
+     * live, but no clicking a die to keep it and no scoring).
      */
     public ?int $mySeatIndex = null;
+
+    /**
+     * A seated player's own explicit choice to view this device read-only
+     * anyway -- for the case docs/TODO.md called out directly: the same
+     * account logged in on two devices at once, one hosting/casting (this
+     * one, with spectate=1) and one actually playing. Purely a per-device
+     * URL flag, not account-wide state -- otherwise switching it on this
+     * device would also switch it on the one they're actually playing
+     * from. Ignored entirely for local pass-and-play.
+     */
+    #[Url]
+    public bool $spectate = false;
 
     /**
      * Snapshots taken right before each mutating action (roll,
@@ -559,6 +571,14 @@ new class extends Component
     {
         return ! $this->gameOver
             && $playerIndex === $this->currentPlayer
+            // Online: $playerIndex === $this->currentPlayer alone only
+            // checks whose *column* this is, not who's actually looking at
+            // it -- without isMyTurn too, any other seat viewing the
+            // current player's column got a clickable cell wired up
+            // (wire:click="scoreCategory(...)"), which then 403'd on the
+            // server the moment they tapped it instead of just not being
+            // clickable in the first place.
+            && $this->isMyTurn
             && count($this->dice) === self::DICE_COUNT
             && $this->players[$playerIndex]['scores'][$categoryValue] === null;
     }
@@ -586,19 +606,24 @@ new class extends Component
     }
 
     /**
-     * True only for an online room connection that doesn't occupy a seat
-     * -- never true for local pass-and-play, which has no seat concept at
-     * all. Drives the read-only host/spectator view (no dice, no roll/
-     * score controls, just the scorecard).
+     * True for an online room connection that doesn't occupy a seat at
+     * all, or for a seated player who's explicitly chosen to view this
+     * device read-only anyway ($spectate -- see its own docblock). Never
+     * true for local pass-and-play, which has no seat concept at all.
+     * Drives the read-only view (see the Blade below): the dice values
+     * and kept highlighting still show, but there's no clicking a die to
+     * keep it, no Roll button, and no clicking a scorecard cell to score.
      */
     public function getIsSpectatorProperty(): bool
     {
-        return $this->room !== null && $this->mySeatIndex === null;
+        return $this->room !== null && ($this->mySeatIndex === null || $this->spectate);
     }
 
     /**
      * Always true for local pass-and-play (no seat to check); for an
-     * online room, true only for the seat whose turn it actually is.
+     * online room, true only for the seat whose turn it actually is --
+     * independent of $spectate, which only ever affects what this
+     * particular device *shows*, never who's actually allowed to act.
      */
     public function getIsMyTurnProperty(): bool
     {
@@ -663,8 +688,29 @@ new class extends Component
     @if ($started)
         @teleport('#game-actions')
             <div style="display: contents;">
+                {{--
+                    #scores-btn: hidden entirely on desktop-width screens
+                    (see app.css) -- every player is already visible on
+                    the main scorecard there, so the drawer is redundant.
+                    It's the mobile-only single-seat scorecard (see
+                    single-seat-mobile in app.css) that makes this button
+                    relevant at all.
+                --}}
                 @if ($room !== null && ! $this->isSpectator)
-                    <button type="button" onclick="document.getElementById('scoreboard-drawer').showModal()">Scores</button>
+                    <button type="button" id="scores-btn" onclick="document.getElementById('scoreboard-drawer').showModal()">Scores</button>
+                @endif
+
+                {{--
+                    No id/CSS exception for this one (unlike #scores-btn
+                    above) -- it's meant to just disappear like any other
+                    button-bar action once fullscreen/chrome-hidden mode
+                    is on, the default behavior for everything but the
+                    fullscreen toggle itself and the Scores button.
+                --}}
+                @if ($room !== null && $mySeatIndex !== null)
+                    <button type="button" wire:click="$set('spectate', {{ $this->isSpectator ? 'false' : 'true' }})">
+                        {{ $this->isSpectator ? 'Player view' : 'Watch only' }}
+                    </button>
                 @endif
 
                 @if ($room === null)
@@ -741,63 +787,91 @@ new class extends Component
             <div class="status">{{ $this->statusText }}</div>
 
             {{--
-                Host/spectator (an online connection with no seat) never
-                gets a dice area or turn controls at all -- the read-only
-                scorecard below is the entire view for them, satisfying "no
-                individual turn controls" directly. A seated-but-not-
-                current-turn player still sees the dice (so they can watch
-                the active seat's rolls live via the broadcast state), just
-                with Roll/keep disabled until it's their turn.
+                Dice values and kept/selected highlighting are always
+                visible, spectator or not -- a spectator still benefits
+                from watching the live roll. Clicking a die to keep it and
+                the Roll button itself are both only ever shown to the
+                seat whose turn it actually is, and never at all to a
+                spectator (see isSpectator's own docblock) -- hidden
+                outright, not just disabled, since a disabled-but-visible
+                Roll button invited clicking it anyway on the exact same
+                class of bug isPickable() just got fixed for.
             --}}
-            @unless ($this->isSpectator)
-                <div class="dice-area">
-                    <div class="row">
-                        @for ($i = 0; $i < self::DICE_COUNT; $i++)
-                            <div class="die {{ ($kept[$i] ?? false) ? 'kept' : '' }}" @if ($this->isMyTurn) wire:click="toggleKeep({{ $i }})" @endif>
-                                <span class="number">{{ $dice[$i] ?? '' }}</span>
-                            </div>
-                        @endfor
-                    </div>
-
-                    <div class="controls">
-                        <button type="button" id="rollBtn" wire:click="roll" @disabled($gameOver || $rollsLeft <= 0 || ! $this->isMyTurn)>Roll</button>
-                        {{-- Undo isn't supported online at all (see undo()'s own note) --}}
-                        @if ($room === null)
-                            <button type="button" id="undoBtn" wire:click="undo" @disabled($gameOver || $history === [])>Undo</button>
-                        @endif
-                    </div>
+            <div class="dice-area">
+                <div class="row">
+                    @for ($i = 0; $i < self::DICE_COUNT; $i++)
+                        <div class="die {{ ($kept[$i] ?? false) ? 'kept' : '' }}" @if ($this->isMyTurn && ! $this->isSpectator) wire:click="toggleKeep({{ $i }})" @endif>
+                            <span class="number">{{ $dice[$i] ?? '' }}</span>
+                        </div>
+                    @endfor
                 </div>
-            @endunless
 
+                <div class="controls">
+                    @if ($this->isMyTurn && ! $this->isSpectator)
+                        <button type="button" id="rollBtn" wire:click="roll" @disabled($gameOver || $rollsLeft <= 0)>Roll</button>
+                    @endif
+                    {{-- Undo isn't supported online at all (see undo()'s own note) --}}
+                    @if ($room === null)
+                        <button type="button" id="undoBtn" wire:click="undo" @disabled($gameOver || $history === [])>Undo</button>
+                    @endif
+                </div>
+            </div>
+
+            {{--
+                mySeatIndex, not null -- on mobile (see app.css), this
+                narrows the table to just this seat's own column, since
+                the "Scores" drawer below already exists specifically to
+                show everyone. Desktop-width screens ignore this marker
+                entirely and keep showing every column here regardless.
+            --}}
             <x-yahtzee-scorecard-table
                 :livewire="$this"
                 :players="$players"
                 :currentPlayer="$currentPlayer"
                 :gameOver="$gameOver"
                 :readOnly="$this->isSpectator"
+                :mySeatIndex="$mySeatIndex"
             />
         </div>
 
         {{--
-            The mobile scoreboard drawer -- lets a seated player check the
-            full shared board on demand without needing a separate host/TV
-            device, per docs/TODO.md. Read-only regardless of whose turn it
-            is; scoring happens in the main view above, not here.
+            The scoreboard drawer -- lets a seated player check everyone's
+            scores on demand, since their own phone's main view (above)
+            only ever shows their own column. A full-screen sheet rather
+            than a small centered modal, since it's only ever opened on
+            mobile in the first place (#scores-btn is desktop-hidden, see
+            app.css) -- deliberately always shows every column (no
+            mySeatIndex passed), unlike the main view above.
         --}}
         @if ($room !== null && ! $this->isSpectator)
-            <dialog id="scoreboard-drawer" aria-labelledby="scoreboard-drawer-title">
+            <dialog class="scoreboard-dialog" id="scoreboard-drawer" aria-labelledby="scoreboard-drawer-title" tabindex="-1">
                 <div class="rules-dialog-header">
                     <div class="rules-dialog-title" id="scoreboard-drawer-title">Scores</div>
-                    <button type="button" aria-label="Close" onclick="document.getElementById('scoreboard-drawer').close()">&times;</button>
+                    <button type="button" class="rules-dialog-close" aria-label="Close" onclick="document.getElementById('scoreboard-drawer').close()">&times;</button>
                 </div>
 
-                <x-yahtzee-scorecard-table
-                    :livewire="$this"
-                    :players="$players"
-                    :currentPlayer="$currentPlayer"
-                    :gameOver="$gameOver"
-                    :readOnly="true"
-                />
+                {{--
+                    .card-wrap (inside the scorecard-table component) only
+                    sizes its cqh-based row heights correctly when *it*
+                    has a definite height to measure against -- on the
+                    live game view that comes from the surrounding
+                    #yahtzee-game flex column (itself bounded by
+                    100dvh), which doesn't exist inside a <dialog>. This
+                    wrapper (flex-1/min-h-0, matching #yahtzee-game's own
+                    structure) fills whatever's left of the full-screen
+                    dialog after the header instead, so the table renders
+                    at a normal, legible size rather than collapsing to
+                    ~0.
+                --}}
+                <div class="flex flex-col flex-1 min-h-0">
+                    <x-yahtzee-scorecard-table
+                        :livewire="$this"
+                        :players="$players"
+                        :currentPlayer="$currentPlayer"
+                        :gameOver="$gameOver"
+                        :readOnly="true"
+                    />
+                </div>
             </dialog>
         @endif
     @endunless

@@ -36,6 +36,26 @@ new class extends Component
                 request()->session()->regenerate();
             }
         }
+
+        // The game may already be running by the time anyone actually
+        // lands here -- a reconnecting seated player whose device was
+        // disconnected at the exact moment the host clicked "Start" would
+        // otherwise never receive RoomGameStarting (onRoomStarted() below
+        // only reacts to that broadcast arriving *after* mount, which
+        // never happens for them) and would be stuck looking at this
+        // now-stale lobby forever, even though the game is running fine
+        // for everyone else. This also doubles as the only real entry
+        // point into the spectator/host view (see pages::yahtzee.play):
+        // anyone -- seated or not -- who visits this room URL once the
+        // game has started is sent straight into it.
+        $this->redirectIfAlreadyStarted();
+    }
+
+    private function redirectIfAlreadyStarted(): void
+    {
+        if ($this->room->status === RoomStatus::Active && $this->room->game_session_id !== null) {
+            $this->goToGame();
+        }
     }
 
     /**
@@ -121,10 +141,7 @@ new class extends Component
     public function onRoomStarted(): void
     {
         $this->room->refresh();
-
-        if ($this->room->status === RoomStatus::Active && $this->room->game_session_id !== null) {
-            $this->goToGame();
-        }
+        $this->redirectIfAlreadyStarted();
     }
 
     private function goToGame(): void

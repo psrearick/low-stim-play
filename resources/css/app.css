@@ -446,6 +446,26 @@ body.chrome-hidden .button-bar .right > button:not(#chrome-toggle-btn) {
     border-right-width: 0;
 }
 
+/* Yahtzee online rooms: the "Scores" button (#scores-btn) stays usable in
+   fullscreen/chrome-hidden mode, same exception as .fullscreen-toggle
+   above -- a TV/cast device is exactly the case fullscreen mode is for,
+   and that's also exactly when checking the shared scoreboard without
+   leaving fullscreen matters most. Shares its selector's specificity with
+   the dimming rule just above (both have exactly one ID), so this only
+   wins because it comes later in the stylesheet -- and needs concrete
+   values here, not a bare `revert`, since @layer base's own `button`
+   rule (where these values normally come from) is a *layered* rule that
+   never wins over this unlayered one regardless of source order. */
+body.chrome-hidden .button-bar .right > button#scores-btn {
+    opacity: 1;
+    pointer-events: auto;
+    max-width: 240px;
+    padding-left: clamp(18px, 2.8vmin, 34px);
+    padding-right: clamp(18px, 2.8vmin, 34px);
+    border-left-width: 2px;
+    border-right-width: 2px;
+}
+
 .fullscreen-toggle {
     display: flex;
     align-items: center;
@@ -1275,6 +1295,15 @@ body.scrollable.yahtzee-play.in-game {
     display: flex;
     flex-direction: column;
     justify-content: safe center;
+    /* Cross-axis (horizontal, since flex-direction is column) centering
+       for the table itself -- flex's own default here is stretch, which
+       used to force table.scorecard to fill this box's full width
+       (min(97vw, 1700px)) regardless of how few columns it actually had,
+       making a 2-player game's columns absurdly wide. .card-wrap's own
+       width is unaffected (still the outer bound + what makes
+       container-type: size below valid); this only changes what its
+       child is allowed to shrink to. */
+    align-items: center;
     /* Sized entirely by the surrounding flex layout (the space left over
        after the dice area), not by its own content -- lets the scorecard's
        17 rows (see the row-count comment below) size themselves as a
@@ -1286,7 +1315,12 @@ body.scrollable.yahtzee-play.in-game {
 
 table.scorecard {
     border-collapse: collapse;
-    width: 100%;
+    /* Not 100% -- see .card-wrap's align-items above. auto (the initial
+       value, spelled out for clarity) lets the table size to its own
+       columns' natural content width instead of stretching to fill
+       .card-wrap, which only matters/kicks in once there are enough
+       columns to actually need the space. */
+    width: auto;
     flex: 0 0 auto;
     color: var(--ink);
 }
@@ -1365,6 +1399,68 @@ table.scorecard tr.subtotal td,
 table.scorecard tr.total td {
     background: var(--die-kept);
     font-weight: bold;
+}
+
+/* ---- Yahtzee online rooms: mobile-only single-seat scorecard, the
+   "Scores" drawer, and the fullscreen-aware button-bar actions that
+   trigger them. See docs/CHANGELOG.md. 900px matches this app's existing
+   mobile/desktop cutoff (see the Boggle word-list-panel rules above). ---- */
+@media (max-width: 899px) {
+    /* A seated player's own phone shows just their column -- every other
+       player's is already fully covered by the "Scores" drawer below, and
+       a multi-column table this narrow left every column too cramped to
+       read regardless of the width fix above. Only applies when the
+       table's actually marked single-seat-mobile (see
+       yahtzee-scorecard-table.blade.php's own mySeatIndex prop) -- never
+       true for the drawer's own copy of this table (which exists
+       specifically to show everyone) or for a spectator (nothing is
+       "mine" to narrow down to). */
+    table.scorecard.single-seat-mobile th.not-mine,
+    table.scorecard.single-seat-mobile td.not-mine {
+        display: none;
+    }
+}
+
+@media (min-width: 900px) {
+    /* Every column already fits on a desktop-width screen's main
+       scorecard (no single-seat narrowing above), so the drawer that
+       shows the same information again is redundant there. */
+    #scores-btn {
+        display: none;
+    }
+}
+
+/* A full-screen sheet, not a small centered modal, unlike .rules-dialog --
+   #scores-btn (and so this dialog) is desktop-hidden above, meaning it's
+   only ever opened at a width narrow enough that a small centered box
+   would just be a second, smaller version of the cramped table it exists
+   to replace. */
+dialog.scoreboard-dialog {
+    margin: 0;
+    inset: 0;
+    width: 100vw;
+    height: 100dvh;
+    max-width: 100vw;
+    max-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    background: var(--die);
+    color: var(--ink);
+    border: none;
+    border-radius: 0;
+    padding: clamp(18px, 3vmin, 30px);
+    padding-top: calc(clamp(18px, 3vmin, 30px) + env(safe-area-inset-top, 0px));
+    padding-bottom: calc(clamp(18px, 3vmin, 30px) + env(safe-area-inset-bottom, 0px));
+}
+
+dialog.scoreboard-dialog:focus-visible {
+    outline: none;
+}
+
+dialog.scoreboard-dialog::backdrop {
+    background: oklch(from var(--bg) calc(l - 0.2) c h / 0.6);
+    animation: none !important;
+    transition: none !important;
 }
 
 /* =====================================================================

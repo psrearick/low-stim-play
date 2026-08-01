@@ -190,6 +190,120 @@ test('reloading mid-game rehydrates the correct seat and in-progress state inste
         ->assertSet('players.0.scores.fives', 15);
 });
 
+test('visiting the room page after the game already started redirects straight into it, not the stale lobby', function () {
+    // Regression test: a player disconnected at the exact moment the host
+    // started the game would never receive RoomGameStarting (the only
+    // thing onRoomStarted() reacts to) and used to be stranded on this
+    // page forever. mount() now checks whether the game has already
+    // started directly, independent of any broadcast.
+    $host = User::factory()->create();
+    $guest = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    $players = readyUpAndStart($room, $host, $guest);
+    Livewire::actingAs($host)->test('pages::yahtzee.room', ['code' => $room->code])->call('onRoomStarting', $players);
+
+    Livewire::actingAs($guest)
+        ->test('pages::yahtzee.room', ['code' => $room->code])
+        ->assertRedirect(route('yahtzee.play', ['room' => $room->code]));
+});
+
+test('a spectator who visits the room page after start lands in the game as a spectator, not a seat', function () {
+    $host = User::factory()->create();
+    $guest = User::factory()->create();
+    $spectator = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    $players = readyUpAndStart($room, $host, $guest);
+    Livewire::actingAs($host)->test('pages::yahtzee.room', ['code' => $room->code])->call('onRoomStarting', $players);
+
+    Livewire::actingAs($spectator)
+        ->test('pages::yahtzee.room', ['code' => $room->code])
+        ->assertRedirect(route('yahtzee.play', ['room' => $room->code]));
+
+    Livewire::actingAs($spectator)
+        ->test('pages::yahtzee.play', ['room' => $room->code])
+        ->assertSet('mySeatIndex', null)
+        ->assertSet('isSpectator', true);
+});
+
+test('a seated player can switch this device to spectator view and back without losing their seat', function () {
+    $host = User::factory()->create();
+    $guest = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    $players = readyUpAndStart($room, $host, $guest);
+    Livewire::actingAs($host)->test('pages::yahtzee.room', ['code' => $room->code])->call('onRoomStarting', $players);
+
+    $tv = Livewire::actingAs($host)
+        ->test('pages::yahtzee.play', ['room' => $room->code])
+        ->assertSet('mySeatIndex', 0)
+        ->assertSet('isSpectator', false)
+        ->set('spectate', true)
+        ->assertSet('isSpectator', true);
+
+    // Still their seat's turn -- die-keep is suppressed by isSpectator,
+    // but roll() itself is authorized purely by seat, unaffected by the
+    // spectate flag, so it still works from this same "casting" device.
+    $tv->call('roll')->assertSet('rollsLeft', 2);
+
+    $tv->set('spectate', false)->assertSet('isSpectator', false);
+});
+
+test('a non-current seat sees no pickable cell at all, even in the current player\'s own column', function () {
+    // Regression test: isPickable() used to only check that the *column*
+    // (`$playerIndex`) matched currentPlayer, never who was actually
+    // looking at it -- so a non-current seat got a clickable
+    // wire:click="scoreCategory(...)" wired up on the current player's
+    // cells anyway, which then 403'd the moment they tapped it instead of
+    // simply not being clickable in the first place.
+    $host = User::factory()->create();
+    $guest = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    $players = readyUpAndStart($room, $host, $guest);
+    Livewire::actingAs($host)->test('pages::yahtzee.room', ['code' => $room->code])->call('onRoomStarting', $players);
+
+    Livewire::actingAs($host)->test('pages::yahtzee.play', ['room' => $room->code])
+        ->call('roll')
+        ->set('dice', [1, 1, 1, 1, 1]);
+
+    // Seat 0 (host) is currentPlayer; seat 1 (guest) is not -- guest's own
+    // component should see column 0 as unpickable, purely because it
+    // isn't guest's turn, regardless of whose column it is.
+    expect(Livewire::actingAs($guest)->test('pages::yahtzee.play', ['room' => $room->code])->instance()->isPickable(0, 'ones'))
+        ->toBeFalse();
+});
+
+test('a seated player\'s main scorecard marks every other seat not-mine, for CSS to hide on mobile', function () {
+    $host = User::factory()->create();
+    $guest = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    $players = readyUpAndStart($room, $host, $guest);
+    Livewire::actingAs($host)->test('pages::yahtzee.room', ['code' => $room->code])->call('onRoomStarting', $players);
+
+    Livewire::actingAs($host)
+        ->test('pages::yahtzee.play', ['room' => $room->code])
+        ->assertSeeHtml('single-seat-mobile')
+        ->assertSeeHtml('not-mine');
+});
+
+test('a spectator\'s scorecard shows every seat, with no not-mine marking at all', function () {
+    $host = User::factory()->create();
+    $guest = User::factory()->create();
+    $spectator = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    $players = readyUpAndStart($room, $host, $guest);
+    Livewire::actingAs($host)->test('pages::yahtzee.room', ['code' => $room->code])->call('onRoomStarting', $players);
+
+    Livewire::actingAs($spectator)
+        ->test('pages::yahtzee.play', ['room' => $room->code])
+        ->assertDontSeeHtml('single-seat-mobile')
+        ->assertDontSeeHtml('not-mine');
+});
+
 test('a full online game writes one distinct GameParticipant per logged-in account', function () {
     $host = User::factory()->create();
     $guest = User::factory()->create();

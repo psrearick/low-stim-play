@@ -1,4 +1,4 @@
-@props(['livewire', 'players', 'currentPlayer', 'gameOver', 'readOnly' => false])
+@props(['livewire', 'players', 'currentPlayer', 'gameOver', 'readOnly' => false, 'mySeatIndex' => null])
 
 {{--
     A plain Blade component, not a nested Livewire component -- its markup
@@ -10,14 +10,22 @@
     propagating into a Blade include, which this codebase has never relied
     on) so isPickable()/categoryScore()/etc. stay simple, unambiguous method
     calls on whatever component instance is actually rendering this.
+
+    `$mySeatIndex` marks every other player's column `not-mine` and flags
+    the table `single-seat-mobile` -- CSS then hides those columns below
+    the mobile breakpoint (see app.css), so a seated player's own phone
+    shows just their own scores instead of a squeezed multi-column table
+    already fully covered by the "Scores" drawer. Left null for the
+    drawer's own copy of this table (it exists specifically to show
+    *everyone*) and for a spectator (nothing is "mine" to narrow down to).
 --}}
 <div class="card-wrap">
-    <table class="scorecard">
+    <table class="scorecard {{ $mySeatIndex !== null ? 'single-seat-mobile' : '' }}">
         <thead>
             <tr>
                 <th class="category"></th>
                 @foreach ($players as $i => $player)
-                    <th class="{{ ! $gameOver && $i === $currentPlayer ? 'active-player' : '' }}">{{ $player['name'] }}</th>
+                    <th class="{{ ! $gameOver && $i === $currentPlayer ? 'active-player' : '' }} {{ $mySeatIndex !== null && $i !== $mySeatIndex ? 'not-mine' : '' }}">{{ $player['name'] }}</th>
                 @endforeach
             </tr>
         </thead>
@@ -28,7 +36,7 @@
                     @foreach ($players as $i => $player)
                         <td wire:key="cell-{{ $i }}-{{ $category->value }}"
                             @if (! $readOnly && $livewire->isPickable($i, $category->value)) wire:click="scoreCategory('{{ $category->value }}')" @endif
-                            class="score-cell {{ ! $readOnly && $livewire->isPickable($i, $category->value) ? 'pickable' : '' }} {{ $player['scores'][$category->value] !== null ? 'filled' : '' }}">
+                            class="score-cell {{ ! $readOnly && $livewire->isPickable($i, $category->value) ? 'pickable' : '' }} {{ $player['scores'][$category->value] !== null ? 'filled' : '' }} {{ $mySeatIndex !== null && $i !== $mySeatIndex ? 'not-mine' : '' }}">
                             {{ $livewire->categoryScore($i, $category->value) }}
                         </td>
                     @endforeach
@@ -38,14 +46,14 @@
             <tr class="subtotal">
                 <td class="category">Upper Subtotal</td>
                 @foreach ($players as $i => $player)
-                    <td data-role="upperSubtotal">{{ $livewire->upperSubtotalFor($i) }}</td>
+                    <td data-role="upperSubtotal" class="{{ $mySeatIndex !== null && $i !== $mySeatIndex ? 'not-mine' : '' }}">{{ $livewire->upperSubtotalFor($i) }}</td>
                 @endforeach
             </tr>
 
             <tr>
                 <td class="category">Bonus (63+ = 35)</td>
                 @foreach ($players as $i => $player)
-                    <td data-role="upperBonus">{{ $livewire->upperBonusFor($i) }}</td>
+                    <td data-role="upperBonus" class="{{ $mySeatIndex !== null && $i !== $mySeatIndex ? 'not-mine' : '' }}">{{ $livewire->upperBonusFor($i) }}</td>
                 @endforeach
             </tr>
 
@@ -55,7 +63,7 @@
                     @foreach ($players as $i => $player)
                         <td wire:key="cell-{{ $i }}-{{ $category->value }}"
                             @if (! $readOnly && $livewire->isPickable($i, $category->value)) wire:click="scoreCategory('{{ $category->value }}')" @endif
-                            class="score-cell {{ ! $readOnly && $livewire->isPickable($i, $category->value) ? 'pickable' : '' }} {{ $player['scores'][$category->value] !== null ? 'filled' : '' }}">
+                            class="score-cell {{ ! $readOnly && $livewire->isPickable($i, $category->value) ? 'pickable' : '' }} {{ $player['scores'][$category->value] !== null ? 'filled' : '' }} {{ $mySeatIndex !== null && $i !== $mySeatIndex ? 'not-mine' : '' }}">
                             {{ $livewire->categoryScore($i, $category->value) }}
                         </td>
                     @endforeach
@@ -65,7 +73,7 @@
             <tr>
                 <td class="category">Yahtzee Bonus</td>
                 @foreach ($players as $i => $player)
-                    <td data-role="yahtzeeBonus">
+                    <td data-role="yahtzeeBonus" class="{{ $mySeatIndex !== null && $i !== $mySeatIndex ? 'not-mine' : '' }}">
                         @if ($player['yahtzeeBonusCount'] > 0)
                             {{ str_repeat('✓', $player['yahtzeeBonusCount']) }} {{ $livewire->yahtzeeBonusPointsFor($i) }}
                         @endif
@@ -76,7 +84,7 @@
             <tr class="total">
                 <td class="category">Total</td>
                 @foreach ($players as $i => $player)
-                    <td data-role="total">{{ $livewire->totalScoreFor($i) }}</td>
+                    <td data-role="total" class="{{ $mySeatIndex !== null && $i !== $mySeatIndex ? 'not-mine' : '' }}">{{ $livewire->totalScoreFor($i) }}</td>
                 @endforeach
             </tr>
         </tbody>
