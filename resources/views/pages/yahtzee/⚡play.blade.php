@@ -842,9 +842,23 @@ new class extends Component
             mobile in the first place (#scores-btn is desktop-hidden, see
             app.css) -- deliberately always shows every column (no
             mySeatIndex passed), unlike the main view above.
+
+            wire:ignore.self -- <dialog>'s open/closed state lives only in
+            the browser's native DOM (toggled imperatively by
+            showModal()/close() below, never a tracked Livewire property),
+            so it isn't part of what the server renders at all. Without
+            this, another seat's action (roll/keep/score) broadcasts a
+            state update, Livewire re-renders and morphs this component's
+            whole tree to match, and morphing resets this element's own
+            attributes back to that server-rendered baseline -- which
+            never has `open` on it -- silently closing the dialog out
+            from under whoever had it open. `.self`, not a bare
+            wire:ignore, so the scorecard *inside* still updates live
+            while it's open; only the dialog's own open/closed state is
+            left alone.
         --}}
         @if ($room !== null && ! $this->isSpectator)
-            <dialog class="scoreboard-dialog" id="scoreboard-drawer" aria-labelledby="scoreboard-drawer-title" tabindex="-1">
+            <dialog wire:ignore.self class="scoreboard-dialog" id="scoreboard-drawer" aria-labelledby="scoreboard-drawer-title" tabindex="-1">
                 <div class="rules-dialog-header">
                     <div class="rules-dialog-title" id="scoreboard-drawer-title">Scores</div>
                     <button type="button" class="rules-dialog-close" aria-label="Close" onclick="document.getElementById('scoreboard-drawer').close()">&times;</button>

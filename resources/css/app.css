@@ -1231,18 +1231,38 @@ body.scrollable.yahtzee-play.in-game {
 
 .dice-area {
     display: flex;
-    flex-wrap: wrap;
+    /* nowrap, not wrap -- Roll (and, for local pass-and-play, Undo) used
+       to always land on its own row below the dice, since .row alone
+       claimed nearly the full available width (94vw), leaving no room
+       for anything to sit beside it. Putting them on one row instead
+       frees up the vertical space a second row cost, for .card-wrap (see
+       #yahtzee-game's own flex:1 1 auto) to grow into -- a taller
+       scorecard is easier to tap a specific category on than a shorter
+       one squeezed to make room for a separate controls row. */
+    flex-wrap: nowrap;
     align-items: center;
     justify-content: center;
-    gap: clamp(16px, 2vh, 24px);
+    gap: clamp(12px, 2vw, 28px);
     flex: 0 0 auto;
+    width: 100%;
+}
+
+.dice-area .controls {
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
 }
 
 .yahtzee-play .row {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
-    gap: clamp(6px, 1vh, 16px);
-    width: min(94vw, 64vh, 1200px);
+    gap: clamp(4px, 0.8vh, 12px);
+    /* Meaningfully narrower than before (was min(94vw, 64vh, 1200px)) --
+       that width alone was why Roll/Undo never fit on the same row (see
+       .dice-area above); shrinking the dice themselves is what actually
+       makes room, not just a side-effect of it. */
+    width: min(56vw, 42vh, 720px);
+    flex: 1 1 auto;
+    min-width: 0;
 }
 
 .yahtzee-play .die {
@@ -1263,7 +1283,9 @@ body.scrollable.yahtzee-play.in-game {
 }
 
 .yahtzee-play .number {
-    font-size: clamp(26px, 8vmin, 120px);
+    /* Scaled down to match .row's own narrower width above -- left at the
+       old clamp, this rendered too large for the now-smaller die boxes. */
+    font-size: clamp(18px, 5vmin, 72px);
     font-weight: bold;
     color: var(--ink);
     line-height: 1;
@@ -1351,17 +1373,38 @@ body.scrollable.yahtzee-play.in-game {
     container-name: scorecard;
 }
 
+:root {
+    /* Both read by <col> (see yahtzee-scorecard-table.blade.php's own
+       colgroup) and by table.scorecard's own explicit width just below --
+       one shared source so the two can never drift out of sync. Wider on
+       desktop (see the min-width: 900px override further down) so a
+       longer real name isn't cramped and every category label actually
+       fits (confirmed live: at the mobile width these were tuned for,
+       "Bonus (63+ = 35)" only overflowed once the font-size clamp
+       actually reached its own max, which only happens once .card-wrap
+       has real desktop-height room to grow into). */
+    --scorecard-category-width: 18ch;
+    --scorecard-player-width: 10ch;
+}
+
+@media (min-width: 900px) {
+    :root {
+        --scorecard-category-width: 22ch;
+        --scorecard-player-width: 16ch;
+    }
+}
+
 table.scorecard {
     border-collapse: collapse;
     /* Definite, not auto -- confirmed live that table-layout: fixed with
        an auto table width still let a longer name's column render wider
        than a short one's, despite every <col> (see the colgroup in
-       yahtzee-scorecard-table.blade.php) declaring the identical 10ch.
+       yahtzee-scorecard-table.blade.php) declaring the identical width.
        --player-count (set inline by that same component) is what makes
        this concrete; single-seat-mobile below overrides it back down to
        exactly 1 for the one case where fewer columns are actually
        visible than were rendered. */
-    width: calc(18ch + var(--player-count) * 10ch);
+    width: calc(var(--scorecard-category-width) + var(--player-count) * var(--scorecard-player-width));
     /* table-layout: fixed is what actually makes <col>'s widths binding
        -- under the default `auto` algorithm, they're only a hint the
        browser can (and, confirmed live, does) override to fit a longer
@@ -1392,17 +1435,17 @@ table.scorecard td {
    actually sizes each column under table-layout: fixed -- a plain
    width/max-width declared on the cells themselves turned out not to be
    reliably binding in practice (confirmed live: two columns both declared
-   "width: 10ch" still rendered at visibly different widths). 18ch on the
-   category column comfortably fits "Bonus (63+ = 35)", the longest label,
-   at the mobile font-size below (that column shrinks its own font there,
-   not its width); 10ch keeps every player column equal regardless of how
-   long any individual name is. */
+   the same width still rendered at visibly different widths).
+   --scorecard-category-width comfortably fits "Bonus (63+ = 35)", the
+   longest label; --scorecard-player-width keeps every player column
+   equal regardless of how long any individual name is. Both widen on
+   desktop -- see their own :root definition above. */
 col.category-col {
-    width: 18ch;
+    width: var(--scorecard-category-width);
 }
 
 col.player-col {
-    width: 10ch;
+    width: var(--scorecard-player-width);
 }
 
 table.scorecard th.category,
@@ -1501,28 +1544,31 @@ table.scorecard tr.total td {
        yahtzee-scorecard-table.blade.php's own mySeatIndex prop) -- never
        true for the drawer's own copy of this table (which exists
        specifically to show everyone) or for a spectator (nothing is
-       "mine" to narrow down to). */
-    table.scorecard.single-seat-mobile th.not-mine,
-    table.scorecard.single-seat-mobile td.not-mine {
-        display: none;
-    }
+       "mine" to narrow down to).
 
-    /* Collapsing the *cells* above hides the visible content but leaves
-       each not-mine column's own <col> still contributing its 10ch to
-       --player-count's total (see table.scorecard's own docblock) --
-       confirmed live this left a large dead gap where those columns used
-       to be, exactly the width they would've taken up were they still
-       shown. Collapsing the <col> itself, plus overriding the table's own
-       width down to exactly one column's worth (--player-count still
-       reflects every player, since it's set once at render time with no
-       way to know viewport width), is what actually lets the table shrink
-       down to just category + the one visible column. */
+       Collapsing the <col> to zero width (not display: none on the th/td
+       themselves, which was the very first thing tried here) is what
+       actually hides the column -- confirmed live, the two combined is
+       actively broken: with both applied, table-layout: fixed rendered
+       the *next* (visible, "mine") column's th/td at zero width too, even
+       though its own <col> correctly still specified 10ch, seemingly
+       misassigning that col's width once a preceding cell in the same
+       row was display:none rather than merely zero-width. The collapsed
+       column's own th/td stay in normal flow at 0 width -- with
+       overflow: hidden already set on every non-category cell (see
+       above), a zero-width cell simply shows nothing, so no separate
+       hiding is needed or safe to add. --player-count (see
+       table.scorecard's own docblock) still reflects every player, since
+       it's set once at render time with no way to know viewport width,
+       so the table's own width is overridden too, down to exactly one
+       column's worth -- without it, the table kept reserving space for
+       every hidden column, a dead gap where they used to be. */
     table.scorecard.single-seat-mobile col.not-mine {
         width: 0;
     }
 
     table.scorecard.single-seat-mobile {
-        width: calc(18ch + 1 * 10ch);
+        width: calc(var(--scorecard-category-width) + 1 * var(--scorecard-player-width));
     }
 
     /* The row-label column was getting squeezed hard enough on a real
