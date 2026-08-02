@@ -3,7 +3,7 @@
         "laravel-boost": {
             "command": "/opt/homebrew/Cellar/php/8.5.1_2/bin/php",
             "args": [
-                "/Users/philliprearick/dev/lowstimplay/low-stim-play/artisan",
+                "/Users/philliprearick/dev/low-stim-play/artisan",
                 "boost:mcp"
             ]
         }
