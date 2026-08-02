@@ -558,7 +558,12 @@ new class extends Component
             return $scored;
         }
 
-        if (! $this->isPickable($playerIndex, $categoryValue)) {
+        // A watch-only device (see isSpectator's own docblock) never shows
+        // a live possible score for an open category, even for the seat
+        // whose turn it actually is -- isPickable() alone isn't enough to
+        // catch this, since isMyTurn (which it checks) is deliberately
+        // independent of $spectate.
+        if ($this->isSpectator || ! $this->isPickable($playerIndex, $categoryValue)) {
             return null;
         }
 
@@ -862,6 +867,27 @@ new class extends Component
                 <div class="rules-dialog-header">
                     <div class="rules-dialog-title" id="scoreboard-drawer-title">Scores</div>
                     <button type="button" class="rules-dialog-close" aria-label="Close" onclick="document.getElementById('scoreboard-drawer').close()">&times;</button>
+                </div>
+
+                {{--
+                    Status text + the current dice roll, same live values as
+                    the main view above -- a seated player checking the
+                    drawer wants to know whose turn it is and what's been
+                    rolled without closing it first. No wire:click on the
+                    dice and no Roll/Undo controls here, since this is a
+                    view-only copy (drawer-dice-area below shrinks it to
+                    leave more room for the scorecard, per docs/TODO.md).
+                --}}
+                <div class="status">{{ $this->statusText }}</div>
+
+                <div class="dice-area drawer-dice-area">
+                    <div class="row">
+                        @for ($i = 0; $i < self::DICE_COUNT; $i++)
+                            <div class="die {{ ($kept[$i] ?? false) ? 'kept' : '' }}">
+                                <span class="number">{{ $dice[$i] ?? '' }}</span>
+                            </div>
+                        @endfor
+                    </div>
                 </div>
 
                 {{--

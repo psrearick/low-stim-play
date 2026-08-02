@@ -250,6 +250,37 @@ test('a seated player can switch this device to spectator view and back without 
     $tv->set('spectate', false)->assertSet('isSpectator', false);
 });
 
+test('watch-only mode never shows a live possible score for an open category, even for the active seat', function () {
+    // Regression test: isPickable() (which categoryScore() also relied on)
+    // checks isMyTurn, which is deliberately independent of $spectate --
+    // so switching this device to "Watch only" mid-turn used to keep
+    // showing the live computed possible score for every open category in
+    // the active player's own column instead of leaving it blank like any
+    // other unfilled, unwatched category.
+    $host = User::factory()->create();
+    $guest = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    $players = readyUpAndStart($room, $host, $guest);
+    Livewire::actingAs($host)->test('pages::yahtzee.room', ['code' => $room->code])->call('onRoomStarting', $players);
+
+    $tv = Livewire::actingAs($host)
+        ->test('pages::yahtzee.play', ['room' => $room->code])
+        ->call('roll')
+        ->set('dice', [6, 6, 6, 6, 6]);
+
+    expect($tv->instance()->categoryScore(0, 'sixes'))->toBe(30);
+
+    $tv->set('spectate', true);
+
+    expect($tv->instance()->categoryScore(0, 'sixes'))->toBeNull();
+    $tv->assertDontSee('30');
+
+    $tv->set('spectate', false);
+
+    expect($tv->instance()->categoryScore(0, 'sixes'))->toBe(30);
+});
+
 test('a non-current seat sees no pickable cell at all, even in the current player\'s own column', function () {
     // Regression test: isPickable() used to only check that the *column*
     // (`$playerIndex`) matched currentPlayer, never who was actually

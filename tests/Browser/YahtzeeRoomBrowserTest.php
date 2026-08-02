@@ -180,3 +180,17 @@ test('the mobile scores drawer opens for a seated player and stays open across a
 
     $page->assertVisible('#scoreboard-drawer');
 });
+
+test('the mobile scores drawer shows the current roll status and dice, not just the scorecard', function () {
+    [$room, , $users] = startedYahtzeeRoom();
+
+    $page = loginAsAndVisit($users->first(), "/yahtzee?room={$room->code}");
+    $page->resize(390, 844);
+
+    $page->click('#rollBtn')->wait(0.3);
+
+    $page->click('#scores-btn')
+        ->assertVisible('#scoreboard-drawer')
+        ->assertSee('Roll 1 of 3')
+        ->assertVisible('#scoreboard-drawer .dice-area');
+});
