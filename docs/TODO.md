@@ -13,8 +13,10 @@ Yahtzee's own online-room slice of this is done (see `docs/CHANGELOG.md`) and pr
 
 Smaller pass than the original scope; plan it properly (`EnterPlanMode`) before starting, but it's no longer the ground-up multi-session project the combined Yahtzee+Feud version was.
 
-## Smaller, previously-flagged gaps
+## Smaller Items
 
+- In Yahtzee room, if it's on the watch only mode, not player, it should show the current scores for each player, but not the possible scores. Currently, if the active player is the one who using the watch only mode, their scores show all the possible scores for the current dice, not just the scores chosen in previous rounds. It should only show the final scores from previous rounds if in watch only mode
+- In Yahtzee room mobile, the Scores view should show the current die roll and round as well. The scores can be smaller if needed for it to fit since the user is not interacting with the scores, just viewing them. The dice can be a little smaller too, if needed for space on that screen.
 - **Friends activity** — the original plan mentioned it once for the dashboard, but no friends/social-graph table (requests? follows? mutual only?) exists anywhere in the schema. Needs an actual design decision before building, not just an omission to quietly fill in.
 - **Image avatars** — `<x-avatar>` is a generated initial-letter badge; no upload or Gravatar integration was ever specced. Low priority, cosmetic.
 - **Guest account cleanup** — `User::createGuest()` accounts (from joining a Boggle room without registering) are never deleted. Fine at this app's current scale; a real cost if it ever needs to scale up. Fix would be a scheduled job: `DELETE FROM users WHERE is_guest AND created_at < ...`.
