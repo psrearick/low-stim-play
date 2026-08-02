@@ -23,6 +23,8 @@ class RoomSeatFactory extends Factory
             'room_id' => Room::factory(),
             'seat_index' => 0,
             'user_id' => User::factory(),
+            'team_index' => null,
+            'is_captain' => false,
         ];
     }
 }

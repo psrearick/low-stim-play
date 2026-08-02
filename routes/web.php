@@ -39,6 +39,16 @@ Route::livewire('/profile/yahtzee/{gameParticipant}', 'pages::profile.yahtzee.sh
     ->middleware(['auth', 'verified'])
     ->name('profile.yahtzee.show');
 
+// Same registration-order reasoning as /profile/boggle and /profile/yahtzee
+// above.
+Route::livewire('/profile/family-feud', 'pages::profile.family-feud.index')
+    ->middleware(['auth', 'verified'])
+    ->name('profile.family-feud');
+
+Route::livewire('/profile/family-feud/{gameParticipant}', 'pages::profile.family-feud.show')
+    ->middleware(['auth', 'verified'])
+    ->name('profile.family-feud.show');
+
 // Public profile -- distinct route from /profile above (that's the
 // authenticated user's own editable profile); this is a read-only view of
 // anyone's, gated by their own is_public flag rather than auth middleware.
@@ -93,5 +103,13 @@ Route::livewire('/yahtzee/room/{code}', 'pages::yahtzee.room')
 // Single shared screen, no host/board split (see docs/CHANGELOG.md's Phase 6
 // notes) -- the LLM is the judge, not a person, so there's no hidden
 // information a separate host view would need to protect. One device, same
-// as Yahtzee.
+// as Yahtzee. Also handles the online room's own gameplay once started, via
+// the #[Url] $room param -- see pages::family-feud.room below.
 Route::livewire('/family-feud', 'pages::family-feud.play')->name('family-feud.play');
+
+// No auth middleware -- same reasoning as boggle.room/yahtzee.room:
+// pages::family-feud.room's mount() auto-provisions a guest account for
+// anyone arriving without one. Hosting still requires a real, non-guest
+// account.
+Route::livewire('/family-feud/room/{code}', 'pages::family-feud.room')
+    ->name('family-feud.room');

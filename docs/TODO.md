@@ -2,17 +2,6 @@
 
 Incomplete/deferred items only. Once something here is done, move its writeup into `docs/CHANGELOG.md` and delete it from this file rather than checking it off in place.
 
-## Online rooms for Family Feud (host/TV screen + per-player phones)
-
-Yahtzee's own online-room slice of this is done (see `docs/CHANGELOG.md`) and proved out all the genuinely new shared infrastructure this needs — `GameSession.state`, `RoomSeat`, `RoomGameStateUpdated`, seat-gated turn authorization, the spectator/host view, and the mobile scoreboard drawer are all real, tested, and 100% reusable as-is (game-agnostic by construction, same as `Room`/`RoomStatus`/`⚡game-lobby.blade.php` already were). Family Feud needs its own follow-up pass to actually wire that infrastructure in, plus what's still genuinely Feud-specific:
-
-- Teams have players (not just a captain), and players take turns entering guesses from their own phone. Steal attempts specifically require the team **captain's** device — needs a `team_index`/`is_captain` addition to `room_seats` (deliberately left off that table for Yahtzee, which has no teams) and per-seat/per-captain gating on `submitGuess()`, which currently has zero authorization at all.
-- A **rotating turn pointer** for within-team player turn-taking (whose turn it is to submit the next guess), analogous to Yahtzee's own `currentSeat`.
-- The judge call (`JudgeService::judge()`, a real blocking OpenRouter request) happens inside whichever seat's own guess triggered it, exactly like local pass-and-play already does — no new queue infrastructure needed, just broadcasting the result via `RoomGameStateUpdated` once it resolves so every other seat/spectator sees it too.
-- Everything must keep working exactly as it does today when no additional devices join — same additive-only constraint that already held for Yahtzee.
-
-Smaller pass than the original scope; plan it properly (`EnterPlanMode`) before starting, but it's no longer the ground-up multi-session project the combined Yahtzee+Feud version was.
-
 ## Smaller Items
 
 - **Friends activity** — the original plan mentioned it once for the dashboard, but no friends/social-graph table (requests? follows? mutual only?) exists anywhere in the schema. Needs an actual design decision before building, not just an omission to quietly fill in.

@@ -4,11 +4,17 @@ use App\Enums\FamilyFeudPhase;
 use App\Enums\GameMode;
 use App\Enums\GameResult;
 use App\Enums\GameType;
+use App\Events\RoomGameStateUpdated;
 use App\Models\FamilyFeudQuestion;
 use App\Models\GameParticipant;
 use App\Models\GameSession;
+use App\Models\Room;
+use App\Models\RoomSeat;
+use App\Models\User;
 use App\Services\FamilyFeud\JudgeService;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 
 new class extends Component
@@ -88,6 +94,59 @@ new class extends Component
      */
     public ?int $meTeamIndex = null;
 
+    /**
+     * The online room this play-through belongs to, if any -- mirrors
+     * pages::yahtzee.play's own `$room` exactly. When set, `teams`/
+     * `questions`/`revealed`/etc. are all hydrated from the room's shared
+     * GameSession (see mount()) instead of running local setup, every
+     * mutating action is gated to whoever's actually allowed to act right
+     * now, and every successful mutation persists + broadcasts the new
+     * state so every other seat/spectator stays in sync.
+     */
+    #[Url]
+    public ?string $room = null;
+
+    public ?int $gameSessionId = null;
+
+    /**
+     * This connection's seat in the online room, or null for local
+     * pass-and-play or an unseated spectator -- same meaning as
+     * pages::yahtzee.play's own mySeatIndex.
+     */
+    public ?int $mySeatIndex = null;
+
+    public ?int $myTeamIndex = null;
+
+    public bool $isCaptain = false;
+
+    /**
+     * Per team, in turn order: [['seatIndex'=>.., 'name'=>.., 'isCaptain'=>..], ...].
+     * Online only -- see docs/DEVLOG.md for the alternating join-order
+     * assignment (even seat index -> team 0, odd -> team 1, first seat on
+     * each team is captain).
+     *
+     * @var list<list<array{seatIndex: int, name: string, isCaptain: bool}>>
+     */
+    public array $teamSeats = [[], []];
+
+    /**
+     * Index into each team's own teamSeats array -- whose turn it is
+     * within that team to submit the next guess. Rotates by one (wrapping)
+     * every time that team submits a resolved guess during Play; untouched
+     * by Steal, which is always the stealing team's captain regardless of
+     * this pointer. Analogous to Yahtzee's own currentSeat, but per-team
+     * rather than a single shared pointer.
+     *
+     * @var array{0: int, 1: int}
+     */
+    public array $teamTurnPointer = [0, 0];
+
+    public string $joinID = '';
+
+    public string $guestName = '';
+
+    public ?string $joinError = null;
+
     public function mount(): void
     {
         // maxRounds() floors to MIN_ROUNDS even when the bank has zero
@@ -97,6 +156,159 @@ new class extends Component
         // startGame() below is what actually guards against playing with
         // too few (or no) questions.
         $this->rounds = min($this->rounds, $this->maxRounds());
+
+        if ($this->room === null) {
+            return;
+        }
+
+        $roomModel = $this->resolveRoom();
+        $session = $roomModel->gameSession;
+
+        $this->gameSessionId = $session->id;
+        $this->hydrateFromState($session->state);
+
+        $seat = RoomSeat::where('room_id', $roomModel->id)->where('user_id', Auth::id())->first();
+        $this->mySeatIndex = $seat?->seat_index;
+        $this->myTeamIndex = $seat?->team_index;
+        $this->isCaptain = $seat?->is_captain ?? false;
+    }
+
+    /**
+     * @param  array<string, mixed>  $state
+     */
+    private function hydrateFromState(array $state): void
+    {
+        $this->teams = $state['teams'];
+        $this->teamSeats = $state['teamSeats'];
+        $this->teamTurnPointer = $state['teamTurnPointer'];
+        $this->questions = $state['questions'];
+        $this->currentQuestionIndex = $state['currentQuestionIndex'];
+        $this->revealed = $state['revealed'];
+        $this->strikes = $state['strikes'];
+        $this->pot = $state['pot'];
+        $this->controllingTeam = $state['controllingTeam'];
+        $this->phase = FamilyFeudPhase::from($state['phase']);
+        $this->roundHistory = $state['roundHistory'];
+        $this->roundEndTitle = $state['roundEndTitle'];
+        $this->message = $state['message'];
+        $this->messageIsError = $state['messageIsError'];
+        $this->started = true;
+    }
+
+    private function resolveRoom(): Room
+    {
+        return Room::where('code', $this->room)->firstOrFail();
+    }
+
+    /**
+     * Persists the current shared state onto the room's GameSession and
+     * broadcasts it to every other seat/spectator -- see
+     * pages::yahtzee.play's own syncOnlineState() for why this is wrapped
+     * in a row-locked transaction (cheap insurance against a single seat's
+     * own double-tap/retry racing itself, not a full concurrency solution).
+     */
+    private function syncOnlineState(): void
+    {
+        $state = [
+            'teams' => $this->teams,
+            'teamSeats' => $this->teamSeats,
+            'teamTurnPointer' => $this->teamTurnPointer,
+            'questions' => $this->questions,
+            'currentQuestionIndex' => $this->currentQuestionIndex,
+            'revealed' => $this->revealed,
+            'strikes' => $this->strikes,
+            'pot' => $this->pot,
+            'controllingTeam' => $this->controllingTeam,
+            'phase' => $this->phase->value,
+            'roundHistory' => $this->roundHistory,
+            'roundEndTitle' => $this->roundEndTitle,
+            'message' => $this->message,
+            'messageIsError' => $this->messageIsError,
+        ];
+
+        DB::transaction(function () use ($state) {
+            GameSession::where('id', $this->gameSessionId)->lockForUpdate()->first();
+            GameSession::find($this->gameSessionId)->update(['state' => $state]);
+        });
+
+        RoomGameStateUpdated::dispatch($this->resolveRoom(), $state);
+    }
+
+    private function syncOnlineStateIfNeeded(): void
+    {
+        if ($this->room !== null) {
+            $this->syncOnlineState();
+        }
+    }
+
+    /**
+     * The Echo callback for a custom broadcast event delivers the whole
+     * broadcastWith() payload as one positional argument -- matches
+     * pages::yahtzee.play's own onStateUpdated() for the same reason.
+     *
+     * @param  array{state: array<string, mixed>}  $event
+     */
+    public function onStateUpdated(array $event): void
+    {
+        $this->hydrateFromState($event['state']);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function getListeners(): array
+    {
+        if ($this->room === null) {
+            return [];
+        }
+
+        return [
+            "echo-presence:room.{$this->room},RoomGameStateUpdated" => 'onStateUpdated',
+        ];
+    }
+
+    public function createRoom(): void
+    {
+        // Belt-and-suspenders alongside the template only showing this
+        // button to a real (non-guest) account -- hosting a room always
+        // needs one, unlike joining one. Mirrors pages::yahtzee.play's own
+        // createRoom() exactly.
+        abort_unless(Auth::check() && ! Auth::user()->is_guest, 403);
+
+        $room = Room::create(['host_user_id' => Auth::id()]);
+
+        $this->redirect(route('family-feud.room', ['code' => $room->code]));
+    }
+
+    public function joinRoom(): void
+    {
+        $code = strtoupper(trim($this->joinID));
+        $room = Room::notExpired()->where('code', $code)->first();
+
+        if (! $room) {
+            $this->joinError = 'No active room with that code.';
+
+            return;
+        }
+
+        // A room's presence channel always authenticates via the guard (see
+        // routes/channels.php) -- there's no "anonymous" option in Laravel's
+        // broadcasting auth -- so joining without a real account still needs
+        // a real `users` row. Only hosting (createRoom() above) is actually
+        // restricted to non-guest accounts.
+        if (Auth::guest()) {
+            Auth::login(User::createGuest($this->guestName));
+
+            // Guarded rather than unconditional -- Livewire::test() drives
+            // this component directly, without the full HTTP kernel/session
+            // middleware a real request goes through, so there's no session
+            // store attached to request() there.
+            if (request()->hasSession()) {
+                request()->session()->regenerate();
+            }
+        }
+
+        $this->redirect(route('family-feud.room', ['code' => $room->code]));
     }
 
     /**
@@ -159,6 +371,8 @@ new class extends Component
 
     public function submitGuess(JudgeService $judge): void
     {
+        abort_unless($this->room === null || $this->isMyTurn, 403);
+
         $guess = trim($this->guessInput);
 
         if ($guess === '') {
@@ -171,6 +385,8 @@ new class extends Component
 
     public function retryGuess(JudgeService $judge): void
     {
+        abort_unless($this->room === null || $this->isMyTurn, 403);
+
         if ($this->pendingGuess === null) {
             return;
         }
@@ -184,6 +400,9 @@ new class extends Component
         $result = $judge->judge($question->answers, $guess);
 
         if ($result === null) {
+            // Local to this device only, not synced -- see pendingGuess's
+            // own docblock. Only the device whose guess actually failed to
+            // reach the judge needs to see the Retry option.
             $this->pendingGuess = $guess;
             $this->message = "Couldn't reach the judge.";
             $this->messageIsError = true;
@@ -192,7 +411,20 @@ new class extends Component
         }
 
         $this->pendingGuess = null;
+
+        // Captured before handleJudgeResult() runs, since a match on the
+        // third strike flips phase from Play to Steal inside it -- the
+        // pointer only ever rotates for a Play-phase guess, never a Steal
+        // attempt (which is always the captain's, regardless of pointer).
+        $wasPlayPhase = $this->room !== null && $this->phase === FamilyFeudPhase::Play;
+
         $this->handleJudgeResult($result);
+
+        if ($wasPlayPhase) {
+            $this->advanceTeamTurnPointer($this->controllingTeam);
+        }
+
+        $this->syncOnlineStateIfNeeded();
     }
 
     /**
@@ -266,16 +498,23 @@ new class extends Component
 
     public function nextRound(): void
     {
+        abort_unless($this->room === null || $this->mySeatIndex !== null, 403);
+
         if ($this->currentQuestionIndex % 2 === 0) {
             $this->advanceQuestion();
         } else {
             $this->phase = FamilyFeudPhase::RoundSummary;
         }
+
+        $this->syncOnlineStateIfNeeded();
     }
 
     public function nextRoundSummary(): void
     {
+        abort_unless($this->room === null || $this->mySeatIndex !== null, 403);
+
         $this->advanceQuestion();
+        $this->syncOnlineStateIfNeeded();
     }
 
     private function advanceQuestion(): void
@@ -299,6 +538,8 @@ new class extends Component
 
     public function skipQuestion(): void
     {
+        abort_unless($this->room === null || $this->isMyTurn, 403);
+
         $usedIds = collect($this->questions)->pluck('id');
         $replacement = FamilyFeudQuestion::whereNotIn('id', $usedIds)->inRandomOrder()->first();
 
@@ -316,12 +557,18 @@ new class extends Component
         $this->phase = FamilyFeudPhase::Play;
         $this->turnOptionsOpen = false;
         $this->message = null;
+
+        $this->syncOnlineStateIfNeeded();
     }
 
     public function swapControl(): void
     {
+        abort_unless($this->room === null || $this->isMyTurn, 403);
+
         $this->controllingTeam = 1 - $this->controllingTeam;
         $this->turnOptionsOpen = false;
+
+        $this->syncOnlineStateIfNeeded();
     }
 
     public function toggleTurnOptions(): void
@@ -331,6 +578,8 @@ new class extends Component
 
     public function revealManually(): void
     {
+        abort_unless($this->room === null || $this->mySeatIndex !== null, 403);
+
         $question = FamilyFeudQuestion::find($this->currentQuestion()['id']);
 
         foreach ($question->answers as $i => $answer) {
@@ -339,62 +588,126 @@ new class extends Component
 
         $this->phase = FamilyFeudPhase::Manual;
         $this->message = null;
+
+        $this->syncOnlineStateIfNeeded();
     }
 
     public function awardManual(int $teamIndex): void
     {
+        abort_unless($this->room === null || $this->mySeatIndex !== null, 403);
+
         $this->teams[$teamIndex]['score'] += $this->pot;
         $this->recordRoundPoints($teamIndex, $this->pot);
         $this->pot = 0;
         $this->phase = FamilyFeudPhase::RoundEnd;
         $this->roundEndTitle = "{$this->teams[$teamIndex]['name']} take the round.";
+
+        $this->syncOnlineStateIfNeeded();
     }
 
     public function endGame(): void
     {
+        abort_unless($this->room === null || $this->mySeatIndex !== null, 403);
+
         if ($this->phase === FamilyFeudPhase::GameEnd) {
             return;
         }
 
         $this->phase = FamilyFeudPhase::GameEnd;
 
-        $session = GameSession::create([
-            'type' => GameType::FamilyFeud,
-            'mode' => GameMode::Local,
-            'settings' => ['rounds' => count($this->roundHistory)],
-            'started_at' => now(),
-            'ended_at' => now(),
-        ]);
-
         $topScore = max($this->teams[0]['score'], $this->teams[1]['score']);
         $tie = $this->teams[0]['score'] === $this->teams[1]['score'];
 
-        foreach ($this->teams as $i => $team) {
-            $result = match (true) {
-                $tie => GameResult::Draw,
-                $team['score'] === $topScore => GameResult::Win,
-                default => GameResult::Loss,
-            };
+        if ($this->room !== null) {
+            // The GameSession already exists (pages::family-feud.room's
+            // onRoomStarting() created it when the game started) -- just
+            // mark it ended, rather than creating a second one. Mirrors
+            // pages::yahtzee.play's own endGame().
+            $session = GameSession::findOrFail($this->gameSessionId);
+            $session->update(['ended_at' => now()]);
 
-            // Pass-and-play has no way to know which local team is the
-            // account holder in general (see docs/CHANGELOG.md) --
-            // $meTeamIndex is the host explicitly declaring it during
-            // setup, the same way Boggle's own solo games attribute
-            // user_id vs guest_name.
-            $isMe = $i === $this->meTeamIndex && Auth::check();
+            // Every seat is a real (if possibly guest) account -- one
+            // GameParticipant per seat (not per team), each carrying its
+            // own team's final score/result. Unlike local mode, there's no
+            // meTeamIndex-guessing needed: every seat's user_id is known
+            // for certain, so every real account that played gets
+            // correctly attributed stats, not just one "which team is
+            // you" pick.
+            $seats = RoomSeat::where('room_id', $this->resolveRoom()->id)->get();
 
-            GameParticipant::create([
-                'game_session_id' => $session->id,
-                'user_id' => $isMe ? Auth::id() : null,
-                'guest_name' => $isMe ? null : $team['name'],
-                'score' => $team['score'],
-                'result' => $result,
+            foreach ($seats as $seat) {
+                $team = $this->teams[$seat->team_index];
+
+                $result = match (true) {
+                    $tie => GameResult::Draw,
+                    $team['score'] === $topScore => GameResult::Win,
+                    default => GameResult::Loss,
+                };
+
+                GameParticipant::create([
+                    'game_session_id' => $session->id,
+                    'user_id' => $seat->user_id,
+                    'guest_name' => null,
+                    'score' => $team['score'],
+                    'result' => $result,
+                    'stats' => [
+                        'team_index' => $seat->team_index,
+                        'is_captain' => $seat->is_captain,
+                        'round_history' => array_column($this->roundHistory, $seat->team_index),
+                    ],
+                ]);
+            }
+        } else {
+            $session = GameSession::create([
+                'type' => GameType::FamilyFeud,
+                'mode' => GameMode::Local,
+                'settings' => ['rounds' => count($this->roundHistory)],
+                'started_at' => now(),
+                'ended_at' => now(),
             ]);
+
+            foreach ($this->teams as $i => $team) {
+                $result = match (true) {
+                    $tie => GameResult::Draw,
+                    $team['score'] === $topScore => GameResult::Win,
+                    default => GameResult::Loss,
+                };
+
+                // Pass-and-play has no way to know which local team is the
+                // account holder in general (see docs/CHANGELOG.md) --
+                // $meTeamIndex is the host explicitly declaring it during
+                // setup, the same way Boggle's own solo games attribute
+                // user_id vs guest_name.
+                $isMe = $i === $this->meTeamIndex && Auth::check();
+
+                GameParticipant::create([
+                    'game_session_id' => $session->id,
+                    'user_id' => $isMe ? Auth::id() : null,
+                    'guest_name' => $isMe ? null : $team['name'],
+                    'score' => $team['score'],
+                    'result' => $result,
+                    'stats' => [
+                        'team_index' => $i,
+                        'is_captain' => false,
+                        'round_history' => array_column($this->roundHistory, $i),
+                    ],
+                ]);
+            }
         }
+
+        $this->syncOnlineStateIfNeeded();
     }
 
     public function newGame(): void
     {
+        // Hidden in Blade for online games too (see the room's own "Back
+        // to room" link instead) -- resetting to local setup would orphan
+        // the shared room. Guarded here as well in case of a stale client,
+        // mirrors pages::yahtzee.play's own newGame().
+        if ($this->room !== null) {
+            return;
+        }
+
         $this->started = false;
         $this->teams = [];
         $this->questions = [];
@@ -458,6 +771,105 @@ new class extends Component
     {
         return $this->phase === FamilyFeudPhase::Play || $this->phase === FamilyFeudPhase::Steal;
     }
+
+    /**
+     * The seat currently allowed to submit a guess, or null when no single
+     * seat "owns" the current phase (RoundEnd/RoundSummary/Manual/GameEnd
+     * are gated to "any seated player" instead -- see endGame()/
+     * nextRound()/etc.). During Steal it's always the *stealing* team's
+     * captain, regardless of the turn pointer; during Play it's whoever
+     * the controlling team's own pointer currently lands on.
+     */
+    private function currentActingSeatIndex(): ?int
+    {
+        return match ($this->phase) {
+            FamilyFeudPhase::Steal => $this->captainSeatIndex(1 - $this->controllingTeam),
+            FamilyFeudPhase::Play => $this->turnPointerSeatIndex($this->controllingTeam),
+            default => null,
+        };
+    }
+
+    private function captainSeatIndex(int $teamIndex): ?int
+    {
+        $captain = collect($this->teamSeats[$teamIndex] ?? [])->firstWhere('isCaptain', true);
+
+        return $captain['seatIndex'] ?? null;
+    }
+
+    private function turnPointerSeatIndex(int $teamIndex): ?int
+    {
+        $seats = $this->teamSeats[$teamIndex] ?? [];
+
+        if ($seats === []) {
+            return null;
+        }
+
+        $pointer = $this->teamTurnPointer[$teamIndex] % count($seats);
+
+        return $seats[$pointer]['seatIndex'];
+    }
+
+    private function advanceTeamTurnPointer(int $teamIndex): void
+    {
+        $seatCount = count($this->teamSeats[$teamIndex] ?? []);
+
+        if ($seatCount <= 1) {
+            return;
+        }
+
+        $this->teamTurnPointer[$teamIndex] = ($this->teamTurnPointer[$teamIndex] + 1) % $seatCount;
+    }
+
+    /**
+     * The display name of whoever currentActingSeatIndex() resolves to,
+     * for the "Waiting for {name}..." line shown to everyone else. Null
+     * when no single seat owns the current phase, or locally (no seats).
+     */
+    public function turnHolderName(): ?string
+    {
+        $seatIndex = $this->currentActingSeatIndex();
+
+        if ($seatIndex === null) {
+            return null;
+        }
+
+        foreach ($this->teamSeats as $seats) {
+            foreach ($seats as $seat) {
+                if ($seat['seatIndex'] === $seatIndex) {
+                    return $seat['name'];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Always true for local pass-and-play (no seat to check); for an
+     * online room, true only for the seat actually allowed to guess right
+     * now. Mirrors pages::yahtzee.play's own isMyTurn exactly.
+     */
+    public function getIsMyTurnProperty(): bool
+    {
+        return $this->room === null || $this->mySeatIndex === $this->currentActingSeatIndex();
+    }
+
+    public function getTurnStatusProperty(): string
+    {
+        if ($this->room === null || ! $this->inPlay) {
+            return '';
+        }
+
+        $name = $this->turnHolderName();
+
+        if ($name === null) {
+            return '';
+        }
+
+        return $this->phase === FamilyFeudPhase::Steal
+            ? "{$name} — steal attempt"
+            : "{$name}'s turn to guess";
+    }
 };
 ?>
 
@@ -497,18 +909,32 @@ new class extends Component
     @if ($started)
         @teleport('#game-actions')
             <div style="display: contents;">
-                @if ($this->inPlay)
-                    <button type="button" wire:click="revealManually" wire:confirm="This shows every hidden answer and ends secrecy for this question. Continue?">
-                        Reveal
-                    </button>
+                {{--
+                    Hidden outright for an online spectator (no seat at
+                    all) -- these would just 403 on click, same reasoning
+                    as Yahtzee hiding its Roll button from a spectator
+                    rather than merely disabling it. Local play always
+                    passes (mySeatIndex is never checked when room is
+                    null).
+                --}}
+                @if ($room === null || $this->mySeatIndex !== null)
+                    @if ($this->inPlay)
+                        <button type="button" wire:click="revealManually" wire:confirm="This shows every hidden answer and ends secrecy for this question. Continue?">
+                            Reveal
+                        </button>
+                    @endif
+                    @unless ($phase === FamilyFeudPhase::GameEnd)
+                        <button type="button" wire:click="endGame" wire:confirm="End the game now and show final scores?">
+                            End Game
+                        </button>
+                    @else
+                        @if ($room === null)
+                            <button type="button" wire:click="newGame">New Game</button>
+                        @else
+                            <a href="{{ route('family-feud.room', ['code' => $room]) }}"><button type="button">Back to room</button></a>
+                        @endif
+                    @endunless
                 @endif
-                @unless ($phase === FamilyFeudPhase::GameEnd)
-                    <button type="button" wire:click="endGame" wire:confirm="End the game now and show final scores?">
-                        End Game
-                    </button>
-                @else
-                    <button type="button" wire:click="newGame">New Game</button>
-                @endunless
             </div>
         @endteleport
     @endif
@@ -516,6 +942,31 @@ new class extends Component
     @unless ($started)
         <div class="setup" id="setup">
             <div class="heading">Family Feud</div>
+
+            @if (Auth::check() && ! Auth::user()->is_guest)
+                <button type="button" wire:click="createRoom">Host an Online Room</button>
+
+                <div class="status-line">or</div>
+            @endif
+
+            @unless (Auth::check() && ! Auth::user()->is_guest)
+                <input type="text" wire:model="guestName" maxlength="24" placeholder="Your name (optional)">
+            @endunless
+
+            <form wire:submit="joinRoom" class="flex gap-2 w-full">
+                <input type="text" id="join" wire:model="joinID" placeholder="Room ID" autocomplete="off" style="flex: 1; text-transform: uppercase;">
+                <button type="submit">Join</button>
+            </form>
+
+            @if ($joinError)
+                <p class="status-line" style="color: var(--warn);">{{ $joinError }}</p>
+            @endif
+
+            @unless (Auth::check() && ! Auth::user()->is_guest)
+                <p class="status-line"><a href="{{ route('login') }}" style="color: var(--bar);">Sign in</a> to host an online room.</p>
+            @endunless
+
+            <div class="status-line">or play locally:</div>
 
             <div class="team-inputs">
                 <div class="team-input-row">
@@ -598,37 +1049,51 @@ new class extends Component
                 <div class="message {{ $messageIsError ? 'error' : '' }}">{{ $message }}</div>
             @endunless
 
+            {{--
+                Online only -- who's currently allowed to guess/steal, so
+                everyone watching their own phone knows without needing to
+                tap anything. Empty string outside Play/Steal or locally
+                (see getTurnStatusProperty()).
+            --}}
+            @if ($room !== null && $this->turnStatus !== '')
+                <div class="status-line">{{ $this->turnStatus }}</div>
+            @endif
+
             @if ($this->inPlay)
-                @if ($pendingGuess !== null)
-                    <button type="button" wire:click="retryGuess">Retry</button>
+                @if ($room !== null && ! $this->isMyTurn)
+                    <p class="status-line">Waiting for {{ $this->turnHolderName() ?? 'the other team' }}...</p>
                 @else
-                    <form class="guess-form" wire:submit="submitGuess">
-                        <input type="text" wire:model="guessInput" placeholder="Type the answer..." autocomplete="off"
-                            wire:loading.attr="disabled" wire:target="submitGuess">
-                        <button type="submit" wire:loading.attr="disabled" wire:target="submitGuess">
-                            <span wire:loading.remove wire:target="submitGuess">Submit</span>
-                            <span wire:loading wire:target="submitGuess">Checking...</span>
-                        </button>
-                    </form>
-                @endif
+                    @if ($pendingGuess !== null)
+                        <button type="button" wire:click="retryGuess">Retry</button>
+                    @else
+                        <form class="guess-form" wire:submit="submitGuess">
+                            <input type="text" wire:model="guessInput" placeholder="Type the answer..." autocomplete="off"
+                                wire:loading.attr="disabled" wire:target="submitGuess">
+                            <button type="submit" wire:loading.attr="disabled" wire:target="submitGuess">
+                                <span wire:loading.remove wire:target="submitGuess">Submit</span>
+                                <span wire:loading wire:target="submitGuess">Checking...</span>
+                            </button>
+                        </form>
+                    @endif
 
-                <button type="button" class="link-toggle" wire:click="toggleTurnOptions">
-                    Options {!! $turnOptionsOpen ? '&#9652;' : '&#9662;' !!}
-                </button>
+                    <button type="button" class="link-toggle" wire:click="toggleTurnOptions">
+                        Options {!! $turnOptionsOpen ? '&#9652;' : '&#9662;' !!}
+                    </button>
 
-                @if ($turnOptionsOpen)
-                    <div class="controls">
-                        <button type="button" wire:click="skipQuestion" wire:confirm="Skip this question and try a different one? Any points or strikes so far on it will be lost.">
-                            Skip Question
-                        </button>
-                        @if ($phase === FamilyFeudPhase::Play)
-                            <button type="button" wire:click="swapControl">Swap Team</button>
-                        @endif
-                    </div>
+                    @if ($turnOptionsOpen)
+                        <div class="controls">
+                            <button type="button" wire:click="skipQuestion" wire:confirm="Skip this question and try a different one? Any points or strikes so far on it will be lost.">
+                                Skip Question
+                            </button>
+                            @if ($phase === FamilyFeudPhase::Play)
+                                <button type="button" wire:click="swapControl">Swap Team</button>
+                            @endif
+                        </div>
+                    @endif
                 @endif
             @endif
 
-            @if ($phase === FamilyFeudPhase::Manual)
+            @if ($phase === FamilyFeudPhase::Manual && ($room === null || $this->mySeatIndex !== null))
                 <div class="panel">
                     <div class="panel-title">Finish this round by eye</div>
                     <p>The hidden answers are now shown above. Talk it through, then award the pot to whichever team you agree got it.</p>
@@ -639,7 +1104,7 @@ new class extends Component
                 </div>
             @endif
 
-            @if ($phase === FamilyFeudPhase::RoundEnd)
+            @if ($phase === FamilyFeudPhase::RoundEnd && ($room === null || $this->mySeatIndex !== null))
                 <div class="panel">
                     <div class="panel-title">{{ $roundEndTitle }}</div>
                     <div class="controls">
@@ -664,11 +1129,13 @@ new class extends Component
                             <div class="team-score">{{ $roundHistory[$justFinished][1] }}</div>
                         </div>
                     </div>
-                    <div class="controls">
-                        <button type="button" wire:click="nextRoundSummary">
-                            {{ $currentQuestionIndex + 1 >= count($questions) ? 'See Final Score' : 'Next Round' }}
-                        </button>
-                    </div>
+                    @if ($room === null || $this->mySeatIndex !== null)
+                        <div class="controls">
+                            <button type="button" wire:click="nextRoundSummary">
+                                {{ $currentQuestionIndex + 1 >= count($questions) ? 'See Final Score' : 'Next Round' }}
+                            </button>
+                        </div>
+                    @endif
                 </div>
             @endif
 
@@ -706,3 +1173,25 @@ new class extends Component
         </div>
     @endunless
 </div>
+
+<script>
+    // Same fix as boggle/⚡lobby.blade.php's and yahtzee/⚡play.blade.php's
+    // own join field: nothing here sets autofocus, but mobile Safari can
+    // still focus this field and raise the keyboard on its own
+    // (back-forward cache restore, or its verification-code autofill
+    // heuristics treating a short, "code"-labeled field as an OTP input)
+    // -- blur it whenever it's focused before the user has actually
+    // interacted with the page.
+    let userInteracted = false;
+    window.addEventListener('pointerdown', () => { userInteracted = true; }, { once: true, capture: true });
+
+    const blurAutofocusedJoinID = () => {
+        const joinID = document.getElementById('join');
+        if (! userInteracted && joinID && document.activeElement === joinID) {
+            joinID.blur();
+        }
+    };
+
+    window.addEventListener('pageshow', blurAutofocusedJoinID);
+    window.addEventListener('load', () => setTimeout(blurAutofocusedJoinID, 0));
+</script>

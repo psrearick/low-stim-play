@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['room_id', 'seat_index', 'user_id'])]
+#[Fillable(['room_id', 'seat_index', 'user_id', 'team_index', 'is_captain'])]
 class RoomSeat extends Model
 {
     /** @use HasFactory<RoomSeatFactory> */
@@ -28,5 +28,15 @@ class RoomSeat extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'is_captain' => 'boolean',
+        ];
     }
 }

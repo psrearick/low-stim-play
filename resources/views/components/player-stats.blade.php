@@ -6,7 +6,7 @@
             $statsRoute = match ($stat['type']) {
                 \App\Enums\GameType::Boggle => 'profile.boggle',
                 \App\Enums\GameType::Yahtzee => 'profile.yahtzee',
-                default => null,
+                \App\Enums\GameType::FamilyFeud => 'profile.family-feud',
             };
             $tag = $linkable && $statsRoute ? 'a' : 'div';
         @endphp
