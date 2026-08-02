@@ -9,7 +9,7 @@ The Laravel Boost guidelines are specifically curated by Laravel maintainers for
 
 This application is a Laravel application and its main Laravel ecosystems package & versions are below. You are an expert with them all. Ensure you abide by these specific packages & versions.
 
-- php - 8.4
+- php - 8.5
 - laravel/fortify (FORTIFY) - v1
 - laravel/framework (LARAVEL) - v13
 - laravel/prompts (PROMPTS) - v0
@@ -185,3 +185,46 @@ This project keeps three docs files in `docs/`, each with a distinct job. Keepin
 Update triggers:
 - **After every non-trivial change** (a bug fix, a new feature, a real deviation from a plan) — add an entry to `docs/DEVLOG.md` in the same turn, filed under the relevant existing feature section (add a new section only for a genuinely new feature area).
 - **Update `docs/CHANGELOG.md`** when the user explicitly asks you to update it, OR whenever the user asks you to make a commit (add that commit's entry as part of the same commit), OR proactively — before starting new work, check `git log` for commits since you last touched this file; if any aren't reflected in it yet, inspect what was actually committed (`git show`/`git diff`) and add terse entries for them. Don't copy an uninformative commit message (e.g. "wip") verbatim — describe the actual change from the diff instead.
+
+# Automated Browser Testing
+
+This app has repeatedly shipped UI/CSS bugs that `Livewire::test()`/`$this->get(...)`-style Pest tests cannot catch — they invoke component methods and inspect rendered HTML strings directly, without a real browser, so they're blind to CSS (a `<dialog>` silently staying visible when closed, a `display: contents` teleport wrapper defeating a `>` CSS selector, a table column collapsing to zero width) and to real client-side JavaScript behavior. See `docs/DEVLOG.md`'s "Site-wide design system & chrome" and Yahtzee sections for the specific bugs this actually happened with. Two tools now exist specifically to close that gap — use them, don't just eyeball a change and call it done.
+
+## Pest browser tests (`tests/Browser/`)
+
+Pest v5's `pestphp/pest-plugin-browser` (Playwright-backed) is installed alongside `pestphp/pest-plugin-agent`. Browser tests live in `tests/Browser/` (registered as its own PHPUnit testsuite in `phpunit.xml`, and extended with `TestCase` in `tests/Pest.php` the same way `Feature` is) and run as part of the normal suite:
+
+```bash
+php artisan test --compact                      # runs Unit + Feature + Browser together
+php artisan test --compact tests/Browser         # just the browser suite
+```
+
+Write one with `visit()` instead of `Livewire::test()`/`$this->get(...)`:
+
+```php
+it('opens and closes the rules dialog from the button bar', function () {
+    $page = visit('/yahtzee');
+
+    $page->assertDontSee('How to Use This Page')
+        ->click('#rules-btn')
+        ->assertSee('How to Use This Page')
+        ->click('#rules-dialog-close')
+        ->assertDontSee('How to Use This Page');
+});
+```
+
+It runs in the same PHP process as the test (no separate `php artisan serve`/webserver to manage), so factories, `RefreshDatabase`, event fakes, and `$this->assertAuthenticated()` all work exactly as they do in a Feature test — see `tests/Browser/YahtzeeRulesDialogTest.php` and `tests/Browser/HomepageSmokeTest.php` for real examples already in this repo. Useful assertions beyond `assertSee`/`click`: `assertVisible`/`assertMissing` (for CSS-driven visibility, not just DOM presence), `assertNoJavaScriptErrors()`, `assertNoConsoleLogs()`, `on()->mobile()`/`on()->iPhone14Pro()` for a real mobile viewport, `inDarkMode()`. Screenshots write to `tests/Browser/Screenshots/` (gitignored) via `->screenshot(...)`.
+
+**When to write one**: any change to CSS, a `<dialog>`/native browser element, `@teleport`, responsive/mobile-vs-desktop layout, or multi-step client-side JS (drag gestures, `@script` blocks) — the exact categories that have broken silently before. A change to plain server-side logic/Livewire state doesn't need one; a regular Feature test is faster and sufficient.
+
+## The `--agent` probe (quick, one-off verification while working)
+
+`pestphp/pest-plugin-agent` adds a `--agent` flag for a fast, throwaway check — run this immediately after any UI/CSS change instead of asserting it works from reading the code:
+
+```bash
+vendor/bin/pest --agent='visit("/yahtzee")->click("#rules-btn")->assertSee("How to Use This Page");'
+vendor/bin/pest --agent='visit("/")->screenshot(filename: "homepage");'
+vendor/bin/pest --agent='visit("/")->on()->mobile()->assertNoJavaScriptErrors();'
+```
+
+It runs inside a real, temporary test with the project's actual Pest configuration (factories, `RefreshDatabase`, etc.) and reports a real pass/fail — not a screenshot to eyeball or a guess. Use single quotes around the snippet so the shell doesn't try to interpolate `$variables`/`\App\...` class names. This is a verification probe, not a replacement for real coverage: if the behavior deserves a lasting regression guard, write an actual test in `tests/Browser` (or `tests/Feature`) instead of only ever probing it ad hoc.
