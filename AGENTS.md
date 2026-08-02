@@ -173,3 +173,15 @@ This project has domain-specific skills available in `**/skills/**`. You MUST ac
 - Do NOT delete tests without approval.
 
 </laravel-boost-guidelines>
+
+# Project Documentation
+
+This project keeps three docs files in `docs/`, each with a distinct job. Keeping them current is a standing instruction, not a one-time task — do it as part of the same turn as the change, not as separate follow-up work.
+
+- **`docs/DEVLOG.md`** — the detailed record of *why* this app is built the way it is: decisions made, deliberate deviations from any plan and why, and bugs found along the way (including why they happened, not just what fixed them). Organized by feature/area (Boggle, Yahtzee, Room system, Site-wide design system, ...), not by when the work happened.
+- **`docs/CHANGELOG.md`** — a terse, commit-by-commit record of *what* changed, newest first, with no rationale or decisions (that belongs in `docs/DEVLOG.md`). Grouped by date, one bullet per commit: short hash + a one-line summary of the actual change.
+- **`docs/TODO.md`** — incomplete/deferred work only. Once something here is done, move its writeup into `docs/DEVLOG.md` (under the relevant feature section) and delete it from this file rather than checking it off in place.
+
+Update triggers:
+- **After every non-trivial change** (a bug fix, a new feature, a real deviation from a plan) — add an entry to `docs/DEVLOG.md` in the same turn, filed under the relevant existing feature section (add a new section only for a genuinely new feature area).
+- **Update `docs/CHANGELOG.md`** when the user explicitly asks you to update it, OR whenever the user asks you to make a commit (add that commit's entry as part of the same commit), OR proactively — before starting new work, check `git log` for commits since you last touched this file; if any aren't reflected in it yet, inspect what was actually committed (`git show`/`git diff`) and add terse entries for them. Don't copy an uninformative commit message (e.g. "wip") verbatim — describe the actual change from the diff instead.
