@@ -28,6 +28,42 @@ new class extends Component
      */
     public array $teamNames = ['Team 1', 'Team 2'];
 
+    /**
+     * True once the host has clicked "Start Game" in the lobby and is now
+     * on the team-assignment screen below, before the round itself
+     * actually begins -- see onRoomStarting()/startRound(). Only ever
+     * true for the host's own connection: 'room-game-starting' is a local
+     * (non-broadcast) Livewire dispatch that only reaches the request
+     * that triggered it, and game-lobby's own startGame() already aborts
+     * for a non-host caller.
+     */
+    public bool $assigningTeams = false;
+
+    /**
+     * The ready players game-lobby's startGame() handed off, snapshotted
+     * once at that moment -- see onRoomStarting().
+     *
+     * @var list<array{id: int, name: string, is_host: bool, ready: bool}>
+     */
+    public array $readyPlayers = [];
+
+    /**
+     * user_id => team_index (0 or 1), host-editable on the assignment
+     * screen below.
+     *
+     * @var array<int, int>
+     */
+    public array $teamAssignments = [];
+
+    /**
+     * user_id => is this player currently their team's captain. Exactly
+     * one true per non-empty team, enforced by ensureEachTeamHasACaptain()
+     * after every move.
+     *
+     * @var array<int, bool>
+     */
+    public array $captainAssignments = [];
+
     public function mount(string $code): void
     {
         $this->room = Room::notExpired()->where('code', strtoupper($code))->firstOrFail();
@@ -53,7 +89,12 @@ new class extends Component
         // See pages::yahtzee.room's identical check for why this matters:
         // a reconnecting player whose device dropped at the exact moment
         // the host clicked "Start" would otherwise never receive
-        // RoomGameStarting and get stuck looking at a stale lobby.
+        // RoomGameStarting and get stuck looking at a stale lobby. Note
+        // this only covers *before* team assignment (game_session_id is
+        // still null the whole time the host is on that screen) -- a host
+        // who reloads mid-assignment loses their in-progress picks and
+        // lands back on the plain lobby instead, an accepted limitation
+        // (see docs/DEVLOG.md) rather than persisting draft assignments.
         $this->redirectIfAlreadyStarted();
     }
 
@@ -86,36 +127,175 @@ new class extends Component
     }
 
     /**
+     * Only ever reaches the host (see $assigningTeams's own docblock).
+     * Doesn't create the GameSession/seats itself any more -- it just
+     * snapshots the ready players and switches this connection to the
+     * team-assignment screen below; startRound() is what actually
+     * finalizes and starts the round once the host confirms teams.
+     *
      * @param  array<int, array{id: int, name: string, is_host: bool, ready: bool}>  $players
      */
     public function onRoomStarting(array $players): void
     {
         $this->room->refresh();
 
-        if ($this->room->game_session_id === null) {
-            // Mirrors startGame()'s own local guard against a fresh/
-            // misconfigured deployment (seeder never run) -- there's no
-            // message-passing path back into the lobby from here, so this
-            // just declines to create a session rather than crashing the
-            // very next render the way an empty $questions array used to.
-            if (FamilyFeudQuestion::count() === 0) {
-                return;
+        // Already started (e.g. a late-arriving duplicate dispatch) --
+        // just go, rather than re-entering team assignment over a game
+        // that's already running.
+        if ($this->room->game_session_id !== null) {
+            $this->goToGame();
+
+            return;
+        }
+
+        // Mirrors startGame()'s own local guard against a fresh/
+        // misconfigured deployment (seeder never run) -- there's no
+        // message-passing path back into the lobby from here, so this
+        // just declines to proceed rather than crashing the very next
+        // render the way an empty $questions array used to.
+        if (FamilyFeudQuestion::count() === 0) {
+            return;
+        }
+
+        $this->readyPlayers = array_values($players);
+
+        // Alternate seats onto the two teams by join order (even index ->
+        // team 0, odd -> team 1) as a starting point -- the same "seat
+        // index = join order" simplicity Yahtzee's own seat assignment
+        // uses -- but the host can still reshuffle players and captains
+        // below before confirming.
+        $this->teamAssignments = [];
+        $this->captainAssignments = [];
+
+        foreach ($this->readyPlayers as $index => $player) {
+            $this->teamAssignments[$player['id']] = $index % 2;
+            // Explicit false for every player up front (rather than
+            // relying on the `?? false` fallback used elsewhere) so the
+            // array always has one real entry per ready player -- makes
+            // the state easy to assert on/reason about in full.
+            $this->captainAssignments[$player['id']] = false;
+        }
+
+        $this->ensureEachTeamHasACaptain();
+
+        $this->assigningTeams = true;
+    }
+
+    public function moveToTeam(int $userId, int $teamIndex): void
+    {
+        abort_unless(Auth::id() === $this->room->host_user_id, 403);
+        abort_unless(in_array($teamIndex, [0, 1], true), 403);
+
+        if (! array_key_exists($userId, $this->teamAssignments)) {
+            return;
+        }
+
+        $this->teamAssignments[$userId] = $teamIndex;
+
+        // A moved player always loses captaincy on their old team --
+        // they only become their new team's captain via an explicit
+        // "Make Captain" tap, never automatically, since the team they're
+        // joining may already have one.
+        $this->captainAssignments[$userId] = false;
+
+        $this->ensureEachTeamHasACaptain();
+    }
+
+    public function makeCaptain(int $userId): void
+    {
+        abort_unless(Auth::id() === $this->room->host_user_id, 403);
+
+        $teamIndex = $this->teamAssignments[$userId] ?? null;
+
+        if ($teamIndex === null) {
+            return;
+        }
+
+        foreach ($this->teamAssignments as $otherId => $otherTeam) {
+            if ($otherTeam === $teamIndex) {
+                $this->captainAssignments[$otherId] = false;
+            }
+        }
+
+        $this->captainAssignments[$userId] = true;
+    }
+
+    /**
+     * Whichever team lost its captain (moved away, or never had one
+     * assigned yet) gets its first remaining member promoted automatically
+     * -- a non-empty team should never end up with zero captains, since
+     * Steal requires one. An empty team is simply skipped; canStartRound
+     * below is what actually keeps the host from confirming an unbalanced
+     * game rather than silently patching one back together here.
+     */
+    private function ensureEachTeamHasACaptain(): void
+    {
+        foreach ([0, 1] as $teamIndex) {
+            $memberIds = array_keys(array_filter(
+                $this->teamAssignments,
+                fn (int $t) => $t === $teamIndex,
+            ));
+
+            if ($memberIds === []) {
+                continue;
             }
 
-            $seats = array_values($players);
+            $hasCaptain = collect($memberIds)->contains(fn (int $id) => $this->captainAssignments[$id] ?? false);
 
-            // Alternate seats onto the two teams by join order (even index
-            // -> team 0, odd -> team 1) -- the same "seat index = join
-            // order" simplicity Yahtzee's own seat assignment uses. The
-            // first seat on each team (index 0 and 1) is automatically
-            // that team's captain -- no separate team/captain-picking UI.
+            if (! $hasCaptain) {
+                $this->captainAssignments[$memberIds[0]] = true;
+            }
+        }
+    }
+
+    /**
+     * @return list<array{id: int, name: string, is_host: bool, ready: bool}>
+     */
+    public function teamMembers(int $teamIndex): array
+    {
+        return array_values(array_filter(
+            $this->readyPlayers,
+            fn (array $player) => ($this->teamAssignments[$player['id']] ?? null) === $teamIndex,
+        ));
+    }
+
+    public function getCanStartRoundProperty(): bool
+    {
+        return $this->teamMembers(0) !== [] && $this->teamMembers(1) !== [];
+    }
+
+    /**
+     * Finalizes the host's team assignments into a real GameSession/
+     * RoomSeat rows and starts the round -- the actual creation logic
+     * onRoomStarting() used to run immediately, now gated behind the
+     * team-assignment screen instead.
+     */
+    public function startRound(): void
+    {
+        abort_unless(Auth::id() === $this->room->host_user_id, 403);
+        abort_unless($this->assigningTeams, 403);
+        abort_unless($this->canStartRound, 403);
+
+        $this->room->refresh();
+
+        if ($this->room->game_session_id === null) {
             $teamSeats = [[], []];
+            $seatAssignments = [];
 
-            foreach ($seats as $index => $player) {
-                $teamSeats[$index % 2][] = [
-                    'seatIndex' => $index,
+            foreach ($this->readyPlayers as $seatIndex => $player) {
+                $teamIndex = $this->teamAssignments[$player['id']];
+                $isCaptain = $this->captainAssignments[$player['id']] ?? false;
+
+                $teamSeats[$teamIndex][] = [
+                    'seatIndex' => $seatIndex,
                     'name' => $player['name'],
-                    'isCaptain' => $index < 2,
+                    'isCaptain' => $isCaptain,
+                ];
+
+                $seatAssignments[$seatIndex] = [
+                    'user_id' => $player['id'],
+                    'team_index' => $teamIndex,
+                    'is_captain' => $isCaptain,
                 ];
             }
 
@@ -153,13 +333,13 @@ new class extends Component
                 'started_at' => now(),
             ]);
 
-            foreach ($seats as $index => $player) {
+            foreach ($seatAssignments as $seatIndex => $assignment) {
                 RoomSeat::create([
                     'room_id' => $this->room->id,
-                    'seat_index' => $index,
-                    'user_id' => $player['id'],
-                    'team_index' => $index % 2,
-                    'is_captain' => $index < 2,
+                    'seat_index' => $seatIndex,
+                    'user_id' => $assignment['user_id'],
+                    'team_index' => $assignment['team_index'],
+                    'is_captain' => $assignment['is_captain'],
                 ]);
             }
 
@@ -168,6 +348,7 @@ new class extends Component
             RoomGameStarting::dispatch($this->room);
         }
 
+        $this->assigningTeams = false;
         $this->goToGame();
     }
 
@@ -201,30 +382,72 @@ new class extends Component
 <div class="flex flex-col items-center" style="gap: inherit;">
     <div class="heading">Family Feud Room</div>
 
-    @if ($this->isHost)
+    @if ($assigningTeams)
         <div class="setup">
-            <div class="team-inputs">
-                <div class="team-input-row">
-                    <label for="team0">Team 1</label>
-                    <input type="text" id="team0" wire:model="teamNames.0" maxlength="24" placeholder="Team 1">
-                </div>
-                <div class="team-input-row">
-                    <label for="team1">Team 2</label>
-                    <input type="text" id="team1" wire:model="teamNames.1" maxlength="24" placeholder="Team 2">
-                </div>
+            <div class="setup-note">Tap "Move to {{ $teamNames[1] ?: 'Team 2' }}"/"Move to {{ $teamNames[0] ?: 'Team 1' }}" to reassign a player, and "Make Captain" to change who can attempt a steal for that team.</div>
+
+            <div class="flex flex-col gap-4 w-full">
+                @foreach ([0, 1] as $teamIndex)
+                    <div class="flex flex-col gap-2 w-full">
+                        <div class="label">{{ $teamNames[$teamIndex] ?: 'Team '.($teamIndex + 1) }}</div>
+                        <ul class="w-full flex flex-col gap-2">
+                            @forelse ($this->teamMembers($teamIndex) as $player)
+                                <li wire:key="assign-{{ $player['id'] }}" class="flex items-center justify-between w-full status-line gap-2">
+                                    <span>
+                                        {{ $player['name'] }}
+                                        @if ($captainAssignments[$player['id']] ?? false)
+                                            <span style="color: var(--accent);">(Captain)</span>
+                                        @endif
+                                    </span>
+                                    <span class="flex gap-2">
+                                        @unless ($captainAssignments[$player['id']] ?? false)
+                                            <button type="button" wire:click="makeCaptain({{ $player['id'] }})">Make Captain</button>
+                                        @endunless
+                                        <button type="button" wire:click="moveToTeam({{ $player['id'] }}, {{ 1 - $teamIndex }})">
+                                            Move to {{ $teamNames[1 - $teamIndex] ?: 'Team '.(2 - $teamIndex) }}
+                                        </button>
+                                    </span>
+                                </li>
+                            @empty
+                                <li class="status-line">No players yet.</li>
+                            @endforelse
+                        </ul>
+                    </div>
+                @endforeach
             </div>
 
-            <div class="setup-row">
-                <label>Rounds</label>
-                <div class="stepper">
-                    <button type="button" wire:click="setRounds({{ $rounds - 1 }})" @disabled($rounds <= self::MIN_ROUNDS) aria-label="Fewer rounds">&minus;</button>
-                    <div class="stepper-value">{{ $rounds }}</div>
-                    <button type="button" wire:click="setRounds({{ $rounds + 1 }})" @disabled($rounds >= $this->maxRounds()) aria-label="More rounds">+</button>
-                </div>
-            </div>
-            <div class="setup-note">Players are split into two teams by join order -- whoever's first to ready up on each team is that team's captain (needed only for steal attempts).</div>
+            <button type="button" wire:click="startRound" @disabled(! $this->canStartRound)>Start Round</button>
+
+            @unless ($this->canStartRound)
+                <p class="status-line" style="color: var(--warn);">Each team needs at least one player.</p>
+            @endunless
         </div>
-    @endif
+    @else
+        @if ($this->isHost)
+            <div class="setup">
+                <div class="team-inputs">
+                    <div class="team-input-row">
+                        <label for="team0">Team 1</label>
+                        <input type="text" id="team0" wire:model="teamNames.0" maxlength="24" placeholder="Team 1">
+                    </div>
+                    <div class="team-input-row">
+                        <label for="team1">Team 2</label>
+                        <input type="text" id="team1" wire:model="teamNames.1" maxlength="24" placeholder="Team 2">
+                    </div>
+                </div>
 
-    <livewire:game-lobby :room="$room" />
+                <div class="setup-row">
+                    <label>Rounds</label>
+                    <div class="stepper">
+                        <button type="button" wire:click="setRounds({{ $rounds - 1 }})" @disabled($rounds <= self::MIN_ROUNDS) aria-label="Fewer rounds">&minus;</button>
+                        <div class="stepper-value">{{ $rounds }}</div>
+                        <button type="button" wire:click="setRounds({{ $rounds + 1 }})" @disabled($rounds >= $this->maxRounds()) aria-label="More rounds">+</button>
+                    </div>
+                </div>
+                <div class="setup-note">Starting the game opens a team-assignment screen next, before the first round begins.</div>
+            </div>
+        @endif
+
+        <livewire:game-lobby :room="$room" />
+    @endif
 </div>

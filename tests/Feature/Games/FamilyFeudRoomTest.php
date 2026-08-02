@@ -1,8 +1,6 @@
 <?php
 
-use App\Enums\GameMode;
 use App\Enums\GameResult;
-use App\Enums\GameType;
 use App\Models\FamilyFeudQuestion;
 use App\Models\GameParticipant;
 use App\Models\GameSession;
@@ -11,6 +9,7 @@ use App\Models\RoomSeat;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Livewire\Features\SupportTesting\Testable;
 use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
@@ -67,6 +66,29 @@ function seedFeudQuestions(int $count = 12): void
     FamilyFeudQuestion::factory()->count($count)->create();
 }
 
+/**
+ * Drives the host all the way from the lobby through the team-assignment
+ * screen to an actual started round, accepting whatever the default
+ * alternating team/captain assignment lands on -- for tests that only
+ * care about what happens once a round is underway, not about the
+ * assignment screen itself (that gets its own dedicated tests below).
+ *
+ * @param  list<User>  $users
+ * @return array{0: Testable, 1: array<int, array{id: int, name: string, is_host: bool, ready: bool}>}
+ */
+function startFeudRoomWithDefaultTeams(Room $room, array $users): array
+{
+    $players = readyUpFeudRoom($room, $users);
+
+    $component = Livewire::actingAs($users[0])
+        ->test('pages::family-feud.room', ['code' => $room->code])
+        ->call('onRoomStarting', $players)
+        ->assertSet('assigningTeams', true)
+        ->call('startRound');
+
+    return [$component, $players];
+}
+
 test('the setup screen only shows the host button to a real account', function () {
     $guest = User::createGuest('Alex');
 
@@ -110,7 +132,7 @@ test('a guest can view the family feud room page without an account, and is give
         ->and(auth()->id())->toBe($guest->id);
 });
 
-test('starting the room assigns teams alternately by join order and marks each team\'s first seat as captain', function () {
+test('starting the game opens a team-assignment screen, defaulting to alternating teams and captains, before any round exists', function () {
     seedFeudQuestions();
 
     $users = User::factory()->count(4)->create();
@@ -121,33 +143,113 @@ test('starting the room assigns teams alternately by join order and marks each t
     Livewire::actingAs($users[0])
         ->test('pages::family-feud.room', ['code' => $room->code])
         ->call('onRoomStarting', $players)
+        ->assertSet('assigningTeams', true)
+        ->assertSet('teamAssignments', [
+            $users[0]->id => 0,
+            $users[1]->id => 1,
+            $users[2]->id => 0,
+            $users[3]->id => 1,
+        ])
+        ->assertSet('captainAssignments', [
+            $users[0]->id => true,
+            $users[1]->id => true,
+            $users[2]->id => false,
+            $users[3]->id => false,
+        ])
+        ->assertSee($users[0]->name)
+        ->assertSee('Start Round');
+
+    // No round has actually started yet -- neither the session nor the
+    // seats exist until the host confirms via startRound().
+    expect(GameSession::count())->toBe(0)
+        ->and(RoomSeat::count())->toBe(0)
+        ->and($room->fresh()->game_session_id)->toBeNull();
+});
+
+test('the host can move a player to the other team, and the vacated team keeps a captain', function () {
+    seedFeudQuestions();
+
+    $users = User::factory()->count(3)->create();
+    $room = Room::factory()->create(['host_user_id' => $users[0]->id]);
+    $players = readyUpFeudRoom($room, $users->all());
+
+    // Default: team 0 = [users[0] captain, users[2]], team 1 = [users[1] captain].
+    $component = Livewire::actingAs($users[0])
+        ->test('pages::family-feud.room', ['code' => $room->code])
+        ->call('onRoomStarting', $players);
+
+    // Move the host (team 0's captain) onto team 1.
+    $component->call('moveToTeam', $users[0]->id, 1)
+        ->assertSet("teamAssignments.{$users[0]->id}", 1)
+        ->assertSet("captainAssignments.{$users[0]->id}", false);
+
+    // Team 0's only remaining member (users[2]) is automatically promoted
+    // to captain rather than leaving team 0 captain-less.
+    expect($component->get('captainAssignments')[$users[2]->id])->toBeTrue();
+});
+
+test('the host can hand captaincy to a different teammate', function () {
+    seedFeudQuestions();
+
+    $users = User::factory()->count(2)->create();
+    $room = Room::factory()->create(['host_user_id' => $users[0]->id]);
+    $players = readyUpFeudRoom($room, $users->all());
+
+    Livewire::actingAs($users[0])
+        ->test('pages::family-feud.room', ['code' => $room->code])
+        ->call('onRoomStarting', $players)
+        ->call('moveToTeam', $users[1]->id, 0)
+        ->call('makeCaptain', $users[1]->id)
+        ->assertSet("captainAssignments.{$users[0]->id}", false)
+        ->assertSet("captainAssignments.{$users[1]->id}", true);
+});
+
+test('starting the round is blocked while a team has no players', function () {
+    seedFeudQuestions();
+
+    $users = User::factory()->count(2)->create();
+    $room = Room::factory()->create(['host_user_id' => $users[0]->id]);
+    $players = readyUpFeudRoom($room, $users->all());
+
+    Livewire::actingAs($users[0])
+        ->test('pages::family-feud.room', ['code' => $room->code])
+        ->call('onRoomStarting', $players)
+        ->call('moveToTeam', $users[1]->id, 0)
+        ->assertSet('canStartRound', false)
+        ->call('startRound')
+        ->assertForbidden();
+
+    expect(GameSession::count())->toBe(0);
+});
+
+test('confirming the assignment screen persists the host\'s customized teams and captains, not the default', function () {
+    seedFeudQuestions();
+
+    $users = User::factory()->count(3)->create();
+    $room = Room::factory()->create(['host_user_id' => $users[0]->id]);
+    $players = readyUpFeudRoom($room, $users->all());
+
+    // Default would be team0=[0,2], team1=[1]. Move user 2 onto team 1 and
+    // make them its captain instead of user 1.
+    Livewire::actingAs($users[0])
+        ->test('pages::family-feud.room', ['code' => $room->code])
+        ->call('onRoomStarting', $players)
+        ->call('moveToTeam', $users[2]->id, 1)
+        ->call('makeCaptain', $users[2]->id)
+        ->call('startRound')
         ->assertRedirect(route('family-feud.play', ['room' => $room->code]));
 
     $session = GameSession::sole();
 
-    expect($session->type)->toBe(GameType::FamilyFeud)
-        ->and($session->mode)->toBe(GameMode::Online)
-        ->and($session->state['teams'])->toHaveCount(2)
-        ->and($session->state['controllingTeam'])->toBe(0)
-        ->and($session->state['phase'])->toBe('play')
-        ->and($room->fresh()->game_session_id)->toBe($session->id);
+    expect($session->state['teamSeats'][0])->toHaveCount(1)
+        ->and($session->state['teamSeats'][1])->toHaveCount(2);
 
-    // Alternating: seats 0/2 -> team 0, seats 1/3 -> team 1.
-    expect($session->state['teamSeats'][0])->toHaveCount(2)
-        ->and($session->state['teamSeats'][1])->toHaveCount(2)
-        ->and($session->state['teamSeats'][0][0]['seatIndex'])->toBe(0)
-        ->and($session->state['teamSeats'][0][0]['isCaptain'])->toBeTrue()
-        ->and($session->state['teamSeats'][0][1]['isCaptain'])->toBeFalse()
-        ->and($session->state['teamSeats'][1][0]['seatIndex'])->toBe(1)
-        ->and($session->state['teamSeats'][1][0]['isCaptain'])->toBeTrue();
+    $seatForUser2 = RoomSeat::where('room_id', $room->id)->where('user_id', $users[2]->id)->sole();
+    $seatForUser1 = RoomSeat::where('room_id', $room->id)->where('user_id', $users[1]->id)->sole();
 
-    expect(RoomSeat::count())->toBe(4)
-        ->and(RoomSeat::where('room_id', $room->id)->where('user_id', $users[0]->id)->sole())
-        ->toMatchArray(['team_index' => 0, 'is_captain' => true])
-        ->and(RoomSeat::where('room_id', $room->id)->where('user_id', $users[2]->id)->sole())
-        ->toMatchArray(['team_index' => 0, 'is_captain' => false])
-        ->and(RoomSeat::where('room_id', $room->id)->where('user_id', $users[1]->id)->sole())
-        ->toMatchArray(['team_index' => 1, 'is_captain' => true]);
+    expect($seatForUser2->team_index)->toBe(1)
+        ->and($seatForUser2->is_captain)->toBeTrue()
+        ->and($seatForUser1->is_captain)->toBeFalse();
 });
 
 test('starting the room twice does not create a second game session or duplicate seats', function () {
@@ -160,7 +262,8 @@ test('starting the room twice does not create a second game session or duplicate
 
     $component = Livewire::actingAs($users[0])->test('pages::family-feud.room', ['code' => $room->code]);
     $component->call('onRoomStarting', $players);
-    $component->call('onRoomStarting', $players);
+    $component->call('startRound');
+    $component->call('startRound');
 
     expect(GameSession::count())->toBe(1)
         ->and(RoomSeat::count())->toBe(2);
@@ -172,8 +275,7 @@ test('only the controlling team\'s current turn-pointer seat can submit a guess'
     $users = User::factory()->count(2)->create();
     $room = Room::factory()->create(['host_user_id' => $users[0]->id]);
 
-    $players = readyUpFeudRoom($room, $users->all());
-    Livewire::actingAs($users[0])->test('pages::family-feud.room', ['code' => $room->code])->call('onRoomStarting', $players);
+    startFeudRoomWithDefaultTeams($room, $users->all());
 
     fakeFeudJudge(null);
 
@@ -199,8 +301,7 @@ test('the within-team turn pointer rotates to the next teammate after each resol
     $room = Room::factory()->create(['host_user_id' => $users[0]->id]);
 
     // Team 0 = seats 0 (host) and 2; team 1 = seats 1 and 3.
-    $players = readyUpFeudRoom($room, $users->all());
-    Livewire::actingAs($users[0])->test('pages::family-feud.room', ['code' => $room->code])->call('onRoomStarting', $players);
+    startFeudRoomWithDefaultTeams($room, $users->all());
 
     fakeFeudJudge(null);
 
@@ -233,8 +334,7 @@ test('only the stealing team\'s captain can act during Steal, not just any teamm
     $room = Room::factory()->create(['host_user_id' => $users[0]->id]);
 
     // Team 0 = seats 0 (captain), 2; team 1 = seats 1 (captain), 3.
-    $players = readyUpFeudRoom($room, $users->all());
-    Livewire::actingAs($users[0])->test('pages::family-feud.room', ['code' => $room->code])->call('onRoomStarting', $players);
+    startFeudRoomWithDefaultTeams($room, $users->all());
 
     // Force straight to "team 0 struck out, team 1 may steal" rather than
     // playing three real misses through -- the authorization logic under
@@ -276,8 +376,7 @@ test('an unseated spectator sees no seat and cannot mutate the game', function (
     $spectator = User::factory()->create();
     $room = Room::factory()->create(['host_user_id' => $users[0]->id]);
 
-    $players = readyUpFeudRoom($room, $users->all());
-    Livewire::actingAs($users[0])->test('pages::family-feud.room', ['code' => $room->code])->call('onRoomStarting', $players);
+    startFeudRoomWithDefaultTeams($room, $users->all());
 
     Livewire::actingAs($spectator)
         ->test('pages::family-feud.play', ['room' => $room->code])
@@ -293,8 +392,7 @@ test('reloading mid-game rehydrates the correct seat/team and in-progress state 
     $users = User::factory()->count(2)->create();
     $room = Room::factory()->create(['host_user_id' => $users[0]->id]);
 
-    $players = readyUpFeudRoom($room, $users->all());
-    Livewire::actingAs($users[0])->test('pages::family-feud.room', ['code' => $room->code])->call('onRoomStarting', $players);
+    startFeudRoomWithDefaultTeams($room, $users->all());
 
     fakeFeudJudge(null);
 
@@ -319,8 +417,7 @@ test('visiting the room page after the game already started redirects straight i
     $users = User::factory()->count(2)->create();
     $room = Room::factory()->create(['host_user_id' => $users[0]->id]);
 
-    $players = readyUpFeudRoom($room, $users->all());
-    Livewire::actingAs($users[0])->test('pages::family-feud.room', ['code' => $room->code])->call('onRoomStarting', $players);
+    startFeudRoomWithDefaultTeams($room, $users->all());
 
     Livewire::actingAs($users[1])
         ->test('pages::family-feud.room', ['code' => $room->code])
@@ -334,8 +431,7 @@ test('a full online game writes one correctly-attributed GameParticipant per sea
     $guest = User::factory()->create();
     $room = Room::factory()->create(['host_user_id' => $host->id]);
 
-    $players = readyUpFeudRoom($room, [$host, $guest]);
-    Livewire::actingAs($host)->test('pages::family-feud.room', ['code' => $room->code])->call('onRoomStarting', $players);
+    startFeudRoomWithDefaultTeams($room, [$host, $guest]);
 
     Livewire::actingAs($host)
         ->test('pages::family-feud.play', ['room' => $room->code])

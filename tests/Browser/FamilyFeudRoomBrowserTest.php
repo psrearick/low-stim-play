@@ -2,6 +2,7 @@
 
 use App\Enums\GameMode;
 use App\Enums\GameType;
+use App\Models\FamilyFeudQuestion;
 use App\Models\GameSession;
 use App\Models\Room;
 use App\Models\RoomSeat;
@@ -143,4 +144,85 @@ test('an unseated spectator sees no guess form and no Reveal/End Game action but
     $page->assertMissing('.guess-form')
         ->assertDontSee('Reveal')
         ->assertDontSee('End Game');
+});
+
+/**
+ * Drives the host room page's real onRoomStarting() action directly via
+ * window.Livewire, standing in for game-lobby's own 'room-game-starting'
+ * dispatch -- that dispatch only ever fires from a real presence-channel
+ * "everyone's ready" state, which needs a live broadcast this environment
+ * doesn't have (BROADCAST_CONNECTION=null, see phpunit.xml), the same
+ * reason startedFeudRoom() above seeds an already-started game directly
+ * rather than driving the lobby for real. This only stands in for the
+ * *lobby* step -- the team-assignment screen itself, and Start Round,
+ * are driven through real clicks below.
+ *
+ * @param  list<array{id: int, name: string, is_host: bool, ready: bool}>  $players
+ */
+function triggerFeudRoomStarting(PendingAwaitablePage $page, array $players): void
+{
+    $json = json_encode($players);
+
+    $page->script(<<<JS
+        (() => {
+            const el = document.querySelector("[wire\\\\:id]");
+            const component = window.Livewire.find(el.getAttribute("wire:id"));
+            component.call("onRoomStarting", {$json});
+            return true;
+        })()
+        JS);
+}
+
+test('the team-assignment screen renders real players and blocks starting once a team is emptied', function () {
+    $host = User::factory()->create(['password' => bcrypt('password')]);
+    $guest = User::factory()->create(['password' => bcrypt('password')]);
+    FamilyFeudQuestion::factory()->count(4)->create();
+
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+    $page = loginAsAndVisitFeud($host, "/family-feud/room/{$room->code}");
+
+    triggerFeudRoomStarting($page, [
+        ['id' => $host->id, 'name' => $host->name, 'is_host' => true, 'ready' => true],
+        ['id' => $guest->id, 'name' => $guest->name, 'is_host' => false, 'ready' => true],
+    ]);
+
+    $page->assertSee($host->name)
+        ->assertSee($guest->name)
+        ->assertSee('(Captain)')
+        ->assertButtonEnabled('Start Round');
+
+    // Host is the only player on Team 1 -- moving them onto Team 2 empties
+    // Team 1 for real, and the button should actually disable in the live
+    // DOM, not just in server-side logic.
+    $page->click('Move to Team 2')->wait(0.3);
+
+    $page->assertSee('Each team needs at least one player.')
+        ->assertButtonDisabled('Start Round');
+});
+
+test('the host can start the round from the team-assignment screen with a real click', function () {
+    $host = User::factory()->create(['password' => bcrypt('password')]);
+    $guest = User::factory()->create(['password' => bcrypt('password')]);
+    FamilyFeudQuestion::factory()->count(4)->create();
+
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+    $page = loginAsAndVisitFeud($host, "/family-feud/room/{$room->code}");
+
+    triggerFeudRoomStarting($page, [
+        ['id' => $host->id, 'name' => $host->name, 'is_host' => true, 'ready' => true],
+        ['id' => $guest->id, 'name' => $guest->name, 'is_host' => false, 'ready' => true],
+    ]);
+
+    $page->click('Start Round')->wait(0.3);
+
+    // Only the current turn-holder's name is ever shown on screen (see
+    // "turnHolderName" in pages::family-feud.play) -- team names are
+    // otherwise generic ("Team 1"/"Team 2") -- so assert on markers that
+    // are always present in the real game instead of either player's name
+    // specifically.
+    $page->assertPathIs('/family-feud')
+        ->assertDontSee('Start Round')
+        ->assertSee('Team 1')
+        ->assertSee('Team 2')
+        ->assertVisible('.guess-form');
 });
