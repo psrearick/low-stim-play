@@ -263,6 +263,10 @@ It runs in the same PHP process as the test (no separate `php artisan serve`/web
 
 **When to write one**: any change to CSS, a `<dialog>`/native browser element, `@teleport`, responsive/mobile-vs-desktop layout, or multi-step client-side JS (drag gestures, `@script` blocks) — the exact categories that have broken silently before. A change to plain server-side logic/Livewire state doesn't need one; a regular Feature test is faster and sufficient.
 
+**Two known `pestphp/pest-plugin-browser` v5.0.0 gotchas, confirmed live** (see `docs/DEVLOG.md`'s "Automated browser testing" entry for how these were confirmed):
+- **Use `resize(width, height)`, not `on()->mobile()`, for anything that clicks.** `on()->mobile()` silently drops every click in this environment — confirmed down to a plain non-Livewire `<a><button>` link never navigating after `click()`, no exception thrown. `resize(390, 844)` sets the same narrow viewport without touching device/touch emulation, and clicks through it work identically to desktop. `on()->mobile()`/`on()->iPhone14Pro()` are still fine for a pure `assertSee`/`screenshot()` check with no `click()`/`fill()` afterward.
+- **Don't hold two `visit()` pages open in one test if either one runs `assertSee`/`assertDontSee` before the other is created.** That specific pattern reliably hung (30-60s+) regardless of session driver or whether the two pages came from separate `visit()` calls or the array form. See `tests/Browser/YahtzeeRoomBrowserTest.php` for the workaround this app uses instead: one real browser page per test, with any other "seats" seeded directly at the database level (matching how `GameSession.state`/`RoomSeat` already get written by the real code) rather than driven by a second live browser.
+
 ## The `--agent` probe (quick, one-off verification while working)
 
 `pestphp/pest-plugin-agent` adds a `--agent` flag for a fast, throwaway check — run this immediately after any UI/CSS change instead of asserting it works from reading the code:
