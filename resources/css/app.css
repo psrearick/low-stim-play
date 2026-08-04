@@ -388,6 +388,16 @@ dialog.rules-dialog::backdrop {
     line-height: 1.6;
 }
 
+/* ---- Generic low-stim dialog primitive (<x-dialog>/<x-confirm-dialog>) --
+   Same muted, non-flashing backdrop treatment as .rules-dialog above, kept
+   as its own class so any new dialog gets it automatically instead of each
+   call site hand-rolling backdrop styling. ---- */
+dialog.js-dialog::backdrop {
+    background: oklch(from var(--bg) calc(l - 0.2) c h / 0.6);
+    animation: none !important;
+    transition: none !important;
+}
+
 /* ---- Setup panel (used by any game with a pre-game options screen) ---- */
 .setup {
     display: flex;

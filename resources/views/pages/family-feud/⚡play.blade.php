@@ -919,14 +919,34 @@ new class extends Component
                 --}}
                 @if ($room === null || $this->mySeatIndex !== null)
                     @if ($this->inPlay)
-                        <button type="button" wire:click="revealManually" wire:confirm="This shows every hidden answer and ends secrecy for this question. Continue?">
+                        <button type="button" id="reveal-trigger" data-dialog-open="reveal-confirm-dialog">
                             Reveal
                         </button>
+
+                        <x-confirm-dialog id="reveal-confirm-dialog" title="Reveal answers?"
+                            message="This shows every hidden answer and ends secrecy for this question. Continue?">
+                            <x-slot:confirm>
+                                <button type="button" id="reveal-confirm" data-dialog-close wire:click="revealManually"
+                                    class="flex-1 rounded px-6 py-2 font-bold tracking-wide bg-surface border-2 border-warn text-warn">
+                                    Reveal
+                                </button>
+                            </x-slot:confirm>
+                        </x-confirm-dialog>
                     @endif
                     @unless ($phase === FamilyFeudPhase::GameEnd)
-                        <button type="button" wire:click="endGame" wire:confirm="End the game now and show final scores?">
+                        <button type="button" id="end-game-trigger" data-dialog-open="end-game-confirm-dialog">
                             End Game
                         </button>
+
+                        <x-confirm-dialog id="end-game-confirm-dialog" title="End the game?"
+                            message="End the game now and show final scores?">
+                            <x-slot:confirm>
+                                <button type="button" id="end-game-confirm" data-dialog-close wire:click="endGame"
+                                    class="flex-1 rounded px-6 py-2 font-bold tracking-wide bg-surface border-2 border-warn text-warn">
+                                    End Game
+                                </button>
+                            </x-slot:confirm>
+                        </x-confirm-dialog>
                     @else
                         @if ($room === null)
                             <button type="button" wire:click="newGame">New Game</button>
@@ -1076,15 +1096,25 @@ new class extends Component
                         </form>
                     @endif
 
-                    <button type="button" class="link-toggle" wire:click="toggleTurnOptions">
+                    <button type="button" id="turn-options-toggle" class="link-toggle" wire:click="toggleTurnOptions">
                         Options {!! $turnOptionsOpen ? '&#9652;' : '&#9662;' !!}
                     </button>
 
                     @if ($turnOptionsOpen)
                         <div class="controls">
-                            <button type="button" wire:click="skipQuestion" wire:confirm="Skip this question and try a different one? Any points or strikes so far on it will be lost.">
+                            <button type="button" id="skip-question-trigger" data-dialog-open="skip-question-confirm-dialog">
                                 Skip Question
                             </button>
+
+                            <x-confirm-dialog id="skip-question-confirm-dialog" title="Skip this question?"
+                                message="Try a different one? Any points or strikes so far on it will be lost.">
+                                <x-slot:confirm>
+                                    <button type="button" id="skip-question-confirm" data-dialog-close wire:click="skipQuestion"
+                                        class="flex-1 rounded px-6 py-2 font-bold tracking-wide bg-surface border-2 border-warn text-warn">
+                                        Skip Question
+                                    </button>
+                                </x-slot:confirm>
+                            </x-confirm-dialog>
                             @if ($phase === FamilyFeudPhase::Play)
                                 <button type="button" wire:click="swapControl">Swap Team</button>
                             @endif

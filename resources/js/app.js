@@ -50,6 +50,37 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // ---- Generic low-stim dialogs (<x-dialog>/<x-confirm-dialog>) --------
+    // Delegated on `document`, not bound per-element like the Rules dialog
+    // above, because these dialogs and their trigger buttons commonly live
+    // inside Livewire-managed markup that gets morphed/replaced after a
+    // network round trip (e.g. Family Feud's "Options" panel). A listener
+    // bound directly to one of those elements at DOMContentLoaded time
+    // would silently stop working the first time Livewire re-renders it;
+    // delegating on `document` keeps working regardless of how many times
+    // the underlying elements get replaced.
+    document.addEventListener('click', (event) => {
+        const opener = event.target.closest('[data-dialog-open]');
+
+        if (opener) {
+            const dialog = document.getElementById(opener.dataset.dialogOpen);
+            dialog?.showModal();
+            dialog?.focus();
+            return;
+        }
+
+        const closer = event.target.closest('[data-dialog-close]');
+
+        if (closer) {
+            closer.closest('dialog')?.close();
+            return;
+        }
+
+        if (event.target instanceof HTMLDialogElement && event.target.classList.contains('js-dialog')) {
+            event.target.close();
+        }
+    });
+
     const chromeToggleBtn = document.getElementById('chrome-toggle-btn');
 
     if (chromeToggleBtn) {
