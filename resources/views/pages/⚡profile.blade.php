@@ -15,6 +15,8 @@ new class extends Component
 
     public bool $saved = false;
 
+    public bool $statsCleared = false;
+
     public function mount(): void
     {
         $user = $this->user();
@@ -40,6 +42,13 @@ new class extends Component
         $user->update($validated);
 
         $this->saved = true;
+    }
+
+    public function clearStats(): void
+    {
+        $this->user()->gameParticipants()->delete();
+
+        $this->statsCleared = true;
     }
 
     /**
@@ -118,6 +127,30 @@ new class extends Component
         </ul>
 
         <button type="button" data-passkey-add class="w-full">Add a Passkey</button>
+    </x-panel>
+
+    <x-panel heading="Danger Zone">
+        @if ($statsCleared)
+            <p class="text-sm text-text/80 text-center">Your stats have been cleared.</p>
+        @endif
+
+        <p class="text-sm text-text/80 text-center">
+            Permanently delete your game history and stats. This can't be undone.
+        </p>
+
+        <button type="button" id="clear-stats-trigger" data-dialog-open="clear-stats-confirm-dialog" class="w-full">
+            Clear All Stats
+        </button>
+
+        <x-confirm-dialog id="clear-stats-confirm-dialog" title="Clear all stats?"
+            message="This permanently deletes your game history and stats. This can't be undone.">
+            <x-slot:confirm>
+                <button type="button" id="clear-stats-confirm" data-dialog-close wire:click="clearStats"
+                    class="flex-1 rounded px-6 py-2 font-bold tracking-wide bg-surface border-2 border-warn text-warn">
+                    Clear All Stats
+                </button>
+            </x-slot:confirm>
+        </x-confirm-dialog>
     </x-panel>
 
     {{--
