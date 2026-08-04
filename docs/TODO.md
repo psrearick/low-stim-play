@@ -31,6 +31,12 @@ Numbers below are both the task ID and the suggested work order — when a task 
 
 The Boggle card's win-rate stat on the dashboard should be calculated only from online-room games (excluding solo play), and only from games where at least one player scored above zero points.
 
+Boggle is the only game where `GameParticipant.result` can be `null` (solo/practice play has no opponent to win or lose against) — Yahtzee and Family Feud always compute a definite Win/Loss/Draw, even for local pass-and-play — which is why this needs Boggle-specific handling the other two don't.
+
+Two open questions already resolved, so implementation can start directly from here:
+- **"At least one player scored above zero" is a whole-session filter, not a per-row one.** Exclude a game session from the win-rate calculation only if *every* participant in it scored 0 (e.g. an aborted room nobody actually played). A session where the user scored 0 but another participant found words still counts — that's a real loss, not a degenerate game.
+- **Implementation location: special-case Boggle inside `App\Services\Stats\PlayerStatsService::forUser()`.** Filter Boggle's own participant set (online mode + not a whole-session-zero session) before computing that one game type's `gamesPlayed`/`wins`/`winRate`; leave Yahtzee's and Family Feud's buckets computed exactly as they are now.
+
 ### 2. Add an "All Games" stats page
 
 Add a paginated table of all games across every game type (mirroring the recent-games table already on the dashboard), and link to it from the dashboard.
