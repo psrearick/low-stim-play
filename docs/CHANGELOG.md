@@ -4,6 +4,7 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 
 ## 2026-08-04
 
+- `f5ac113` — Added a "Delete Account" button (Danger Zone panel on `/profile`), gated behind `<x-confirm-dialog>`; hard-deletes the user (schema-native cascade/null-on-delete), logs out, redirects home. Added Feature + browser test coverage.
 - `0941845` — Added a "Clear All Stats" button (Danger Zone panel on `/profile`), gated behind `<x-confirm-dialog>`, that deletes only the acting user's own `GameParticipant` rows; added Feature + browser test coverage.
 - `4fc32cd` — Added reusable `<x-dialog>`/`<x-confirm-dialog>` Blade components (generic delegated open/close JS in `app.js`) and replaced Family Feud's three `wire:confirm()` uses (Skip Question/End Game/Reveal) with them; added `tests/Browser/FamilyFeudConfirmDialogsTest.php`.
 - `ed3e751` — Rewrote `docs/specs/clear-the-deck.md` from a plain rules pastebin into a build spec matching the Farkle/Apples to Apples format (open design questions, data-model notes, accessibility), with the original rules kept verbatim in an appendix; added it to `docs/TODO.md` as #20.
