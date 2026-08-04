@@ -25,9 +25,10 @@ Numbers below are both the task ID and the suggested work order — when a task 
 17. [Rename games to avoid trademark issues](#17-rename-games-to-avoid-trademark-issues)
 18. [Add Farkle](#18-add-farkle)
 19. [Add Apples to Apples](#19-add-apples-to-apples)
-20. [Two-factor authentication toggle](#20-two-factor-authentication-toggle)
-21. [Image avatars](#21-image-avatars)
-22. [Friends activity](#22-friends-activity)
+20. [Add Clear the Deck](#20-add-clear-the-deck)
+21. [Two-factor authentication toggle](#21-two-factor-authentication-toggle)
+22. [Image avatars](#22-image-avatars)
+23. [Friends activity](#23-friends-activity)
 
 ## Tasks
 
@@ -125,16 +126,20 @@ A new dice game. See [`docs/specs/farkle.md`](specs/farkle.md) for the build spe
 
 ### 19. Add Apples to Apples
 
-A new card-matching game. See [`docs/specs/apples-to-apples.md`](specs/apples-to-apples.md) for the build spec — currently a skeleton with open design questions, not yet ready to build from. Likely wants online-room support from day one (see #14), and should ship under its final, non-trademarked in-app name (see #17).
+A new card-matching game. See [`docs/specs/apples-to-apples.md`](specs/apples-to-apples.md) for the build spec — currently a skeleton with open design questions, not yet ready to build from. Likely wants online-room support from day one (see #14), and should ship under its final, non-trademarked in-app name (see #17). Shares its "private per-seat view" problem with Clear the Deck (#20) — whichever gets fully specced first should set the pattern the other reuses.
 
-### 20. Two-factor authentication toggle
+### 20. Add Clear the Deck
+
+A new turn-based, multi-deck shedding card game. See [`docs/specs/clear-the-deck.md`](specs/clear-the-deck.md) for the build spec — currently a skeleton with open design questions, not yet ready to build from. Shares Apples to Apples' (#19) need for a private per-seat view in online rooms, plus a harder problem neither other game has: face-down cards whose identity is hidden even from their own owner until played. Depends on #14 the same way #19 does.
+
+### 21. Two-factor authentication toggle
 
 `Features::twoFactorAuthentication()` is currently disabled in `config/fortify.php`. Enable it so users can turn on 2FA manually.
 
-### 21. Image avatars
+### 22. Image avatars
 
 `<x-avatar>` currently renders a generated initial-letter badge. Allow users to upload an image, or integrate Gravatar, as an alternative.
 
-### 22. Friends activity
+### 23. Friends activity
 
 The original app plan mentioned a friends-activity feed on the dashboard once, but no friends/social-graph table (follow requests? mutual-only follows?) exists anywhere in the schema. Needs an actual design decision — what "friends" means here — before any building starts.
