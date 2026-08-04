@@ -52,6 +52,27 @@ new class extends Component
     }
 
     /**
+     * Hard delete, matching what the schema already anticipates: passkeys/
+     * room_seats cascade-delete, hosted rooms cascade-delete, but
+     * game_participants.user_id merely nulls out (so other players' own
+     * shared-session history survives). A subsequent registration with the
+     * same email therefore just works -- the row is gone, so there's
+     * nothing to collide with or accidentally reactivate.
+     */
+    public function deleteAccount(): void
+    {
+        $user = $this->user();
+
+        Auth::guard(config('fortify.guard'))->logout();
+        session()->invalidate();
+        session()->regenerateToken();
+
+        $user->delete();
+
+        $this->redirect('/');
+    }
+
+    /**
      * @return \Illuminate\Database\Eloquent\Collection<int, \Laravel\Passkeys\Passkey>
      */
     public function getPasskeysProperty()
@@ -148,6 +169,24 @@ new class extends Component
                 <button type="button" id="clear-stats-confirm" data-dialog-close wire:click="clearStats"
                     class="flex-1 rounded px-6 py-2 font-bold tracking-wide bg-surface border-2 border-warn text-warn">
                     Clear All Stats
+                </button>
+            </x-slot:confirm>
+        </x-confirm-dialog>
+
+        <p class="text-sm text-text/80 text-center">
+            Permanently delete your account and all of your game history. This can't be undone.
+        </p>
+
+        <button type="button" id="delete-account-trigger" data-dialog-open="delete-account-confirm-dialog" class="w-full">
+            Delete Account
+        </button>
+
+        <x-confirm-dialog id="delete-account-confirm-dialog" title="Delete your account?"
+            message="This permanently deletes your account and all of your game history. This can't be undone.">
+            <x-slot:confirm>
+                <button type="button" id="delete-account-confirm" data-dialog-close wire:click="deleteAccount"
+                    class="flex-1 rounded px-6 py-2 font-bold tracking-wide bg-surface border-2 border-warn text-warn">
+                    Delete Account
                 </button>
             </x-slot:confirm>
         </x-confirm-dialog>
