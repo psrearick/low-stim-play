@@ -106,7 +106,7 @@ new class extends Component
 
     public ?string $message = null;
 
-    public function mount(BoardGenerator $boardGenerator): void
+    public function mount(BoardGenerator $boardGenerator, Solver $solver): void
     {
         if ($this->room !== null) {
             $session = Room::where('code', $this->room)->firstOrFail()->gameSession;
@@ -129,6 +129,32 @@ new class extends Component
         $this->board = $boardGenerator->generate($this->size, $this->seed);
         $this->startedAt = now()->timestamp;
         $this->endsAt = $this->minutes > 0 ? now()->addMinutes($this->minutes)->timestamp : null;
+
+        // Rejoining an already-finished shared session (e.g. a page refresh
+        // right as the room's game ends) used to silently start a brand
+        // new attempt -- $ended defaults false on every fresh mount, with
+        // nothing checking whether this user already has a GameParticipant
+        // row for this session. That let the same account finish the same
+        // shared game twice, creating a second row via finishGame()'s
+        // create() call below and corrupting SharedSessionFinalizer's
+        // per-word finder counts (a real duplicate pair, same session and
+        // user, found in production data -- see docs/DEVLOG.md). Only
+        // guarded for authenticated users: a guest's identity isn't stable
+        // across a reload (every guest in a session shares user_id ===
+        // null), so there's nothing reliable to key a restore on.
+        if ($this->isSharedSession && Auth::check()) {
+            $participant = GameParticipant::query()
+                ->where('game_session_id', $session->id)
+                ->where('user_id', Auth::id())
+                ->first();
+
+            if ($participant !== null) {
+                $this->ended = true;
+                $this->score = $participant->score;
+                $this->foundWords = $participant->stats['found_words'] ?? [];
+                $this->allValidWords = $solver->solve($this->board);
+            }
+        }
     }
 
     public function selectCell(int $index): void
@@ -316,22 +342,37 @@ new class extends Component
             $this->gameSessionId = $session->id;
         }
 
-        $participant = GameParticipant::create([
-            'game_session_id' => $session->id,
-            'user_id' => Auth::id(),
-            'guest_name' => Auth::check() ? null : 'Guest',
-            'score' => $this->score,
-            'stats' => [
-                'words_found' => count($this->foundWords),
-                'found_words' => $this->foundWords,
-                // The board's full solved word list, already computed above
-                // to render the reveal screen -- persisting just the count
-                // is what lets the profile's Boggle stats show "X% of the
-                // board found" without re-running the Solver (an ~80k-word
-                // dictionary build) for every historical game on every view.
-                'total_valid_words' => count($this->allValidWords),
-            ],
-        ]);
+        $stats = [
+            'words_found' => count($this->foundWords),
+            'found_words' => $this->foundWords,
+            // The board's full solved word list, already computed above
+            // to render the reveal screen -- persisting just the count
+            // is what lets the profile's Boggle stats show "X% of the
+            // board found" without re-running the Solver (an ~80k-word
+            // dictionary build) for every historical game on every view.
+            'total_valid_words' => count($this->allValidWords),
+        ];
+
+        // updateOrCreate (not create) for an authenticated user -- mount()
+        // above now restores $ended before this can normally run twice,
+        // but this is the actual data-integrity guarantee: even if it did
+        // run twice (a race between two tabs, say), the same account can
+        // never end up with two GameParticipant rows for the same session.
+        // Guests skip this: every guest in a session shares user_id ===
+        // null, so there's no stable key to updateOrCreate on without
+        // risking overwriting a *different* guest's row.
+        $participant = Auth::check()
+            ? GameParticipant::updateOrCreate(
+                ['game_session_id' => $session->id, 'user_id' => Auth::id()],
+                ['guest_name' => null, 'score' => $this->score, 'stats' => $stats],
+            )
+            : GameParticipant::create([
+                'game_session_id' => $session->id,
+                'user_id' => null,
+                'guest_name' => 'Guest',
+                'score' => $this->score,
+                'stats' => $stats,
+            ]);
 
         if ($this->isSharedSession) {
             $finalizer->finalize($session);

@@ -106,6 +106,90 @@ test('the reveal screen shows the other player once they have also finished', fu
         ->assertSee('Alex: 8');
 });
 
+/**
+ * Regression coverage for a real duplicate-row bug found by inspecting
+ * production data: mount() never checked whether the acting user already
+ * had a GameParticipant row for this shared session, so reloading the
+ * page right after finishing (e.g. a page refresh) started a fresh,
+ * replayable attempt and finishGame() created a second row for the same
+ * session/user on completion -- corrupting SharedSessionFinalizer's
+ * per-word finder counts along the way. See docs/DEVLOG.md's Boggle
+ * section for the full story.
+ */
+test('remounting a finished shared session restores the ended state instead of allowing a replay', function () {
+    $player = User::factory()->create();
+    $session = GameSession::factory()->create([
+        'type' => GameType::Boggle,
+        'mode' => GameMode::Solo,
+        'settings' => ['size' => 4, 'seed' => 7, 'minutes' => 3],
+    ]);
+
+    Livewire::actingAs($player)
+        ->test('pages::boggle.play', ['size' => 4, 'minutes' => 3, 'challenge' => $session->id])
+        ->set('foundWords', ['owl' => 5])
+        ->set('score', 5)
+        ->call('endGame');
+
+    expect(GameParticipant::count())->toBe(1);
+
+    // A fresh mount -- standing in for a page refresh -- must not let the
+    // same account start a brand new, replayable attempt at this session.
+    Livewire::actingAs($player)
+        ->test('pages::boggle.play', ['size' => 4, 'minutes' => 3, 'challenge' => $session->id])
+        ->assertSet('ended', true)
+        ->assertSet('score', 5)
+        ->assertSet('foundWords', ['owl' => 5]);
+
+    expect(GameParticipant::count())->toBe(1);
+});
+
+test('finishing the same shared session twice for the same account updates one row instead of creating a duplicate', function () {
+    $player = User::factory()->create();
+    $session = GameSession::factory()->create([
+        'type' => GameType::Boggle,
+        'mode' => GameMode::Solo,
+        'settings' => ['size' => 4, 'seed' => 7, 'minutes' => 3],
+    ]);
+
+    // Simulates the race the bug allowed: two separate component instances
+    // (e.g. two tabs, or a reload racing the "already ended" check) both
+    // reach finishGame() for the same account before either sees the
+    // other's row -- the persistence layer itself must still de-duplicate.
+    Livewire::actingAs($player)
+        ->test('pages::boggle.play', ['size' => 4, 'minutes' => 3, 'challenge' => $session->id])
+        ->set('foundWords', ['owl' => 5])
+        ->set('score', 5)
+        ->call('endGame');
+
+    Livewire::actingAs($player)
+        ->test('pages::boggle.play', ['size' => 4, 'minutes' => 3, 'seed' => 7, 'challenge' => $session->id])
+        ->set('ended', false)
+        ->set('foundWords', ['owl' => 5, 'fox' => 7])
+        ->set('score', 12)
+        ->call('endGame');
+
+    expect(GameParticipant::where('user_id', $player->id)->count())->toBe(1);
+    expect(GameParticipant::where('user_id', $player->id)->sole()->score)->toBe(12);
+});
+
+test('guest players are unaffected by the authenticated-user duplicate guard', function () {
+    $session = GameSession::factory()->create([
+        'type' => GameType::Boggle,
+        'mode' => GameMode::Solo,
+        'settings' => ['size' => 4, 'seed' => 7, 'minutes' => 3],
+    ]);
+
+    Livewire::test('pages::boggle.play', ['size' => 4, 'minutes' => 3, 'challenge' => $session->id])
+        ->set('foundWords', ['owl' => 5])
+        ->set('score', 5)
+        ->call('endGame');
+
+    Livewire::test('pages::boggle.play', ['size' => 4, 'minutes' => 3, 'challenge' => $session->id])
+        ->assertSet('ended', false);
+
+    expect(GameParticipant::whereNull('user_id')->count())->toBe(1);
+});
+
 test('resetting is a no-op for a challenge game', function () {
     $session = GameSession::factory()->create([
         'type' => GameType::Boggle,
