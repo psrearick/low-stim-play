@@ -118,10 +118,11 @@ new class extends Component
                 clicking anywhere in its cells still activates it, since
                 hit-testing/`:hover` follow DOM ancestry, not box geometry.
             --}}
-            <div class="w-full bg-surface border-2 border-surface-border rounded-lg overflow-hidden">
-                <div class="grid" style="grid-template-columns: 1.3fr 1.1fr 0.7fr 0.8fr 0.9fr 0.7fr;">
+            <div class="w-full overflow-x-auto bg-surface border-2 border-surface-border rounded-lg">
+                <div class="grid min-w-[640px]" style="grid-template-columns: 1.3fr 1.1fr 0.7fr 0.7fr 0.8fr 0.9fr 0.7fr;">
                     <span class="pl-6 pr-3 py-4 text-xs text-text/65 font-bold">Date</span>
                     <span class="px-3 py-4 text-xs text-text/65 font-bold">Mode</span>
+                    <span class="px-3 py-4 text-xs text-text/65 font-bold">Result</span>
                     <span class="px-3 py-4 text-xs text-text/65 font-bold">Score</span>
                     <span class="px-3 py-4 text-xs text-text/65 font-bold">Words</span>
                     <span class="px-3 py-4 text-xs text-text/65 font-bold">Longest</span>
@@ -132,6 +133,13 @@ new class extends Component
                         <a wire:key="game-{{ $participant->id }}" href="{{ route('profile.boggle.show', $participant) }}" class="contents group">
                             <span class="pl-6 pr-3 py-3 border-t border-surface-border text-sm text-text/65 group-hover:bg-bg/60">{{ $participant->created_at->diffForHumans() }}</span>
                             <span class="px-3 py-3 border-t border-surface-border text-sm text-text/65 group-hover:bg-bg/60">{{ $participant->gameSession->mode->label() }}</span>
+                            {{--
+                                Only online-room games ever get a result --
+                                solo/practice play has no opponent to win or
+                                lose against, so `result` stays null there
+                                (see docs/DEVLOG.md's Boggle win-rate entry).
+                            --}}
+                            <span class="px-3 py-3 border-t border-surface-border text-sm {{ $participant->result === \App\Enums\GameResult::Win ? 'text-accent' : 'text-text/65' }} group-hover:bg-bg/60">{{ $participant->result ? ucfirst($participant->result->value) : '—' }}</span>
                             <span class="px-3 py-3 border-t border-surface-border text-sm text-text group-hover:bg-bg/60">{{ $participant->score }}</span>
                             <span class="px-3 py-3 border-t border-surface-border text-sm text-text/80 group-hover:bg-bg/60">{{ $stats['wordsFound'] }}</span>
                             <span class="px-3 py-3 border-t border-surface-border text-sm text-text/80 group-hover:bg-bg/60">{{ $stats['longestWord'] ? strtoupper($stats['longestWord']) : '—' }}</span>

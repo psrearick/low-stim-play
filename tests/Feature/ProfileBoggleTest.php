@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\GameMode;
+use App\Enums\GameResult;
 use App\Enums\GameType;
 use App\Models\GameParticipant;
 use App\Models\GameSession;
@@ -13,14 +14,15 @@ uses(RefreshDatabase::class);
 /**
  * @param  array<string, int>  $foundWords
  */
-function boggleParticipantFor(User $user, array $foundWords = ['cat' => 1], int $score = 1, ?int $totalValidWords = null): GameParticipant
+function boggleParticipantFor(User $user, array $foundWords = ['cat' => 1], int $score = 1, ?int $totalValidWords = null, GameMode $mode = GameMode::Solo, ?GameResult $result = null): GameParticipant
 {
-    $session = GameSession::factory()->create(['type' => GameType::Boggle, 'mode' => GameMode::Solo]);
+    $session = GameSession::factory()->create(['type' => GameType::Boggle, 'mode' => $mode]);
 
     return GameParticipant::factory()->create([
         'game_session_id' => $session->id,
         'user_id' => $user->id,
         'score' => $score,
+        'result' => $result,
         'stats' => array_filter([
             'words_found' => count($foundWords),
             'found_words' => $foundWords,
@@ -61,6 +63,19 @@ test('the boggle stats index only shows the current user\'s own games', function
         ->test('pages::profile.boggle.index')
         ->assertCount('games', 1)
         ->assertDontSee('ZEBRA');
+});
+
+test('the boggle stats index shows a win/loss result for online games and a dash for solo games', function () {
+    $user = User::factory()->create();
+    boggleParticipantFor($user, ['cat' => 1], 5, mode: GameMode::Online, result: GameResult::Win);
+    boggleParticipantFor($user, ['dog' => 1], 0, mode: GameMode::Online, result: GameResult::Loss);
+    boggleParticipantFor($user, ['owl' => 1], 3, mode: GameMode::Solo);
+
+    $this->actingAs($user)
+        ->get('/profile/boggle')
+        ->assertSee('Win')
+        ->assertSee('Loss')
+        ->assertSee('—');
 });
 
 test('the boggle stats index links each personal best to the game it came from', function () {
