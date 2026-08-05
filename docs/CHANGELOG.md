@@ -4,6 +4,7 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 
 ## 2026-08-05
 
+- `6b5b5fa` — Added a Result stat tile to the individual Boggle game page (omitted, not a dash, for solo games); Yahtzee/Family Feud already had this.
 - `f866d72` — Added a win/loss Result column to Boggle's All Games table (dash for solo games); also gave the now-wider table horizontal scroll on mobile instead of squashed columns.
 - `51d54ca` — Added a paginated "All Games" stats page (`/profile/games`), listing every game across all types for the acting user, linked from the dashboard.
 - `eb43262` — Fixed Boggle's dashboard win-rate calculation: restricted to online-room games, excluding any session where every participant scored zero; games played/avg score untouched. Added test coverage.
