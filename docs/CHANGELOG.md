@@ -4,6 +4,7 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 
 ## 2026-08-05
 
+- `41ddea5` — Defaulted "Remember me" to checked on password login (matching passkey logins) and raised SESSION_LIFETIME to a year; users should now stay signed in for a long time instead of hitting a 2-hour idle cliff.
 - `7db0d27` — Rewrote the Family Feud homepage card's description to explain the actual gameplay instead of the AI-judge implementation detail.
 - `4f3bf33` — Fixed the remaining stats tables not scrolling on mobile (Yahtzee/Family Feud All Games tables, dashboard/public-profile recent-games list); added real-browser scroll-overflow tests.
 - `6b5b5fa` — Added a Result stat tile to the individual Boggle game page (omitted, not a dash, for solo games); Yahtzee/Family Feud already had this.
