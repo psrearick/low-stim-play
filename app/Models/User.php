@@ -44,11 +44,12 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
 
     /**
      * Creates (but does not log in) a throwaway account for someone joining
-     * an online Boggle room without registering. A real `users` row is the
-     * only way to satisfy Laravel's presence-channel authorization, which
-     * always authenticates via the guard and has no "anonymous" option --
-     * `is_guest` is what stops one of these from being able to host a room
-     * of their own.
+     * or hosting an online room without registering. A real `users` row is
+     * the only way to satisfy Laravel's presence-channel authorization,
+     * which always authenticates via the guard and has no "anonymous"
+     * option. `is_guest` marks it as one of these rather than a real
+     * account -- see `App\Console\Commands\PruneGuestAccounts` for how
+     * these eventually get cleaned up.
      */
     public static function createGuest(?string $name = null): self
     {
