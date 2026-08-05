@@ -358,6 +358,46 @@ test('the within-team turn pointer rotates to the next teammate after each resol
         ->assertSet('strikes', 2);
 });
 
+/**
+ * Regression test for a real bug found while fixing an unrelated one in
+ * Farkle: Livewire's legacy getXxxProperty() convention memoizes each
+ * computed property's value the first time it's read within a request.
+ * swapControl() used to read $this->isMyTurn in its own guard *before*
+ * flipping $controllingTeam -- caching the pre-swap (true) answer -- and
+ * Blade's later render of the same property in the same response
+ * silently reused that stale cached value instead of recomputing against
+ * the new controllingTeam. Concretely: right after tapping "Swap Team,"
+ * the tapper's own screen kept showing the guess form instead of
+ * switching to "Waiting for {other team}...". Fixed by having
+ * swapControl() (and submitGuess()/retryGuess()/skipQuestion()) call a
+ * private, uncached isMyTurnValue() instead of the public cached
+ * property -- see pages::farkle.play's own identical fix for the full
+ * story. Asserting the raw rendered HTML (not just the Livewire
+ * property) is what actually catches this class of bug.
+ */
+test('isMyTurn correctly reflects the fresh state after swapControl, not the pre-swap value', function () {
+    seedFeudQuestions();
+
+    $users = User::factory()->count(4)->create();
+    $room = Room::factory()->create(['host_user_id' => $users[0]->id]);
+
+    // Team 0 = seats 0 (host), 2; team 1 = seats 1, 3. controllingTeam
+    // starts at 0 (first question), whose turn pointer starts at seat 0.
+    startFeudRoomWithDefaultTeams($room, $users->all());
+
+    $component = Livewire::actingAs($users[0])
+        ->test('pages::family-feud.play', ['room' => $room->code])
+        ->assertSet('isMyTurn', true)
+        ->assertSeeHtml('guess-form')
+        ->call('swapControl');
+
+    // Team 1 is now controlling -- seat 0 (team 0) is no longer the
+    // acting seat, regardless of what its own guard cached mid-request.
+    $component->assertSet('isMyTurn', false)
+        ->assertSeeHtml('Waiting for')
+        ->assertDontSeeHtml('guess-form');
+});
+
 test('only the stealing team\'s captain can act during Steal, not just any teammate', function () {
     seedFeudQuestions();
 

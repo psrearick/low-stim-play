@@ -377,7 +377,7 @@ new class extends Component
 
     public function submitGuess(JudgeService $judge): void
     {
-        abort_unless($this->room === null || $this->isMyTurn, 403);
+        abort_unless($this->room === null || $this->isMyTurnValue(), 403);
 
         $guess = trim($this->guessInput);
 
@@ -391,7 +391,7 @@ new class extends Component
 
     public function retryGuess(JudgeService $judge): void
     {
-        abort_unless($this->room === null || $this->isMyTurn, 403);
+        abort_unless($this->room === null || $this->isMyTurnValue(), 403);
 
         if ($this->pendingGuess === null) {
             return;
@@ -544,7 +544,7 @@ new class extends Component
 
     public function skipQuestion(): void
     {
-        abort_unless($this->room === null || $this->isMyTurn, 403);
+        abort_unless($this->room === null || $this->isMyTurnValue(), 403);
 
         $usedIds = collect($this->questions)->pluck('id');
         $replacement = FamilyFeudQuestion::whereNotIn('id', $usedIds)->inRandomOrder()->first();
@@ -569,7 +569,7 @@ new class extends Component
 
     public function swapControl(): void
     {
-        abort_unless($this->room === null || $this->isMyTurn, 403);
+        abort_unless($this->room === null || $this->isMyTurnValue(), 403);
 
         $this->controllingTeam = 1 - $this->controllingTeam;
         $this->turnOptionsOpen = false;
@@ -854,10 +854,34 @@ new class extends Component
      * Always true for local pass-and-play (no seat to check); for an
      * online room, true only for the seat actually allowed to guess right
      * now. Mirrors pages::yahtzee.play's own isMyTurn exactly.
+     *
+     * Private and uncached deliberately -- see pages::farkle.play's own
+     * identical split (canRollAgainValue()/canBankValue() etc.) for the
+     * full story. Livewire's legacy getXxxProperty() convention memoizes
+     * a property's value the first time it's read within a request.
+     * submitGuess()/retryGuess()/skipQuestion()/swapControl() all used to
+     * read $this->isMyTurn as their own guard *before* mutating
+     * $phase/$controllingTeam/$teamTurnPointer -- exactly the state
+     * currentActingSeatIndex() depends on -- caching the pre-mutation
+     * answer. Blade's later render of $this->isMyTurn (the public getter
+     * below) then silently reused that stale value instead of
+     * recomputing against the new phase/pointer/controlling team.
+     * Concretely: right after tapping "Swap Team," the tapper's own
+     * screen kept showing the guess form instead of switching to
+     * "Waiting for {other team}...", since isMyTurn was cached true
+     * before controllingTeam flipped. Every action now calls this
+     * private, always-fresh version instead; the public getter is only
+     * ever read by Blade, so its first (and only) cache population per
+     * request is always post-mutation.
      */
-    public function getIsMyTurnProperty(): bool
+    private function isMyTurnValue(): bool
     {
         return $this->room === null || $this->mySeatIndex === $this->currentActingSeatIndex();
+    }
+
+    public function getIsMyTurnProperty(): bool
+    {
+        return $this->isMyTurnValue();
     }
 
     public function getTurnStatusProperty(): string
