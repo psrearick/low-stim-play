@@ -4,6 +4,8 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 
 ## 2026-08-05
 
+- `ada75d4` — Added Farkle: a new dice game with standard scoring, hot dice, a configurable target score/final round, and both pass-and-play and online rooms at launch.
+- `46eda6a` — Answered docs/specs/farkle.md's open design questions (scoring, win condition, modes, hot dice) per user decisions; spec is now ready to build from.
 - `4738279` — Renamed Boggle, Yahtzee, and Family Feud to Word Grid, Yacht, and Survey Says everywhere a user can see the name, to avoid trademark issues; routes/enum values/class names/CSS classes left unchanged.
 - `91fe114` — Added a daily-scheduled `users:prune-guests` command that deletes guest accounts older than 24 hours.
 - `7af7613` — Allowed hosting online rooms while logged out (auto-provisions a guest account, same as joining already did); removed the real-account gate from all three setup screens' Host button.
