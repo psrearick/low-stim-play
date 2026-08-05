@@ -69,9 +69,9 @@ Route::livewire('/boggle/group', 'pages::boggle.group')->name('boggle.group');
 // No auth middleware: presence channels (see routes/channels.php) always
 // require an authenticated guard user, so pages::boggle.room's mount()
 // auto-provisions (and logs in) a throwaway guest account for anyone who
-// arrives here without one -- see User::createGuest(). Joining a room
-// doesn't need a real account; hosting one (boggle-lobby's createRoom())
-// still does.
+// arrives here without one -- see User::createGuest(). Neither joining nor
+// hosting (boggle-lobby's createRoom(), same provisioning) needs a real
+// account.
 Route::livewire('/boggle/room/{code}', 'pages::boggle.room')
     ->name('boggle.room');
 
@@ -99,9 +99,9 @@ Route::livewire('/yahtzee', 'pages::yahtzee.play')->name('yahtzee.play');
 Route::livewire('/yahtzee/roller', 'pages::yahtzee.roller')->name('yahtzee.roller');
 
 // No auth middleware -- same reasoning as boggle.room: pages::yahtzee.room's
-// mount() auto-provisions a guest account for anyone arriving without one.
-// Hosting (creating the Room, from pages::yahtzee.play's own setup screen)
-// still requires a real, non-guest account.
+// mount() auto-provisions a guest account for anyone arriving without one,
+// and hosting (creating the Room, from pages::yahtzee.play's own setup
+// screen) uses the same provisioning rather than requiring a real account.
 Route::livewire('/yahtzee/room/{code}', 'pages::yahtzee.room')
     ->name('yahtzee.room');
 
@@ -114,7 +114,6 @@ Route::livewire('/family-feud', 'pages::family-feud.play')->name('family-feud.pl
 
 // No auth middleware -- same reasoning as boggle.room/yahtzee.room:
 // pages::family-feud.room's mount() auto-provisions a guest account for
-// anyone arriving without one. Hosting still requires a real, non-guest
-// account.
+// anyone arriving without one, and hosting uses the same provisioning.
 Route::livewire('/family-feud/room/{code}', 'pages::family-feud.room')
     ->name('family-feud.room');

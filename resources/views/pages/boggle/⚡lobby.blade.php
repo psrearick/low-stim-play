@@ -15,10 +15,19 @@ new class extends Component
 
     public function createRoom(): void
     {
-        // Belt-and-suspenders alongside the template only showing this
-        // button to a real (non-guest) account -- hosting a room always
-        // needs one, unlike joining one.
-        abort_unless(Auth::check() && ! Auth::user()->is_guest, 403);
+        // Hosting while logged out now works the same way joining already
+        // did -- see joinRoom() below for why a guest account (not true
+        // anonymity) is required either way. An *existing* guest (already
+        // authenticated as one, e.g. from having joined a room earlier)
+        // does not get a second throwaway account created on top -- only a
+        // genuinely unauthenticated visitor does.
+        if (Auth::guest()) {
+            Auth::login(User::createGuest($this->guestName));
+
+            if (request()->hasSession()) {
+                request()->session()->regenerate();
+            }
+        }
 
         $room = Room::create(['host_user_id' => Auth::id()]);
 
@@ -67,15 +76,13 @@ new class extends Component
     <livewire:boggle-setup />
 
     <div class="setup">
-        @if (Auth::check() && ! Auth::user()->is_guest)
-            <button type="button" wire:click="createRoom">Host an Online Room</button>
-
-            <div class="status-line">or</div>
-        @endif
-
         @unless (Auth::check() && ! Auth::user()->is_guest)
             <input type="text" wire:model="guestName" maxlength="24" placeholder="Your name (optional)">
         @endunless
+
+        <button type="button" wire:click="createRoom">Host an Online Room</button>
+
+        <div class="status-line">or</div>
 
         <form wire:submit="joinRoom" class="flex gap-2 w-full">
             <input type="text" id="join" wire:model="joinID" placeholder="Room ID" autocomplete="off" style="flex: 1; text-transform: uppercase;">
@@ -85,10 +92,6 @@ new class extends Component
         @if ($joinError)
             <p class="status-line" style="color: var(--warn);">{{ $joinError }}</p>
         @endif
-
-        @unless (Auth::check() && ! Auth::user()->is_guest)
-            <p class="status-line"><a href="{{ route('login') }}" style="color: var(--bar);">Sign in</a> to host an online room.</p>
-        @endunless
     </div>
 </div>
 

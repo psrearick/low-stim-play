@@ -90,25 +90,29 @@ function startFeudRoomWithDefaultTeams(Room $room, array $users): array
     return [$component, $players];
 }
 
-test('the setup screen only shows the host button to a real account', function () {
+test('the setup screen always shows the host button, regardless of auth state', function () {
     $guest = User::createGuest('Alex');
 
-    $this->actingAs($guest)->get('/family-feud')->assertDontSee('Host an Online Room');
+    $this->actingAs($guest)->get('/family-feud')->assertSee('Host an Online Room');
 
     $user = User::factory()->create();
 
     $this->actingAs($user)->get('/family-feud')->assertSee('Host an Online Room');
+
+    $this->get('/family-feud')->assertSee('Host an Online Room');
 });
 
-test('a guest cannot host a room', function () {
-    $guest = User::createGuest('Alex');
-
-    Livewire::actingAs($guest)
-        ->test('pages::family-feud.play')
+test('a logged-out visitor can host a room, auto-provisioning a guest account', function () {
+    Livewire::test('pages::family-feud.play')
+        ->set('guestName', 'Alex')
         ->call('createRoom')
-        ->assertForbidden();
+        ->assertRedirect();
 
-    expect(Room::count())->toBe(0);
+    $room = Room::sole();
+    $host = User::find($room->host_user_id);
+
+    expect($host->is_guest)->toBeTrue()
+        ->and($host->name)->toBe('Alex');
 });
 
 test('joining with a valid code redirects to the family feud room', function () {

@@ -16,10 +16,9 @@ use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
 
-test('guests are prompted to sign in to host, but can still see the join form', function () {
+test('logged-out visitors see both the host button and the join form', function () {
     $this->get('/boggle')
-        ->assertSee('Sign in')
-        ->assertDontSee('Host an Online Room')
+        ->assertSee('Host an Online Room')
         ->assertSee('Room ID');
 });
 
@@ -86,25 +85,43 @@ test('joining a room from the lobby without an account creates a guest and uses 
         ->and($guest->name)->toBe('Alex');
 });
 
-test('a guest cannot host a room', function () {
+test('an already-authenticated guest can host a room without a second throwaway account being created', function () {
     $guest = User::createGuest('Alex');
 
     Livewire::actingAs($guest)
         ->test('pages::boggle.lobby')
         ->call('createRoom')
-        ->assertForbidden();
+        ->assertRedirect();
 
-    expect(Room::count())->toBe(0);
+    $room = Room::sole();
+
+    expect($room->host_user_id)->toBe($guest->id)
+        ->and(User::count())->toBe(1);
 });
 
-test('the lobby only shows the host button to a real account', function () {
+test('a logged-out visitor can host a room, auto-provisioning a guest account', function () {
+    Livewire::test('pages::boggle.lobby')
+        ->set('guestName', 'Alex')
+        ->call('createRoom')
+        ->assertRedirect();
+
+    $room = Room::sole();
+    $host = User::find($room->host_user_id);
+
+    expect($host->is_guest)->toBeTrue()
+        ->and($host->name)->toBe('Alex');
+});
+
+test('the lobby always shows the host button, regardless of auth state', function () {
     $guest = User::createGuest('Alex');
 
-    $this->actingAs($guest)->get('/boggle')->assertDontSee('Host an Online Room');
+    $this->actingAs($guest)->get('/boggle')->assertSee('Host an Online Room');
 
     $user = User::factory()->create();
 
     $this->actingAs($user)->get('/boggle')->assertSee('Host an Online Room');
+
+    $this->get('/boggle')->assertSee('Host an Online Room');
 });
 
 test('an unknown room code 404s', function () {

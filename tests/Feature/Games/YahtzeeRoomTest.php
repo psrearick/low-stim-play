@@ -44,25 +44,29 @@ function readyUpAndStart(Room $room, User $host, User $guest): array
     ];
 }
 
-test('the setup screen only shows the host button to a real account', function () {
+test('the setup screen always shows the host button, regardless of auth state', function () {
     $guest = User::createGuest('Alex');
 
-    $this->actingAs($guest)->get('/yahtzee')->assertDontSee('Host an Online Room');
+    $this->actingAs($guest)->get('/yahtzee')->assertSee('Host an Online Room');
 
     $user = User::factory()->create();
 
     $this->actingAs($user)->get('/yahtzee')->assertSee('Host an Online Room');
+
+    $this->get('/yahtzee')->assertSee('Host an Online Room');
 });
 
-test('a guest cannot host a room', function () {
-    $guest = User::createGuest('Alex');
-
-    Livewire::actingAs($guest)
-        ->test('pages::yahtzee.play')
+test('a logged-out visitor can host a room, auto-provisioning a guest account', function () {
+    Livewire::test('pages::yahtzee.play')
+        ->set('guestName', 'Alex')
         ->call('createRoom')
-        ->assertForbidden();
+        ->assertRedirect();
 
-    expect(Room::count())->toBe(0);
+    $room = Room::sole();
+    $host = User::find($room->host_user_id);
+
+    expect($host->is_guest)->toBeTrue()
+        ->and($host->name)->toBe('Alex');
 });
 
 test('joining with a valid code redirects to the yahtzee room', function () {
