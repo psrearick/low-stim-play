@@ -4,6 +4,7 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 
 ## 2026-08-05
 
+- `91fe114` — Added a daily-scheduled `users:prune-guests` command that deletes guest accounts older than 24 hours.
 - `7af7613` — Allowed hosting online rooms while logged out (auto-provisions a guest account, same as joining already did); removed the real-account gate from all three setup screens' Host button.
 - `340260b` — Decoupled online rooms from specific games (switch games mid-room via new "or play something else in this room" buttons, same code/seats); also fixed a real pre-existing bug where a genuine room replay 500'd on a UNIQUE constraint violation.
 - `63f809a` — Added a persistent sidebar (Dashboard/All Games/Boggle/Yahtzee/Family Feud Stats/Edit Profile/Log Out) covering the Dashboard/Profile/Stats pages, replacing each page's own inconsistent Dashboard-button/back-link; off-canvas panel on mobile.
