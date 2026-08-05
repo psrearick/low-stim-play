@@ -2,6 +2,10 @@
 
 A terse, commit-by-commit record of what changed, newest first. No rationale or decisions here — see `docs/DEVLOG.md` for the *why* behind anything listed here, organized by feature instead of by commit. See `docs/TODO.md` for what's still outstanding.
 
+## 2026-08-05
+
+- `eb43262` — Fixed Boggle's dashboard win-rate calculation: restricted to online-room games, excluding any session where every participant scored zero; games played/avg score untouched. Added test coverage.
+
 ## 2026-08-04
 
 - `6d23a2f` — Fixed a real duplicate-`GameParticipant`-row bug in shared Boggle sessions (mount() didn't restore already-finished state, so a reload allowed a replay); cleaned up the two confirmed-stale rows in the dev database; added regression tests.
