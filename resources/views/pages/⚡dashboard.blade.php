@@ -63,4 +63,8 @@ new class extends Component
     </div>
 
     <x-player-stats :stats="$this->stats" :recent-games="$this->recentGames" :linkable="true" />
+
+    <a href="{{ route('profile.games') }}" class="text-sm text-text/65 hover:text-text underline">
+        View all games &rarr;
+    </a>
 </div>

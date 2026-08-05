@@ -7,6 +7,7 @@ use App\Enums\GameResult;
 use App\Enums\GameType;
 use App\Models\GameParticipant;
 use App\Models\User;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 
 class PlayerStatsService
@@ -85,5 +86,21 @@ class PlayerStatsService
             ->latest('id')
             ->limit($limit)
             ->get();
+    }
+
+    /**
+     * Every game the user has played, across every game type, newest
+     * first -- the same shape/ordering as recentGames(), just paginated
+     * instead of capped to a handful, for the "All Games" page.
+     *
+     * @return LengthAwarePaginator<int, GameParticipant>
+     */
+    public function allGamesPaginated(User $user, int $perPage = 20)
+    {
+        return $user->gameParticipants()
+            ->with('gameSession')
+            ->latest()
+            ->latest('id')
+            ->paginate($perPage);
     }
 }

@@ -49,6 +49,11 @@ Route::livewire('/profile/family-feud/{gameParticipant}', 'pages::profile.family
     ->middleware(['auth', 'verified'])
     ->name('profile.family-feud.show');
 
+// Same registration-order reasoning as /profile/boggle etc. above.
+Route::livewire('/profile/games', 'pages::profile.games.index')
+    ->middleware(['auth', 'verified'])
+    ->name('profile.games');
+
 // Public profile -- distinct route from /profile above (that's the
 // authenticated user's own editable profile); this is a read-only view of
 // anyone's, gated by their own is_public flag rather than auth middleware.
