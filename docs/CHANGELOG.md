@@ -4,6 +4,7 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 
 ## 2026-08-05
 
+- `340260b` — Decoupled online rooms from specific games (switch games mid-room via new "or play something else in this room" buttons, same code/seats); also fixed a real pre-existing bug where a genuine room replay 500'd on a UNIQUE constraint violation.
 - `63f809a` — Added a persistent sidebar (Dashboard/All Games/Boggle/Yahtzee/Family Feud Stats/Edit Profile/Log Out) covering the Dashboard/Profile/Stats pages, replacing each page's own inconsistent Dashboard-button/back-link; off-canvas panel on mobile.
 - `41ddea5` — Defaulted "Remember me" to checked on password login (matching passkey logins) and raised SESSION_LIFETIME to a year; users should now stay signed in for a long time instead of hitting a 2-hour idle cliff.
 - `7db0d27` — Rewrote the Family Feud homepage card's description to explain the actual gameplay instead of the AI-judge implementation detail.
