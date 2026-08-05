@@ -45,7 +45,7 @@
         </div>
         <div class="game-card">
             <div class="game-card-title">Family Feud</div>
-            <p class="game-card-desc">A single shared screen for family game night &mdash; an AI judges guesses server-side, so there's no hidden host view to manage.</p>
+            <p class="game-card-desc">Two teams guess the most popular answers to survey-style questions. Points for each match; three strikes hands the other team a shot to steal the pot.</p>
             <div class="game-card-actions">
                 <a href="{{ route('family-feud.play') }}"><button type="button">Family Feud</button></a>
             </div>

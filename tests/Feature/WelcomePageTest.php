@@ -26,6 +26,15 @@ test('authenticated users see dashboard and log out links in the top bar', funct
         ->assertDontSee('Create an Account');
 });
 
+test('the Family Feud game card actually describes the game, not just the app\'s implementation of it', function () {
+    $this->get('/')
+        ->assertSee('Two teams guess the most popular answers to survey-style questions.', escape: false)
+        // The previous copy explained the AI-judge/single-screen
+        // implementation detail instead of what the game itself is --
+        // see docs/TODO.md's former #1.
+        ->assertDontSee('AI judges guesses server-side');
+});
+
 test('logging out from the homepage redirects back to a guest view', function () {
     $user = User::factory()->create();
 
