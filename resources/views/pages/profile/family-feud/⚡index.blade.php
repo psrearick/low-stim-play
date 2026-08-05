@@ -67,8 +67,8 @@ new class extends Component
                 its cells become direct grid items, keeping columns aligned
                 like a table).
             --}}
-            <div class="w-full bg-surface border-2 border-surface-border rounded-lg overflow-hidden">
-                <div class="grid" style="grid-template-columns: 1.3fr 1.1fr 0.8fr 0.7fr 0.9fr;">
+            <div class="w-full overflow-x-auto bg-surface border-2 border-surface-border rounded-lg">
+                <div class="grid min-w-[560px]" style="grid-template-columns: 1.3fr 1.1fr 0.8fr 0.7fr 0.9fr;">
                     <span class="pl-6 pr-3 py-4 text-xs text-text/65 font-bold">Date</span>
                     <span class="px-3 py-4 text-xs text-text/65 font-bold">Mode</span>
                     <span class="px-3 py-4 text-xs text-text/65 font-bold">Result</span>

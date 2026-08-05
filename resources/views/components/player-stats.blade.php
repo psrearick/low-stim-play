@@ -39,8 +39,8 @@
     @if ($recentGames->isEmpty())
         <p class="text-sm text-text/65 text-center">Nothing here yet.</p>
     @else
-        <div class="w-full bg-surface border-2 border-surface-border rounded-lg overflow-hidden">
-            <div class="grid" style="grid-template-columns: 1fr 1.2fr 0.8fr 0.8fr;">
+        <div class="w-full overflow-x-auto bg-surface border-2 border-surface-border rounded-lg">
+            <div class="grid min-w-[420px]" style="grid-template-columns: 1fr 1.2fr 0.8fr 0.8fr;">
                 @foreach ($recentGames as $participant)
                     <div wire:key="recent-{{ $participant->id }}" class="contents">
                         <span class="pl-6 pr-3 py-3 {{ $loop->first ? '' : 'border-t border-surface-border' }} text-sm font-bold text-text">
