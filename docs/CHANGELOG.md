@@ -4,6 +4,7 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 
 ## 2026-08-05
 
+- `3b58943` — Fixed the same stale-`isMyTurn` bug in Family Feud's submitGuess/retryGuess/skipQuestion/swapControl (found while auditing after the Farkle fix); added a regression test verified against the pre-fix code.
 - `efac313` — Fixed Farkle's scoring table (flat 4/5/6-of-a-kind values, plus straight/three-pairs/two-triplets), made Bank auto-include every scoring die, fixed several UI legibility/layout-jump issues, and fixed a real Livewire computed-property staleness bug in the Roll Again/Bank buttons.
 - `ada75d4` — Added Farkle: a new dice game with standard scoring, hot dice, a configurable target score/final round, and both pass-and-play and online rooms at launch.
 - `46eda6a` — Answered docs/specs/farkle.md's open design questions (scoring, win condition, modes, hot dice) per user decisions; spec is now ready to build from.
