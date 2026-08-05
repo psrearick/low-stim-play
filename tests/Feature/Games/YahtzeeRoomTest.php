@@ -31,7 +31,7 @@ uses(RefreshDatabase::class);
 function readyUpAndStart(Room $room, User $host, User $guest): array
 {
     Livewire::actingAs($host)
-        ->test('game-lobby', ['room' => $room])
+        ->test('game-lobby', ['room' => $room, 'currentGame' => GameType::Yahtzee])
         ->call('onJoining', ['id' => $host->id, 'name' => $host->name, 'is_host' => true])
         ->call('onJoining', ['id' => $guest->id, 'name' => $guest->name, 'is_host' => false])
         ->call('onReadyToggled', ['user_id' => $host->id, 'ready' => true])
@@ -127,6 +127,32 @@ test('starting the room twice does not create a second game session or duplicate
 
     expect(GameSession::count())->toBe(1)
         ->and(RoomSeat::count())->toBe(2);
+});
+
+test('a genuine replay (via game-lobby\'s own reset) does not duplicate seat rows', function () {
+    // Regression test: the previous test above only proves calling
+    // onRoomStarting() twice *in a row* (game_session_id already non-null
+    // the second time) is a no-op -- it never actually reset
+    // game_session_id in between, so it never exercised the real replay
+    // path. A genuine replay goes through game-lobby's startGame(), which
+    // *does* reset game_session_id to null on every "Start Game" click,
+    // not just the first -- and RoomSeat::create() used to run again
+    // unconditionally inside that reopened branch, leaving the *previous*
+    // game's seat rows in place and simply adding a second set on top.
+    $host = User::factory()->create();
+    $guest = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    $players = readyUpAndStart($room, $host, $guest);
+    Livewire::actingAs($host)->test('pages::yahtzee.room', ['code' => $room->code])->call('onRoomStarting', $players);
+
+    expect(RoomSeat::where('room_id', $room->id)->count())->toBe(2);
+
+    $players = readyUpAndStart($room, $host, $guest);
+    Livewire::actingAs($host)->test('pages::yahtzee.room', ['code' => $room->code])->call('onRoomStarting', $players);
+
+    expect(GameSession::where('type', GameType::Yahtzee)->count())->toBe(2)
+        ->and(RoomSeat::where('room_id', $room->id)->count())->toBe(2);
 });
 
 test('only the current seat can roll, and a non-current seat is forbidden', function () {

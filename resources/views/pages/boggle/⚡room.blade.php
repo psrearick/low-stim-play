@@ -152,5 +152,5 @@ new class extends Component
         </div>
     @endif
 
-    <livewire:game-lobby :room="$room" />
+    <livewire:game-lobby :room="$room" :current-game="GameType::Boggle" />
 </div>

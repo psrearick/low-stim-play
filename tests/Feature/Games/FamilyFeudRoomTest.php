@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\GameResult;
+use App\Enums\GameType;
 use App\Models\FamilyFeudQuestion;
 use App\Models\GameParticipant;
 use App\Models\GameSession;
@@ -37,7 +38,7 @@ function fakeFeudJudge(?int $matchIndex): void
  */
 function readyUpFeudRoom(Room $room, array $users): array
 {
-    $component = Livewire::actingAs($users[0])->test('game-lobby', ['room' => $room]);
+    $component = Livewire::actingAs($users[0])->test('game-lobby', ['room' => $room, 'currentGame' => GameType::FamilyFeud]);
 
     foreach ($users as $i => $user) {
         $component->call('onJoining', ['id' => $user->id, 'name' => $user->name, 'is_host' => $i === 0]);
@@ -267,6 +268,32 @@ test('starting the room twice does not create a second game session or duplicate
 
     expect(GameSession::count())->toBe(1)
         ->and(RoomSeat::count())->toBe(2);
+});
+
+test('a genuine replay (via game-lobby\'s own reset) does not duplicate seat rows', function () {
+    // Regression test: the previous test above only proves calling
+    // startRound() twice *in a row* (game_session_id already non-null the
+    // second time) is a no-op -- it never actually reset game_session_id
+    // in between, so it never exercised the real replay path. A genuine
+    // replay goes through game-lobby's startGame(), which *does* reset
+    // game_session_id to null on every "Start Game" click, not just the
+    // first -- and RoomSeat::create() used to run again unconditionally
+    // inside that reopened branch, leaving the *previous* game's seat rows
+    // in place and simply adding a second set on top (in fact violating a
+    // real (room_id, user_id) unique constraint outright).
+    seedFeudQuestions();
+
+    $users = User::factory()->count(2)->create();
+    $room = Room::factory()->create(['host_user_id' => $users[0]->id]);
+
+    startFeudRoomWithDefaultTeams($room, $users->all());
+
+    expect(RoomSeat::where('room_id', $room->id)->count())->toBe(2);
+
+    startFeudRoomWithDefaultTeams($room, $users->all());
+
+    expect(GameSession::count())->toBe(2)
+        ->and(RoomSeat::where('room_id', $room->id)->count())->toBe(2);
 });
 
 test('only the controlling team\'s current turn-pointer seat can submit a guess', function () {

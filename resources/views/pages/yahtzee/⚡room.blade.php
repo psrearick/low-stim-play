@@ -117,6 +117,18 @@ new class extends Component
                 'started_at' => now(),
             ]);
 
+            // Cleared first, not just created -- a room can be replayed
+            // (game-lobby's startGame() resets game_session_id to null on
+            // every "Start Game" click, not just the first) or switched to
+            // a different game entirely and back (see GameType::roomRoute()
+            // and switchGame() on <livewire:game-lobby>), and this branch
+            // runs again either way. Without this, a second Yahtzee game in
+            // the same room left the *previous* game's seat rows in place
+            // and just added a second set on top, so every seat-scoped
+            // query (mySeatIndex, seatUserIds in endGame(), ...) then saw
+            // duplicate rows for the same room/seat_index.
+            RoomSeat::where('room_id', $this->room->id)->delete();
+
             foreach ($seats as $index => $player) {
                 RoomSeat::create([
                     'room_id' => $this->room->id,
@@ -162,5 +174,5 @@ new class extends Component
         count is simply however many players are present and ready when
         the host starts, nothing to configure ahead of that.
     --}}
-    <livewire:game-lobby :room="$room" />
+    <livewire:game-lobby :room="$room" :current-game="GameType::Yahtzee" />
 </div>

@@ -333,6 +333,13 @@ new class extends Component
                 'started_at' => now(),
             ]);
 
+            // Cleared first -- see the identical comment in
+            // pages::yahtzee.room::onRoomStarting() for why: a replay, or a
+            // switch to a different game and back (GameType::roomRoute()),
+            // re-runs this branch, and without clearing first each pass
+            // added a second set of seat rows on top of the last game's.
+            RoomSeat::where('room_id', $this->room->id)->delete();
+
             foreach ($seatAssignments as $seatIndex => $assignment) {
                 RoomSeat::create([
                     'room_id' => $this->room->id,
@@ -448,6 +455,6 @@ new class extends Component
             </div>
         @endif
 
-        <livewire:game-lobby :room="$room" />
+        <livewire:game-lobby :room="$room" :current-game="GameType::FamilyFeud" />
     @endif
 </div>

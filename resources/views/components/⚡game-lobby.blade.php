@@ -1,6 +1,8 @@
 <?php
 
+use App\Enums\GameType;
 use App\Enums\RoomStatus;
+use App\Events\RoomGameSwitched;
 use App\Events\RoomPlayerReadyToggled;
 use App\Models\Room;
 use Illuminate\Support\Facades\Auth;
@@ -12,15 +14,24 @@ new class extends Component
     public Room $room;
 
     /**
+     * Which game's own room page currently hosts this component -- so it
+     * knows what "the other games" are for switchGame() below, without
+     * needing any other game-specific knowledge. Every {game}.room page
+     * passes its own literal GameType in.
+     */
+    public GameType $currentGame;
+
+    /**
      * Currently present players, keyed by user id.
      *
      * @var array<int, array{id: int, name: string, is_host: bool, ready: bool}>
      */
     public array $players = [];
 
-    public function mount(Room $room): void
+    public function mount(Room $room, GameType $currentGame): void
     {
         $this->room = $room;
+        $this->currentGame = $currentGame;
     }
 
     /**
@@ -36,6 +47,7 @@ new class extends Component
             "echo-presence:{$channel},leaving" => 'onLeaving',
             "echo-presence:{$channel},RoomPlayerReadyToggled" => 'onReadyToggled',
             "echo-presence:{$channel},RoomGameStarting" => 'onGameStarting',
+            "echo-presence:{$channel},RoomGameSwitched" => 'onGameSwitched',
         ];
     }
 
@@ -158,6 +170,55 @@ new class extends Component
         $this->dispatch('room-game-starting', players: $this->players);
     }
 
+    /**
+     * Sends every present player (including the host) to a different
+     * game's own room page, same room code, same seats -- rather than
+     * requiring a brand new room (new code to re-share, everyone rejoins
+     * from scratch). Only ever called from the lobby, before anything's
+     * actually been played this round, so there's no in-progress game
+     * state to lose: game_session_id is either already null (nothing
+     * started yet) or points at a finished game (the "Back to room"
+     * case) -- resetting it here just guarantees whichever game gets
+     * started next (in this game or the one being switched to) generates
+     * a genuinely fresh session rather than reusing a stale id.
+     */
+    public function switchGame(GameType $type): void
+    {
+        abort_unless(Auth::id() === $this->room->host_user_id, 403);
+
+        $this->room->update(['game_session_id' => null]);
+
+        RoomGameSwitched::dispatch($this->room, $type);
+
+        $this->redirect(route($type->roomRoute(), ['code' => $this->room->code]));
+    }
+
+    /**
+     * @param  array{type: string}  $event
+     */
+    public function onGameSwitched(array $event): void
+    {
+        $type = GameType::from($event['type']);
+
+        // The host's own browser already navigated directly from
+        // switchGame() above -- this only fires for *other* players
+        // reacting to the broadcast, but harmlessly redirects the host's
+        // own connection to the same place again if it somehow arrives
+        // there too.
+        $this->redirect(route($type->roomRoute(), ['code' => $this->room->code]));
+    }
+
+    /**
+     * @return list<GameType>
+     */
+    public function getOtherGamesProperty(): array
+    {
+        return array_values(array_filter(
+            GameType::cases(),
+            fn (GameType $type) => $type !== $this->currentGame,
+        ));
+    }
+
     public function getAllReadyProperty(): bool
     {
         return count($this->players) > 0
@@ -210,5 +271,16 @@ new class extends Component
         <button type="button" wire:click="startGame" @disabled(! $this->allReady)>
             Start Game
         </button>
+
+        <div class="flex flex-col items-center gap-2">
+            <p class="status-line">or play something else in this room:</p>
+            <div class="flex flex-wrap justify-center gap-2">
+                @foreach ($this->otherGames as $type)
+                    <button type="button" id="switch-game-{{ $type->value }}" wire:click="switchGame('{{ $type->value }}')" wire:key="switch-{{ $type->value }}">
+                        {{ $type->label() }}
+                    </button>
+                @endforeach
+            </div>
+        </div>
     @endif
 </div>

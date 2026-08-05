@@ -206,7 +206,7 @@ test('replaying a room after a previous game generates a fresh board and notifie
     // to null before handing off -- reproduce that here rather than reset
     // it directly, since that reset is the fix under test.
     Livewire::actingAs($host)
-        ->test('game-lobby', ['room' => $room])
+        ->test('game-lobby', ['room' => $room, 'currentGame' => GameType::Boggle])
         ->call('onJoining', ['id' => $host->id, 'name' => $host->name, 'is_host' => true])
         ->call('onJoining', ['id' => $guest->id, 'name' => $guest->name, 'is_host' => false])
         ->call('onReadyToggled', ['user_id' => $host->id, 'ready' => true])
