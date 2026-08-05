@@ -48,10 +48,11 @@ test('games from every type are listed, newest first', function () {
     $boggle = anyGameParticipantFor($user, GameType::Boggle);
     $yahtzee = anyGameParticipantFor($user, GameType::Yahtzee);
     $feud = anyGameParticipantFor($user, GameType::FamilyFeud);
+    $farkle = anyGameParticipantFor($user, GameType::Farkle);
 
     $component = Livewire::actingAs($user)->test('pages::profile.games.index');
 
-    expect($component->get('games')->pluck('id')->all())->toBe([$feud->id, $yahtzee->id, $boggle->id]);
+    expect($component->get('games')->pluck('id')->all())->toBe([$farkle->id, $feud->id, $yahtzee->id, $boggle->id]);
 });
 
 test('only the acting user\'s own games are listed', function () {
@@ -89,12 +90,14 @@ test('each game links to its own type\'s show page', function () {
     $boggle = anyGameParticipantFor($user, GameType::Boggle);
     $yahtzee = anyGameParticipantFor($user, GameType::Yahtzee);
     $feud = anyGameParticipantFor($user, GameType::FamilyFeud);
+    $farkle = anyGameParticipantFor($user, GameType::Farkle);
 
     Livewire::actingAs($user)
         ->test('pages::profile.games.index')
         ->assertSeeHtml(route('profile.boggle.show', $boggle))
         ->assertSeeHtml(route('profile.yahtzee.show', $yahtzee))
-        ->assertSeeHtml(route('profile.family-feud.show', $feud));
+        ->assertSeeHtml(route('profile.family-feud.show', $feud))
+        ->assertSeeHtml(route('profile.farkle.show', $farkle));
 });
 
 test('a win is shown distinctly from a loss or no result', function () {

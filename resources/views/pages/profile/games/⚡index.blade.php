@@ -24,6 +24,7 @@ new class extends Component
             GameType::Boggle => 'profile.boggle.show',
             GameType::Yahtzee => 'profile.yahtzee.show',
             GameType::FamilyFeud => 'profile.family-feud.show',
+            GameType::Farkle => 'profile.farkle.show',
         };
 
         return route($routeName, $participant);

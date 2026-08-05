@@ -5,6 +5,7 @@
         ['id' => 'boggle-stats', 'label' => \App\Enums\GameType::Boggle->label().' Stats', 'routes' => ['profile.boggle', 'profile.boggle.show']],
         ['id' => 'yahtzee-stats', 'label' => \App\Enums\GameType::Yahtzee->label().' Stats', 'routes' => ['profile.yahtzee', 'profile.yahtzee.show']],
         ['id' => 'family-feud-stats', 'label' => \App\Enums\GameType::FamilyFeud->label().' Stats', 'routes' => ['profile.family-feud', 'profile.family-feud.show']],
+        ['id' => 'farkle-stats', 'label' => \App\Enums\GameType::Farkle->label().' Stats', 'routes' => ['profile.farkle', 'profile.farkle.show']],
         ['id' => 'edit-profile', 'label' => 'Edit Profile', 'routes' => ['profile']],
     ];
 @endphp

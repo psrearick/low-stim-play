@@ -7,6 +7,7 @@ enum GameType: string
     case Boggle = 'boggle';
     case Yahtzee = 'yahtzee';
     case FamilyFeud = 'family_feud';
+    case Farkle = 'farkle';
 
     /**
      * The user-visible display name -- deliberately not the same as the
@@ -23,6 +24,7 @@ enum GameType: string
             self::Boggle => 'Word Grid',
             self::Yahtzee => 'Yacht',
             self::FamilyFeud => 'Survey Says',
+            self::Farkle => 'Farkle',
         };
     }
 
@@ -40,6 +42,7 @@ enum GameType: string
             self::Boggle => 'boggle.room',
             self::Yahtzee => 'yahtzee.room',
             self::FamilyFeud => 'family-feud.room',
+            self::Farkle => 'farkle.room',
         };
     }
 }

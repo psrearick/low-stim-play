@@ -50,6 +50,15 @@ Route::livewire('/profile/family-feud/{gameParticipant}', 'pages::profile.family
     ->name('profile.family-feud.show');
 
 // Same registration-order reasoning as /profile/boggle etc. above.
+Route::livewire('/profile/farkle', 'pages::profile.farkle.index')
+    ->middleware(['auth', 'verified'])
+    ->name('profile.farkle');
+
+Route::livewire('/profile/farkle/{gameParticipant}', 'pages::profile.farkle.show')
+    ->middleware(['auth', 'verified'])
+    ->name('profile.farkle.show');
+
+// Same registration-order reasoning as /profile/boggle etc. above.
 Route::livewire('/profile/games', 'pages::profile.games.index')
     ->middleware(['auth', 'verified'])
     ->name('profile.games');
@@ -117,3 +126,15 @@ Route::livewire('/family-feud', 'pages::family-feud.play')->name('family-feud.pl
 // anyone arriving without one, and hosting uses the same provisioning.
 Route::livewire('/family-feud/room/{code}', 'pages::family-feud.room')
     ->name('family-feud.room');
+
+// Pass-and-play (no room param) or the online room's own gameplay via the
+// #[Url] $room param -- mirrors pages::yahtzee.play exactly. See
+// pages::farkle.room below for how a room actually gets there.
+Route::livewire('/farkle', 'pages::farkle.play')->name('farkle.play');
+
+// No auth middleware -- same reasoning as boggle.room/yahtzee.room:
+// pages::farkle.room's mount() auto-provisions a guest account for anyone
+// arriving without one, and hosting (pages::farkle.play's own setup
+// screen) uses the same provisioning.
+Route::livewire('/farkle/room/{code}', 'pages::farkle.room')
+    ->name('farkle.room');

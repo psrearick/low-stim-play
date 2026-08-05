@@ -7,6 +7,7 @@
                 \App\Enums\GameType::Boggle => 'profile.boggle',
                 \App\Enums\GameType::Yahtzee => 'profile.yahtzee',
                 \App\Enums\GameType::FamilyFeud => 'profile.family-feud',
+                \App\Enums\GameType::Farkle => 'profile.farkle',
             };
             $tag = $linkable && $statsRoute ? 'a' : 'div';
         @endphp

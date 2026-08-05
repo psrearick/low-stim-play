@@ -21,6 +21,7 @@ function assertHasSidebar(TestCase $test, string $path): void
         ->assertSee('Word Grid Stats')
         ->assertSee('Yacht Stats')
         ->assertSee('Survey Says Stats')
+        ->assertSee('Farkle Stats')
         ->assertSee('Edit Profile')
         ->assertSee('Log Out');
 }
@@ -29,7 +30,7 @@ test('the sidebar appears on every Dashboard/Profile/Stats page', function () {
     $user = User::factory()->create();
     $this->actingAs($user);
 
-    foreach (['/dashboard', '/profile', '/profile/boggle', '/profile/yahtzee', '/profile/family-feud', '/profile/games'] as $path) {
+    foreach (['/dashboard', '/profile', '/profile/boggle', '/profile/yahtzee', '/profile/family-feud', '/profile/farkle', '/profile/games'] as $path) {
         assertHasSidebar($this, $path);
     }
 });

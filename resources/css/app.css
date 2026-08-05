@@ -1307,6 +1307,66 @@ body.scrollable.yahtzee-play.in-game {
     padding: clamp(8px, 1.4vh, 20px) clamp(16px, 2.4vh, 36px);
 }
 
+/* =====================================================================
+   Farkle -- same shape as the Yahtzee block above (body.scrollable,
+   #{game}-game flex column, .dice-area, scoped .row/.die/.number), just
+   with 6 dice instead of 5 and a .selected highlight (this turn's chosen
+   dice, not yet banked) instead of .kept (locked in for the rest of the
+   round).
+   ===================================================================== */
+
+body.scrollable.farkle-play {
+    justify-content: flex-start;
+}
+
+body.scrollable.farkle-play.in-game {
+    height: 100dvh;
+}
+
+#farkle-game {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+    gap: clamp(10px, 1.2vh, 18px);
+}
+
+.farkle-play .row {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: clamp(4px, 0.8vh, 12px);
+    width: min(56vw, 42vh, 720px);
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.farkle-play .die {
+    aspect-ratio: 1 / 1;
+    background: var(--die);
+    border: 2px solid var(--die-border);
+    border-radius: clamp(6px, 1vmin, 16px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 2px 4px 10px var(--die-shadow);
+    position: relative;
+    cursor: pointer;
+}
+
+.farkle-play .die.selected {
+    background: var(--die-kept);
+}
+
+.farkle-play .number {
+    font-size: clamp(18px, 5vmin, 72px);
+    font-weight: bold;
+    color: var(--ink);
+    line-height: 1;
+    user-select: none;
+}
+
 .setup-row {
     display: flex;
     align-items: center;

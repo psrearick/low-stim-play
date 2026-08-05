@@ -50,6 +50,13 @@
                 <a href="{{ route('family-feud.play') }}"><button type="button">Survey Says</button></a>
             </div>
         </div>
+        <div class="game-card">
+            <div class="game-card-title">Farkle</div>
+            <p class="game-card-desc">Roll six dice, set aside whatever scores, and decide each turn whether to bank your points or risk them on another roll for 1&ndash;8 players.</p>
+            <div class="game-card-actions">
+                <a href="{{ route('farkle.play') }}"><button type="button">Farkle</button></a>
+            </div>
+        </div>
     </div>
 
 @endcomponent
