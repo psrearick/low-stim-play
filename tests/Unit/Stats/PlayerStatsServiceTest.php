@@ -16,9 +16,9 @@ beforeEach(function () {
     $this->service = new PlayerStatsService;
 });
 
-function participantFor(User $user, GameType $type, int $score, ?GameResult $result): GameParticipant
+function participantFor(User $user, GameType $type, int $score, ?GameResult $result, GameMode $mode = GameMode::Solo): GameParticipant
 {
-    $session = GameSession::factory()->create(['type' => $type, 'mode' => GameMode::Solo]);
+    $session = GameSession::factory()->create(['type' => $type, 'mode' => $mode]);
 
     return GameParticipant::factory()->create([
         'game_session_id' => $session->id,
@@ -37,8 +37,8 @@ test('a user with no games has no stats', function () {
 test('stats are grouped and aggregated per game type', function () {
     $user = User::factory()->create();
 
-    participantFor($user, GameType::Boggle, 100, GameResult::Win);
-    participantFor($user, GameType::Boggle, 50, GameResult::Loss);
+    participantFor($user, GameType::Boggle, 100, GameResult::Win, GameMode::Online);
+    participantFor($user, GameType::Boggle, 50, GameResult::Loss, GameMode::Online);
     participantFor($user, GameType::Yahtzee, 200, GameResult::Win);
 
     $stats = $this->service->forUser($user)->keyBy(fn (array $stat) => $stat['type']->value);
@@ -60,6 +60,92 @@ test('a game with no result recorded (e.g. solo play) still counts toward games 
 
     expect($stats['gamesPlayed'])->toBe(1)
         ->and($stats['wins'])->toBe(0)
+        ->and($stats['winRate'])->toBe(0);
+});
+
+/**
+ * Boggle-specific win-rate scoping (docs/TODO.md's former #1): solo play
+ * has no opponent, so its GameParticipant.result is always null -- it can
+ * never land in the win-rate numerator, but was still inflating the
+ * denominator just by existing. Yahtzee/Family Feud never have this
+ * problem (they always compute a real result, even for local pass-and-
+ * play), so this scoping is Boggle-only and the tests above stay
+ * unaffected.
+ */
+test('solo Boggle games count toward games played and avg score but never toward win rate', function () {
+    $user = User::factory()->create();
+
+    participantFor($user, GameType::Boggle, 40, null, GameMode::Solo);
+    participantFor($user, GameType::Boggle, 60, null, GameMode::Solo);
+
+    $stats = $this->service->forUser($user)->first();
+
+    expect($stats['gamesPlayed'])->toBe(2)
+        ->and($stats['avgScore'])->toBe(50.0)
+        ->and($stats['winRate'])->toBe(0);
+});
+
+test('an online Boggle session where every participant scored zero is excluded from win rate entirely', function () {
+    $user = User::factory()->create();
+
+    // A real, played game this user won -- gives the win-rate denominator
+    // something nonzero to distinguish "excluded" from "included as a loss".
+    $wonSession = GameSession::factory()->create(['type' => GameType::Boggle, 'mode' => GameMode::Online]);
+    GameParticipant::factory()->create([
+        'game_session_id' => $wonSession->id, 'user_id' => $user->id, 'score' => 10, 'result' => GameResult::Win,
+    ]);
+
+    // An aborted room nobody actually played -- stored as a Loss (matching
+    // how SharedSessionFinalizer would score it), but with nothing to
+    // distinguish it from a room that never really started.
+    $abortedSession = GameSession::factory()->create(['type' => GameType::Boggle, 'mode' => GameMode::Online]);
+    GameParticipant::factory()->create([
+        'game_session_id' => $abortedSession->id, 'user_id' => $user->id, 'score' => 0, 'result' => GameResult::Loss,
+    ]);
+
+    $stats = $this->service->forUser($user)->first();
+
+    // Both still count as "games played" -- only the win-rate calculation
+    // excludes the aborted one. If it were wrongly included, this would
+    // be 50 (1 win / 2 games) instead of 100 (1 win / 1 eligible game).
+    expect($stats['gamesPlayed'])->toBe(2)
+        ->and($stats['winRate'])->toBe(100);
+});
+
+test('a session the user personally scored zero in still counts as a real loss if someone else in it scored above zero', function () {
+    $user = User::factory()->create();
+    $rival = User::factory()->create();
+
+    $wonSession = GameSession::factory()->create(['type' => GameType::Boggle, 'mode' => GameMode::Online]);
+    GameParticipant::factory()->create([
+        'game_session_id' => $wonSession->id, 'user_id' => $user->id, 'score' => 10, 'result' => GameResult::Win,
+    ]);
+
+    $lostSession = GameSession::factory()->create(['type' => GameType::Boggle, 'mode' => GameMode::Online]);
+    GameParticipant::factory()->create([
+        'game_session_id' => $lostSession->id, 'user_id' => $user->id, 'score' => 0, 'result' => GameResult::Loss,
+    ]);
+    GameParticipant::factory()->create([
+        'game_session_id' => $lostSession->id, 'user_id' => $rival->id, 'score' => 5, 'result' => GameResult::Win,
+    ]);
+
+    $stats = $this->service->forUser($user)->first();
+
+    // If the zero-for-*this-user* session were wrongly excluded, this
+    // would be 100 (1 win / 1 game) instead of 50 (1 win / 2 games).
+    expect($stats['gamesPlayed'])->toBe(2)
+        ->and($stats['wins'])->toBe(1)
+        ->and($stats['winRate'])->toBe(50);
+});
+
+test('a solo Boggle game is excluded from win rate even if it somehow has a non-null result', function () {
+    $user = User::factory()->create();
+
+    participantFor($user, GameType::Boggle, 100, GameResult::Win, GameMode::Solo);
+
+    $stats = $this->service->forUser($user)->first();
+
+    expect($stats['gamesPlayed'])->toBe(1)
         ->and($stats['winRate'])->toBe(0);
 });
 
