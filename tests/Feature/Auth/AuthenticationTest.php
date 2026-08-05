@@ -21,6 +21,23 @@ test('users can authenticate using the login screen', function () {
     $response->assertRedirect('/dashboard');
 });
 
+test('the login form defaults "remember me" to checked', function () {
+    $this->get('/login')->assertSee('name="remember" checked', false);
+});
+
+test('logging in with "remember me" checked sets a remember token, for long-lived sessions', function () {
+    $user = User::factory()->create();
+
+    $this->post('/login', [
+        'email' => $user->email,
+        'password' => 'password',
+        'remember' => 'on',
+    ]);
+
+    $this->assertAuthenticatedAs($user);
+    expect($user->fresh()->remember_token)->not->toBeNull();
+});
+
 test('users can not authenticate with invalid password', function () {
     $user = User::factory()->create();
 

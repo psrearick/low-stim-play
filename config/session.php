@@ -30,9 +30,13 @@ return [
     | to expire immediately when the browser is closed then you may
     | indicate that via the expire_on_close configuration option.
     |
+    | Defaulted to a year (framework default is 120) -- this app wants
+    | users to stay signed in for a long time rather than expiring on any
+    | particular idle schedule. See docs/DEVLOG.md.
+    |
     */
 
-    'lifetime' => (int) env('SESSION_LIFETIME', 120),
+    'lifetime' => (int) env('SESSION_LIFETIME', 525600),
 
     'expire_on_close' => env('SESSION_EXPIRE_ON_CLOSE', false),
 

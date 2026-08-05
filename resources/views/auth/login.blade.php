@@ -37,7 +37,7 @@
             </div>
 
             <label class="flex items-center gap-2 text-sm text-text/80">
-                <input type="checkbox" name="remember">
+                <input type="checkbox" name="remember" @checked(old('remember', true))>
                 Remember me
             </label>
 
