@@ -60,6 +60,18 @@ new class extends Component
     </div>
 
     <div class="flex flex-wrap justify-center gap-3 w-full">
+        {{--
+            Only online-room games ever get a result -- solo/practice play
+            has no opponent to win or lose against, so `result` stays null
+            there (see docs/DEVLOG.md's Boggle win-rate entry) and this
+            tile is simply omitted rather than showing a misleading dash.
+        --}}
+        @if ($participant->result)
+            <div class="flex flex-col items-center gap-2 bg-surface border-2 border-surface-border rounded-lg px-5 py-4 flex-1 basis-32">
+                <span class="text-2xl font-bold {{ $participant->result === \App\Enums\GameResult::Win ? 'text-accent' : 'text-text' }}">{{ ucfirst($participant->result->value) }}</span>
+                <span class="text-xs text-text/65">Result</span>
+            </div>
+        @endif
         <div class="flex flex-col items-center gap-2 bg-surface border-2 border-surface-border rounded-lg px-5 py-4 flex-1 basis-32">
             <span class="text-2xl font-bold text-text">{{ $participant->score }}</span>
             <span class="text-xs text-text/65">Score</span>

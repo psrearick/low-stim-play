@@ -99,6 +99,24 @@ test('a boggle game detail page shows its stats and found words', function () {
         ->assertSee('20%'); // 2 of 10 words found
 });
 
+test('a boggle game detail page shows the result for an online game', function () {
+    $user = User::factory()->create();
+    $participant = boggleParticipantFor($user, ['cat' => 1], 5, mode: GameMode::Online, result: GameResult::Win);
+
+    $this->actingAs($user)
+        ->get("/profile/boggle/{$participant->id}")
+        ->assertSee('Win');
+});
+
+test('a boggle game detail page omits the result tile entirely for a solo game', function () {
+    $user = User::factory()->create();
+    $participant = boggleParticipantFor($user, ['cat' => 1], 5, mode: GameMode::Solo);
+
+    $this->actingAs($user)
+        ->get("/profile/boggle/{$participant->id}")
+        ->assertDontSee('Result');
+});
+
 test('a boggle game with no recorded board size hides the percent-found stat instead of showing a bogus value', function () {
     $user = User::factory()->create();
     $participant = boggleParticipantFor($user, ['cat' => 1], 1);
