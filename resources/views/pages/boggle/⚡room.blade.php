@@ -121,10 +121,10 @@ new class extends Component
 };
 ?>
 
-<x-slot:title>Boggle Room — Low Stim Play</x-slot>
+<x-slot:title>Word Grid Room — Low Stim Play</x-slot>
 
 <div class="flex flex-col items-center" style="gap: inherit;">
-    <div class="heading">Boggle Room</div>
+    <div class="heading">Word Grid Room</div>
 
     @if ($this->isHost)
         <div class="setup">

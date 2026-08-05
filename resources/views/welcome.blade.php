@@ -28,26 +28,26 @@
 
     <div class="game-grid">
         <div class="game-card">
-            <div class="game-card-title">Boggle</div>
+            <div class="game-card-title">Word Grid</div>
             <p class="game-card-desc">A shuffled 4&times;4 or 5&times;5 letter grid. Play it yourself, or put it on a shared screen and find words together as a group.</p>
             <div class="game-card-actions">
-                <a href="{{ route('boggle.lobby') }}"><button type="button">Boggle</button></a>
-                <a href="{{ route('boggle.group') }}"><button type="button">Boggle (Group Play)</button></a>
+                <a href="{{ route('boggle.lobby') }}"><button type="button">Word Grid</button></a>
+                <a href="{{ route('boggle.group') }}"><button type="button">Word Grid (Group Play)</button></a>
             </div>
         </div>
         <div class="game-card">
-            <div class="game-card-title">Yahtzee</div>
+            <div class="game-card-title">Yacht</div>
             <p class="game-card-desc">A full scorecard for 1&ndash;8 players, or just the dice if you're keeping score by hand.</p>
             <div class="game-card-actions">
-                <a href="{{ route('yahtzee.play') }}"><button type="button">Yahtzee</button></a>
-                <a href="{{ route('yahtzee.roller') }}"><button type="button">Yahtzee (Dice Only)</button></a>
+                <a href="{{ route('yahtzee.play') }}"><button type="button">Yacht</button></a>
+                <a href="{{ route('yahtzee.roller') }}"><button type="button">Yacht (Dice Only)</button></a>
             </div>
         </div>
         <div class="game-card">
-            <div class="game-card-title">Family Feud</div>
+            <div class="game-card-title">Survey Says</div>
             <p class="game-card-desc">Two teams guess the most popular answers to survey-style questions. Points for each match; three strikes hands the other team a shot to steal the pot.</p>
             <div class="game-card-actions">
-                <a href="{{ route('family-feud.play') }}"><button type="button">Family Feud</button></a>
+                <a href="{{ route('family-feud.play') }}"><button type="button">Survey Says</button></a>
             </div>
         </div>
     </div>

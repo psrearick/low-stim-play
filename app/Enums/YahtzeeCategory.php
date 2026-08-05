@@ -78,6 +78,14 @@ enum YahtzeeCategory: string
         };
     }
 
+    /**
+     * The `Yahtzee` case's own label is `'Yacht'`, not `'Yahtzee'` -- see
+     * `App\Enums\GameType::label()`'s own docblock for why the game's
+     * user-visible name changed without touching any case names/values.
+     * The five-of-a-kind category is the same trademarked term, so it
+     * changed too, matching the real historical "Yacht" game's own
+     * identically-named top category.
+     */
     public function label(): string
     {
         return match ($this) {
@@ -92,7 +100,7 @@ enum YahtzeeCategory: string
             self::FullHouse => 'Full House',
             self::SmallStraight => 'Sm. Straight',
             self::LargeStraight => 'Lg. Straight',
-            self::Yahtzee => 'Yahtzee',
+            self::Yahtzee => 'Yacht',
             self::Chance => 'Chance',
         };
     }

@@ -29,14 +29,14 @@ new class extends Component
 };
 ?>
 
-<x-slot:title>Family Feud Game — Low Stim Play</x-slot>
+<x-slot:title>Survey Says Game — Low Stim Play</x-slot>
 <x-slot:sidebar>1</x-slot:sidebar>
 
 <div class="flex flex-col items-center gap-6 w-full max-w-2xl">
-    <a href="{{ route('profile.family-feud') }}" class="self-start text-sm text-text/65 hover:text-text">&larr; Family Feud Stats</a>
+    <a href="{{ route('profile.family-feud') }}" class="self-start text-sm text-text/65 hover:text-text">&larr; Survey Says Stats</a>
 
     <div class="flex flex-col items-center gap-1">
-        <h1 class="text-bar font-bold tracking-wide text-2xl text-center">Family Feud Game</h1>
+        <h1 class="text-bar font-bold tracking-wide text-2xl text-center">Survey Says Game</h1>
         <p class="text-sm text-text/65">
             {{ $participant->created_at->format('M j, Y g:ia') }} &middot; {{ $participant->gameSession->mode->label() }}
         </p>

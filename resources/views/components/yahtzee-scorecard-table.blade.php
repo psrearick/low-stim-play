@@ -98,7 +98,7 @@
             @endforeach
 
             <tr>
-                <td class="category">Yahtzee Bonus</td>
+                <td class="category">Yacht Bonus</td>
                 @foreach ($players as $i => $player)
                     <td data-role="yahtzeeBonus" class="{{ $mySeatIndex !== null && $i !== $mySeatIndex ? 'not-mine' : '' }}">
                         @if ($player['yahtzeeBonusCount'] > 0)

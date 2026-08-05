@@ -31,24 +31,24 @@ function loginAsHostAndVisitRoom(User $host, string $path): PendingAwaitablePage
     return $page;
 }
 
-test('clicking a "switch game" button in the Boggle room takes the host to the Yahtzee room, same code', function () {
+test('clicking a "switch game" button in the Word Grid room takes the host to the Yacht room, same code', function () {
     $host = User::factory()->create(['password' => bcrypt('password')]);
     $room = Room::factory()->create(['host_user_id' => $host->id]);
 
     $page = loginAsHostAndVisitRoom($host, "/boggle/room/{$room->code}");
 
-    $page->assertSee('Boggle Room')
+    $page->assertSee('Word Grid Room')
         ->click('#switch-game-yahtzee')
         ->assertPathIs("/yahtzee/room/{$room->code}");
 });
 
-test('clicking a "switch game" button in the Yahtzee room takes the host to the Family Feud room, same code', function () {
+test('clicking a "switch game" button in the Yacht room takes the host to the Survey Says room, same code', function () {
     $host = User::factory()->create(['password' => bcrypt('password')]);
     $room = Room::factory()->create(['host_user_id' => $host->id]);
 
     $page = loginAsHostAndVisitRoom($host, "/yahtzee/room/{$room->code}");
 
-    $page->assertSee('Yahtzee Room')
+    $page->assertSee('Yacht Room')
         ->click('#switch-game-family_feud')
         ->assertPathIs("/family-feud/room/{$room->code}");
 });
@@ -60,6 +60,6 @@ test('a non-host does not see any "switch game" buttons', function () {
 
     $page = loginAsHostAndVisitRoom($guest, "/boggle/room/{$room->code}");
 
-    $page->assertSee('Boggle Room')
+    $page->assertSee('Word Grid Room')
         ->assertDontSee('play something else in this room');
 });

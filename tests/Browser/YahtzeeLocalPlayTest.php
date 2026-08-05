@@ -7,7 +7,7 @@ uses(RefreshDatabase::class);
 it('plays a full solo game from setup through game over', function () {
     $page = visit('/yahtzee');
 
-    $page->assertSee('Yahtzee')
+    $page->assertSee('Yacht')
         ->click('[aria-label="Fewer players"]')
         ->click('Start Game')
         ->assertSee('Roll');

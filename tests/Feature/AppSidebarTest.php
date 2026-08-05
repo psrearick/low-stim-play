@@ -18,9 +18,9 @@ function assertHasSidebar(TestCase $test, string $path): void
         ->assertSee('id="app-sidebar"', false)
         ->assertSee('Dashboard')
         ->assertSee('All Games')
-        ->assertSee('Boggle Stats')
-        ->assertSee('Yahtzee Stats')
-        ->assertSee('Family Feud Stats')
+        ->assertSee('Word Grid Stats')
+        ->assertSee('Yacht Stats')
+        ->assertSee('Survey Says Stats')
         ->assertSee('Edit Profile')
         ->assertSee('Log Out');
 }

@@ -7,7 +7,7 @@
         <meta name="theme-color" content="#2c3035">
 
         <title>{{ $title ?? config('app.name') }}</title>
-        <meta name="description" content="{{ $description ?? 'Low Stim Play is a small collection of low-contrast, no-flash, no-motion web games -- Boggle, Yahtzee, and Family Feud. Built to be gentle on migraines, vertigo, and sensitive eyes.' }}">
+        <meta name="description" content="{{ $description ?? 'Low Stim Play is a small collection of low-contrast, no-flash, no-motion web games -- Word Grid, Yacht, and Survey Says. Built to be gentle on migraines, vertigo, and sensitive eyes.' }}">
         <meta property="og:site_name" content="Low Stim Play">
         <meta property="og:title" content="{{ $title ?? config('app.name') }}">
         <meta property="og:description" content="{{ $description ?? 'A small collection of low-contrast, no-flash, no-motion web games. Built to be gentle on migraines, vertigo, and sensitive eyes.' }}">

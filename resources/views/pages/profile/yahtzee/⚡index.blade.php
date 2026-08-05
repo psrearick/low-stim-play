@@ -37,15 +37,15 @@ new class extends Component
 };
 ?>
 
-<x-slot:title>Yahtzee Stats — Low Stim Play</x-slot>
+<x-slot:title>Yacht Stats — Low Stim Play</x-slot>
 <x-slot:sidebar>1</x-slot:sidebar>
 
 <div class="flex flex-col items-center gap-6 w-full max-w-2xl">
 
-    <h1 class="text-bar font-bold tracking-wide text-2xl text-center">Yahtzee Stats</h1>
+    <h1 class="text-bar font-bold tracking-wide text-2xl text-center">Yacht Stats</h1>
 
     @if ($this->games->isEmpty())
-        <p class="text-sm text-text/65 text-center">No Yahtzee games recorded yet.</p>
+        <p class="text-sm text-text/65 text-center">No Yacht games recorded yet.</p>
     @else
         <div class="flex flex-col gap-2 w-full">
             <p class="text-sm text-text/80 font-bold">Personal bests</p>
@@ -92,7 +92,7 @@ new class extends Component
                     <span class="px-3 py-4 text-xs text-text/65 font-bold">Mode</span>
                     <span class="px-3 py-4 text-xs text-text/65 font-bold">Result</span>
                     <span class="px-3 py-4 text-xs text-text/65 font-bold">Score</span>
-                    <span class="pl-3 pr-6 py-4 text-xs text-text/65 font-bold">Yahtzees</span>
+                    <span class="pl-3 pr-6 py-4 text-xs text-text/65 font-bold">Yachts</span>
 
                     @foreach ($this->games as $participant)
                         @php $stats = $this->statsFor($participant) @endphp

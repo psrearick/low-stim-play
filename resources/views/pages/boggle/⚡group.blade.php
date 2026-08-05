@@ -140,8 +140,8 @@ new class extends Component
 };
 ?>
 
-<x-slot:title>Boggle (Group Play) — Low Stim Play</x-slot>
-<x-slot:description>A shared-screen Boggle board for group play — big letters, an optional visual timer, and a full word reveal at the end. No typing required.</x-slot>
+<x-slot:title>Word Grid (Group Play) — Low Stim Play</x-slot>
+<x-slot:description>A shared-screen Word Grid board for group play — big letters, an optional visual timer, and a full word reveal at the end. No typing required.</x-slot>
 <x-slot:fullscreenToggle>1</x-slot:fullscreenToggle>
 
 <div>
@@ -164,7 +164,7 @@ new class extends Component
 
     @unless ($started)
     <div class="setup" id="setup">
-        <div class="heading">Boggle (Group Play)</div>
+        <div class="heading">Word Grid (Group Play)</div>
 
         <div class="setup-row">
             <div class="label">Board Size</div>

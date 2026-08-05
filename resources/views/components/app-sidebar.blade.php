@@ -2,9 +2,9 @@
     $links = [
         ['id' => 'dashboard', 'label' => 'Dashboard', 'routes' => ['dashboard']],
         ['id' => 'all-games', 'label' => 'All Games', 'routes' => ['profile.games']],
-        ['id' => 'boggle-stats', 'label' => 'Boggle Stats', 'routes' => ['profile.boggle', 'profile.boggle.show']],
-        ['id' => 'yahtzee-stats', 'label' => 'Yahtzee Stats', 'routes' => ['profile.yahtzee', 'profile.yahtzee.show']],
-        ['id' => 'family-feud-stats', 'label' => 'Family Feud Stats', 'routes' => ['profile.family-feud', 'profile.family-feud.show']],
+        ['id' => 'boggle-stats', 'label' => \App\Enums\GameType::Boggle->label().' Stats', 'routes' => ['profile.boggle', 'profile.boggle.show']],
+        ['id' => 'yahtzee-stats', 'label' => \App\Enums\GameType::Yahtzee->label().' Stats', 'routes' => ['profile.yahtzee', 'profile.yahtzee.show']],
+        ['id' => 'family-feud-stats', 'label' => \App\Enums\GameType::FamilyFeud->label().' Stats', 'routes' => ['profile.family-feud', 'profile.family-feud.show']],
         ['id' => 'edit-profile', 'label' => 'Edit Profile', 'routes' => ['profile']],
     ];
 @endphp

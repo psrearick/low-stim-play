@@ -21,7 +21,7 @@ test('a public profile shows the user\'s stats to anyone, including guests', fun
     $this->get('/profile/alex')
         ->assertOk()
         ->assertSee($user->name)
-        ->assertSee('Yahtzee')
+        ->assertSee('Yacht')
         ->assertSee('88', escape: false);
 });
 
@@ -44,7 +44,7 @@ test('a private profile is still visible to its own owner', function () {
         ->get('/profile/private-alex')
         ->assertOk()
         ->assertDontSee('This profile is private')
-        ->assertSee('Boggle');
+        ->assertSee('Word Grid');
 });
 
 test('a private profile is hidden from guests', function () {

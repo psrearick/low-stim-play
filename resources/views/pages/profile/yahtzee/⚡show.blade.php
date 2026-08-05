@@ -29,14 +29,14 @@ new class extends Component
 };
 ?>
 
-<x-slot:title>Yahtzee Game — Low Stim Play</x-slot>
+<x-slot:title>Yacht Game — Low Stim Play</x-slot>
 <x-slot:sidebar>1</x-slot:sidebar>
 
 <div class="flex flex-col items-center gap-6 w-full max-w-2xl">
-    <a href="{{ route('profile.yahtzee') }}" class="self-start text-sm text-text/65 hover:text-text">&larr; Yahtzee Stats</a>
+    <a href="{{ route('profile.yahtzee') }}" class="self-start text-sm text-text/65 hover:text-text">&larr; Yacht Stats</a>
 
     <div class="flex flex-col items-center gap-1">
-        <h1 class="text-bar font-bold tracking-wide text-2xl text-center">Yahtzee Game</h1>
+        <h1 class="text-bar font-bold tracking-wide text-2xl text-center">Yacht Game</h1>
         <p class="text-sm text-text/65">
             {{ $participant->created_at->format('M j, Y g:ia') }} &middot; {{ $participant->gameSession->mode->label() }}
         </p>
@@ -57,7 +57,7 @@ new class extends Component
         </div>
         <div class="flex flex-col items-center gap-2 bg-surface border-2 border-surface-border rounded-lg px-5 py-4 flex-1 basis-32">
             <span class="text-2xl font-bold text-text">{{ $this->stats['yahtzeeBonusCount'] }}</span>
-            <span class="text-xs text-text/65">Yahtzee Bonuses</span>
+            <span class="text-xs text-text/65">Yacht Bonuses</span>
         </div>
     </div>
 
@@ -77,7 +77,7 @@ new class extends Component
                 <span class="pl-6 pr-3 py-3 border-t border-surface-border text-sm text-text/80 font-bold">Upper Bonus (63+ = 35)</span>
                 <span class="pl-3 pr-6 py-3 border-t border-surface-border text-sm text-text text-right">{{ $this->stats['upperBonus'] }}</span>
 
-                <span class="pl-6 pr-3 py-3 border-t border-surface-border text-sm text-text/80 font-bold">Yahtzee Bonus</span>
+                <span class="pl-6 pr-3 py-3 border-t border-surface-border text-sm text-text/80 font-bold">Yacht Bonus</span>
                 <span class="pl-3 pr-6 py-3 border-t border-surface-border text-sm text-text text-right">{{ $this->stats['yahtzeeBonusPoints'] }}</span>
 
                 <span class="pl-6 pr-3 py-3 border-t border-surface-border text-sm text-text font-bold">Total</span>

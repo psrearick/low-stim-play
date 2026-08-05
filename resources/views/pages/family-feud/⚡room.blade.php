@@ -384,10 +384,10 @@ new class extends Component
 };
 ?>
 
-<x-slot:title>Family Feud Room — Low Stim Play</x-slot>
+<x-slot:title>Survey Says Room — Low Stim Play</x-slot>
 
 <div class="flex flex-col items-center" style="gap: inherit;">
-    <div class="heading">Family Feud Room</div>
+    <div class="heading">Survey Says Room</div>
 
     @if ($assigningTeams)
         <div class="setup">

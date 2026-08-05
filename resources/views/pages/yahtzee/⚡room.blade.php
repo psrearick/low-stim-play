@@ -163,10 +163,10 @@ new class extends Component
 };
 ?>
 
-<x-slot:title>Yahtzee Room — Low Stim Play</x-slot>
+<x-slot:title>Yacht Room — Low Stim Play</x-slot>
 
 <div class="flex flex-col items-center" style="gap: inherit;">
-    <div class="heading">Yahtzee Room</div>
+    <div class="heading">Yacht Room</div>
 
     {{--
         No pre-start setup here, unlike Boggle's room page (board

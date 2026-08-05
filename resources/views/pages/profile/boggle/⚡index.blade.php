@@ -42,14 +42,14 @@ new class extends Component
 };
 ?>
 
-<x-slot:title>Boggle Stats — Low Stim Play</x-slot>
+<x-slot:title>Word Grid Stats — Low Stim Play</x-slot>
 <x-slot:sidebar>1</x-slot:sidebar>
 
 <div class="flex flex-col items-center gap-6 w-full max-w-2xl">
-    <h1 class="text-bar font-bold tracking-wide text-2xl text-center">Boggle Stats</h1>
+    <h1 class="text-bar font-bold tracking-wide text-2xl text-center">Word Grid Stats</h1>
 
     @if ($this->games->isEmpty())
-        <p class="text-sm text-text/65 text-center">No Boggle games recorded yet.</p>
+        <p class="text-sm text-text/65 text-center">No Word Grid games recorded yet.</p>
     @else
         <div class="flex flex-col gap-2 w-full">
             <p class="text-sm text-text/80 font-bold">Personal bests</p>

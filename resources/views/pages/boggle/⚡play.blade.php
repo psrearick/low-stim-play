@@ -592,11 +592,11 @@ new class extends Component
 };
 ?>
 
-<x-slot:title>Boggle — Low Stim Play</x-slot>
-<x-slot:description>Play Boggle online — a shuffled 4x4 or 5x5 letter grid, timed or untimed, with calm low-contrast visuals and no flashing or motion.</x-slot>
+<x-slot:title>Word Grid — Low Stim Play</x-slot>
+<x-slot:description>Play Word Grid online — a shuffled 4x4 or 5x5 letter grid, timed or untimed, with calm low-contrast visuals and no flashing or motion.</x-slot>
 <x-slot:bodyClass>boggle-play</x-slot:bodyClass>
 <x-slot:fullscreenToggle>1</x-slot:fullscreenToggle>
-<x-slot:rulesTitle>Boggle Rules</x-slot:rulesTitle>
+<x-slot:rulesTitle>Word Grid Rules</x-slot:rulesTitle>
 <x-slot:rules>
     <h3>How to Use This Page</h3>
     <ul>

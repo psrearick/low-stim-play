@@ -339,7 +339,7 @@ new class extends Component
         // (currentQuestion()) crashed with a fatal "Undefined array key 0"
         // instead of a readable error.
         if (FamilyFeudQuestion::count() === 0) {
-            $this->message = 'No Family Feud questions are available yet -- the question bank needs to be seeded.';
+            $this->message = 'No Survey Says questions are available yet -- the question bank needs to be seeded.';
             $this->messageIsError = true;
 
             return;
@@ -879,11 +879,11 @@ new class extends Component
 };
 ?>
 
-<x-slot:title>Family Feud — Low Stim Play</x-slot>
-<x-slot:description>A single-screen Family Feud style game for family game night. An LLM judges guesses server-side, so the whole family plays from one shared, calm, low-contrast screen.</x-slot>
+<x-slot:title>Survey Says — Low Stim Play</x-slot>
+<x-slot:description>A single-screen Survey Says style game for family game night. An LLM judges guesses server-side, so the whole family plays from one shared, calm, low-contrast screen.</x-slot>
 <x-slot:bodyClass>family-feud-play</x-slot:bodyClass>
 <x-slot:fullscreenToggle>1</x-slot:fullscreenToggle>
-<x-slot:rulesTitle>Family Feud Rules</x-slot:rulesTitle>
+<x-slot:rulesTitle>Survey Says Rules</x-slot:rulesTitle>
 <x-slot:rules>
     <h3>How to Use This Page</h3>
     <ul>
@@ -967,7 +967,7 @@ new class extends Component
 
     @unless ($started)
         <div class="setup" id="setup">
-            <div class="heading">Family Feud</div>
+            <div class="heading">Survey Says</div>
 
             @unless (Auth::check() && ! Auth::user()->is_guest)
                 <input type="text" wire:model="guestName" maxlength="24" placeholder="Your name (optional)">

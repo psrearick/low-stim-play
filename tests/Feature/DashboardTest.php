@@ -24,7 +24,7 @@ test('an authenticated user sees their own stats', function () {
         ->get('/dashboard')
         ->assertOk()
         ->assertSeeLivewire('pages::dashboard')
-        ->assertSee('Boggle')
+        ->assertSee('Word Grid')
         ->assertSee('42', escape: false);
 });
 
@@ -59,7 +59,7 @@ test('a local pass-and-play Yahtzee game marked as "you" shows up in recent game
 
     $this->actingAs($user)
         ->get('/dashboard')
-        ->assertSee('Yahtzee');
+        ->assertSee('Yacht');
 });
 
 test('a user without a username is prompted to choose one instead of linking to a public profile', function () {

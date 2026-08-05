@@ -657,11 +657,11 @@ new class extends Component
 };
 ?>
 
-<x-slot:title>Yahtzee — Low Stim Play</x-slot>
-<x-slot:description>A full Yahtzee scorecard for 1-8 players, including the upper-section bonus and Joker rules, in a calm, low-contrast design.</x-slot>
+<x-slot:title>Yacht — Low Stim Play</x-slot>
+<x-slot:description>A full Yacht scorecard for 1-8 players, including the upper-section bonus and Joker rules, in a calm, low-contrast design.</x-slot>
 <x-slot:bodyClass>yahtzee-play</x-slot:bodyClass>
 <x-slot:fullscreenToggle>1</x-slot:fullscreenToggle>
-<x-slot:rulesTitle>Yahtzee Rules</x-slot:rulesTitle>
+<x-slot:rulesTitle>Yacht Rules</x-slot:rulesTitle>
 <x-slot:rules>
     <h3>How to Use This Page</h3>
     <ul>
@@ -681,10 +681,10 @@ new class extends Component
         <li>Full House: scores 25 for three of one number and two of another.</li>
         <li>Small Straight: scores 30 for four sequential numbers (e.g. 2-3-4-5).</li>
         <li>Large Straight: scores 40 for five sequential numbers (1-5 or 2-6).</li>
-        <li>Yahtzee: scores 50 for five of a kind.</li>
+        <li>Yacht: scores 50 for five of a kind.</li>
         <li>Chance: always scores the sum of all five dice, whatever you rolled.</li>
-        <li>Yahtzee Bonus: once your Yahtzee box shows 50, every additional five-of-a-kind you roll earns a 100-point bonus chip, on top of whatever category you score that turn.</li>
-        <li>Joker rule: once your Yahtzee box has been filled at all (scored 50 or forced to 0), a later five-of-a-kind lets Full House / Small Straight / Large Straight score their fixed value (25 / 30 / 40) automatically &mdash; but only if the Upper Section box matching the number you rolled is already filled. If it's still open, those three categories score 0 for that roll instead, so scoring the matching Upper Section box (or Chance) is usually the better move.</li>
+        <li>Yacht Bonus: once your Yacht box shows 50, every additional five-of-a-kind you roll earns a 100-point bonus chip, on top of whatever category you score that turn.</li>
+        <li>Joker rule: once your Yacht box has been filled at all (scored 50 or forced to 0), a later five-of-a-kind lets Full House / Small Straight / Large Straight score their fixed value (25 / 30 / 40) automatically &mdash; but only if the Upper Section box matching the number you rolled is already filled. If it's still open, those three categories score 0 for that roll instead, so scoring the matching Upper Section box (or Chance) is usually the better move.</li>
         <li>The game ends once every player has filled every category; whoever has the highest total wins (ties are possible).</li>
     </ul>
 </x-slot:rules>
@@ -735,7 +735,7 @@ new class extends Component
 
     @unless ($started)
         <div class="setup" id="setup">
-            <div class="heading">Yahtzee</div>
+            <div class="heading">Yacht</div>
 
             @unless (Auth::check() && ! Auth::user()->is_guest)
                 <input type="text" wire:model="guestName" maxlength="24" placeholder="Your name (optional)">

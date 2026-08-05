@@ -8,12 +8,21 @@ enum GameType: string
     case Yahtzee = 'yahtzee';
     case FamilyFeud = 'family_feud';
 
+    /**
+     * The user-visible display name -- deliberately not the same as the
+     * enum case names above (`Boggle`/`Yahtzee`/`FamilyFeud`) or their
+     * string values, which stay as they are internally (routes, DB
+     * values, CSS classes, tests, ...). This is the one thing that
+     * actually needed to change for `docs/TODO.md`'s former #1 ("rename
+     * the games everywhere a user can see the name") -- "in code isn't
+     * important" per that TODO's own wording, so nothing else did.
+     */
     public function label(): string
     {
         return match ($this) {
-            self::Boggle => 'Boggle',
-            self::Yahtzee => 'Yahtzee',
-            self::FamilyFeud => 'Family Feud',
+            self::Boggle => 'Word Grid',
+            self::Yahtzee => 'Yacht',
+            self::FamilyFeud => 'Survey Says',
         };
     }
 
