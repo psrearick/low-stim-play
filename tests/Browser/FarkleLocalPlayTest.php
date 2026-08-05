@@ -10,13 +10,24 @@ uses(RefreshDatabase::class);
  * -> re-render loop works, not just the underlying component methods a
  * Feature test already covers.
  *
+ * Scoped to `.dice-area .row` specifically, not just `#farkle-game .die`
+ * -- once any dice have been locked in this turn, they render in a
+ * *separate* `.farkle-banked-row` (see docs/concerns.md's "banked dice
+ * should show as banked, not disappear"), which also uses the `.die`
+ * class. Without this scoping, reading `#farkle-game .die .number`
+ * picks up those non-interactive banked dice too, throwing off the
+ * index alignment with the *active* row's own clickable dice below --
+ * confirmed live: this silently misaligned which die actually got
+ * clicked, leaving the real selection invalid and hanging on the
+ * subsequently-disabled Roll Again button.
+ *
  * @return list<int>
  */
 function currentFarkleDice($page): array
 {
     return array_map(
         fn (string $text) => (int) $text,
-        $page->script("Array.from(document.querySelectorAll('#farkle-game .die .number')).map(el => el.textContent.trim()).filter(t => t !== '')"),
+        $page->script("Array.from(document.querySelectorAll('.dice-area .row .die .number')).map(el => el.textContent.trim()).filter(t => t !== '')"),
     );
 }
 
@@ -79,7 +90,7 @@ it('plays through several turns of a solo game, ending via a real click', functi
             break;
         }
 
-        $page->click(".farkle-play .die >> nth={$scoringIndex}")->wait(0.3);
+        $page->click(".dice-area .row .die >> nth={$scoringIndex}")->wait(0.3);
         $page->click('#rollAgainBtn')->wait(0.3);
     }
 

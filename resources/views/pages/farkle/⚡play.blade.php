@@ -75,6 +75,18 @@ new class extends Component
     public array $selected = [];
 
     /**
+     * Every die value locked in so far *this turn*, across every roll --
+     * unlike $dice/$selected (which only ever reflect the current roll),
+     * this never gets cleared mid-turn, so a multi-roll turn still shows
+     * everything already set aside instead of it silently disappearing.
+     * See docs/concerns.md: "Bank[ed] dice should show as banked, not
+     * disappear."
+     *
+     * @var list<int>
+     */
+    public array $bankedDiceThisTurn = [];
+
+    /**
      * This turn's running total, banked all at once by bank() or lost
      * entirely on a bust -- not the same as any single roll's score.
      */
@@ -89,6 +101,14 @@ new class extends Component
     public int $heldDiceCount = 0;
 
     public ?string $message = null;
+
+    /**
+     * What kind of thing $message is describing -- 'bust'|'banked'|
+     * 'gameOver'|null -- purely for Blade to style it distinctly (see
+     * docs/concerns.md: a Farkle should be "more clear... in bigger
+     * letters"), never used for game logic.
+     */
+    public ?string $messageType = null;
 
     /**
      * Which local player, if any, is the authenticated account holder --
@@ -174,6 +194,7 @@ new class extends Component
         $this->currentPlayer = $state['currentSeat'];
         $this->dice = $state['dice'];
         $this->selected = $state['selected'];
+        $this->bankedDiceThisTurn = $state['bankedDiceThisTurn'];
         $this->turnScore = $state['turnScore'];
         $this->heldDiceCount = $state['heldDiceCount'];
         $this->targetScore = $state['targetScore'];
@@ -182,6 +203,7 @@ new class extends Component
         $this->finalRoundRemaining = $state['finalRoundRemaining'];
         $this->gameOver = $state['gameOver'];
         $this->message = $state['message'];
+        $this->messageType = $state['messageType'];
         $this->started = true;
     }
 
@@ -205,6 +227,7 @@ new class extends Component
             'currentSeat' => $this->currentPlayer,
             'dice' => $this->dice,
             'selected' => $this->selected,
+            'bankedDiceThisTurn' => $this->bankedDiceThisTurn,
             'turnScore' => $this->turnScore,
             'heldDiceCount' => $this->heldDiceCount,
             'targetScore' => $this->targetScore,
@@ -213,6 +236,7 @@ new class extends Component
             'finalRoundRemaining' => $this->finalRoundRemaining,
             'gameOver' => $this->gameOver,
             'message' => $this->message,
+            'messageType' => $this->messageType,
         ];
 
         DB::transaction(function () use ($state) {
@@ -315,6 +339,7 @@ new class extends Component
         $this->gameOver = false;
         $this->started = true;
         $this->message = null;
+        $this->messageType = null;
         $this->startTurn();
     }
 
@@ -354,7 +379,7 @@ new class extends Component
     {
         abort_unless($this->room === null || $this->mySeatIndex === $this->currentPlayer, 403);
 
-        if ($this->gameOver || ! $this->canRollAgain) {
+        if ($this->gameOver || ! $this->canRollAgainValue()) {
             return;
         }
 
@@ -363,15 +388,31 @@ new class extends Component
         $this->syncOnlineStateIfNeeded();
     }
 
+    /**
+     * Banks every scoring die in the current roll, not just whichever
+     * ones happen to be manually clicked -- see docs/concerns.md: a
+     * player who clicks Bank without having clicked every scoring die
+     * first should still get credit for all of them, not just the ones
+     * they selected. $this->bankableAmount (used for the button's own
+     * label) is computed via the exact same engine call, so what's shown
+     * is always exactly what gets banked.
+     */
     public function bank(): void
     {
         abort_unless($this->room === null || $this->mySeatIndex === $this->currentPlayer, 403);
 
-        if ($this->gameOver || ! $this->canBank) {
+        if ($this->gameOver || ! $this->canBankValue()) {
             return;
         }
 
-        $this->applySelection();
+        // Not appended to $bankedDiceThisTurn -- bank() ends the turn
+        // immediately, and that list resets for the next turn right
+        // after anyway (see startTurn(), called from advanceTurn()),
+        // so there's no render where showing these dice as "banked"
+        // separately from the scoreboard update would ever matter.
+        $this->turnScore += $this->engine->scoreMaximal($this->dice);
+        $this->dice = [];
+        $this->selected = [];
         $this->bankTurnScore();
         $this->syncOnlineStateIfNeeded();
     }
@@ -407,6 +448,7 @@ new class extends Component
             $this->dice = [];
             $this->selected = [];
             $this->message = "{$name} rolled a Farkle — the turn's points are lost.";
+            $this->messageType = 'bust';
             $this->advanceTurn();
 
             return;
@@ -415,6 +457,7 @@ new class extends Component
         $this->dice = $rolled;
         $this->selected = array_fill(0, count($rolled), false);
         $this->message = null;
+        $this->messageType = null;
     }
 
     /**
@@ -438,6 +481,7 @@ new class extends Component
 
         $this->turnScore += $result['score'];
         $this->heldDiceCount += count($values);
+        $this->bankedDiceThisTurn = [...$this->bankedDiceThisTurn, ...$values];
 
         if ($this->heldDiceCount === self::DICE_COUNT) {
             $this->heldDiceCount = 0;
@@ -457,6 +501,7 @@ new class extends Component
         $this->players[$this->currentPlayer] = $player;
 
         $this->message = "{$player['name']} banked {$this->turnScore}.";
+        $this->messageType = 'banked';
 
         // Only a *fresh* crossing starts the final round -- if it's already
         // active (someone else triggered it), this bank is just another of
@@ -515,6 +560,7 @@ new class extends Component
     {
         $this->dice = [];
         $this->selected = [];
+        $this->bankedDiceThisTurn = [];
         $this->turnScore = 0;
         $this->heldDiceCount = 0;
     }
@@ -531,6 +577,7 @@ new class extends Component
         $this->gameOver = true;
         $this->dice = [];
         $this->selected = [];
+        $this->bankedDiceThisTurn = [];
         $this->turnScore = 0;
         $this->heldDiceCount = 0;
 
@@ -598,6 +645,7 @@ new class extends Component
         $this->message = $winners > 1
             ? "Game Over — It's a tie at {$topScore}!"
             : "Game Over — {$winnerName} wins with {$topScore}!";
+        $this->messageType = 'gameOver';
     }
 
     public function newGame(): void
@@ -610,19 +658,36 @@ new class extends Component
         $this->gameOver = false;
         $this->players = [];
         $this->message = null;
+        $this->messageType = null;
         $this->meIndex = null;
         $this->finalRoundActive = false;
         $this->finalRoundRemaining = null;
     }
 
     /**
-     * The score the current selection is worth, computed live from
-     * $dice/$selected -- drives both the on-screen "worth X points" hint
-     * and canBank/canRollAgain's own gating below.
-     *
-     * @return array{score: int, valid: bool}
+     * Every "canX"/derived-value property below has a private, uncached
+     * `xValue()` twin that the *actions* (roll()/rollAgain()/bank()/etc.)
+     * call internally, while the public `getXProperty()` -- which Blade
+     * reads -- just delegates to it. This split exists because of a real
+     * bug found live: Livewire's legacy `getXxxProperty()` convention
+     * (`SupportLegacyComputedPropertySyntax`) memoizes each property's
+     * value the *first* time it's accessed within a request and reuses
+     * that cached value for every later access in the same request. An
+     * action method that read `$this->canRollAgain` in its own guard
+     * *before* mutating $dice/$selected/$currentPlayer -- exactly what
+     * rollAgain()/bank() used to do -- cached the *pre*-mutation answer,
+     * and Blade's later render of `$this->canRollAgain` (after the
+     * mutation) silently reused that same stale cached value instead of
+     * recomputing. Confirmed via the raw server-rendered HTML itself
+     * (not just the browser DOM): `rollAgainBtn` rendered with no
+     * `disabled` attribute at all right after a rollAgain() call, even
+     * though a fresh evaluation of the exact same condition (bypassing
+     * the cache) correctly returned false. As long as every action uses
+     * the private, uncached version, the public cached getter's first
+     * (and only) access per request is Blade's own render -- always
+     * correct, and still only computed once per render either way.
      */
-    public function getSelectionScoreProperty(): array
+    private function selectionScoreValue(): array
     {
         $values = [];
 
@@ -635,27 +700,68 @@ new class extends Component
         return $this->engine->scoreSelection($values);
     }
 
-    public function getCanRollAgainProperty(): bool
+    /**
+     * The score the current selection is worth, computed live from
+     * $dice/$selected -- drives the on-screen "worth X points" hint.
+     *
+     * @return array{score: int, valid: bool}
+     */
+    public function getSelectionScoreProperty(): array
     {
-        if ($this->dice === [] || $this->gameOver || $this->isSpectator || ! $this->isMyTurn) {
+        return $this->selectionScoreValue();
+    }
+
+    private function canRollAgainValue(): bool
+    {
+        if ($this->dice === [] || $this->gameOver || $this->isSpectatorValue() || ! $this->isMyTurnValue()) {
             return false;
         }
 
-        $selection = $this->selectionScore;
+        $selection = $this->selectionScoreValue();
 
         return $selection['valid'] && $selection['score'] > 0;
     }
 
-    public function getCanBankProperty(): bool
+    public function getCanRollAgainProperty(): bool
     {
-        if (! $this->canRollAgain) {
+        return $this->canRollAgainValue();
+    }
+
+    /**
+     * What clicking Bank right now would actually add to the player's
+     * banked score -- every scoring die in the current roll, auto-
+     * included regardless of manual clicks (see bank()'s own docblock).
+     * Used both for canBank's own gating and the button's on-screen
+     * label, so the two can never disagree with each other.
+     */
+    private function bankableAmountValue(): int
+    {
+        return $this->turnScore + $this->engine->scoreMaximal($this->dice);
+    }
+
+    public function getBankableAmountProperty(): int
+    {
+        return $this->bankableAmountValue();
+    }
+
+    private function canBankValue(): bool
+    {
+        if ($this->dice === [] || $this->gameOver || $this->isSpectatorValue() || ! $this->isMyTurnValue()) {
+            return false;
+        }
+
+        if ($this->engine->scoreMaximal($this->dice) <= 0) {
             return false;
         }
 
         $player = $this->players[$this->currentPlayer];
-        $projected = $this->turnScore + $this->selectionScore['score'];
 
-        return $this->engine->meetsMinimumEntry($player['hasQualified'], $projected);
+        return $this->engine->meetsMinimumEntry($player['hasQualified'], $this->bankableAmountValue());
+    }
+
+    public function getCanBankProperty(): bool
+    {
+        return $this->canBankValue();
     }
 
     public function getCanEndGameManuallyProperty(): bool
@@ -671,14 +777,24 @@ new class extends Component
      * See pages::yahtzee.play's own getIsSpectatorProperty() docblock --
      * identical meaning.
      */
-    public function getIsSpectatorProperty(): bool
+    private function isSpectatorValue(): bool
     {
         return $this->room !== null && ($this->mySeatIndex === null || $this->spectate);
     }
 
-    public function getIsMyTurnProperty(): bool
+    public function getIsSpectatorProperty(): bool
+    {
+        return $this->isSpectatorValue();
+    }
+
+    private function isMyTurnValue(): bool
     {
         return $this->room === null || $this->mySeatIndex === $this->currentPlayer;
+    }
+
+    public function getIsMyTurnProperty(): bool
+    {
+        return $this->isMyTurnValue();
     }
 
     public function getStatusTextProperty(): string
@@ -704,21 +820,22 @@ new class extends Component
     <h3>How to Use This Page</h3>
     <ul>
         <li>Set the number of players (1&ndash;8) and optional names, plus the target score and final-round option, then press Start Game.</li>
-        <li>On your turn, press Roll, then tap the dice you want to set aside from that roll &mdash; only dice that actually score can be selected.</li>
-        <li>Once you've selected a valid combination, either Bank (end your turn, keep the points) or Roll Again (set those dice aside for good and reroll the rest).</li>
+        <li>On your turn, press Roll. Bank ends your turn and keeps every scoring die's points automatically &mdash; you don't have to tap each one first.</li>
+        <li>Only tap individual dice if you want to lock some in and Roll Again for the rest &mdash; only dice that actually score can be selected that way.</li>
         <li>A roll with no scoring dice at all is a Farkle &mdash; the turn ends immediately and everything banked so far this turn is lost.</li>
     </ul>
 
     <h3>Full Rules</h3>
     <ul>
-        <li>Each turn, roll all 6 dice. After each roll, set aside at least one scoring die or combination, then choose to bank your turn's points or roll the remaining dice again.</li>
+        <li>Each turn, roll all 6 dice. Bank ends your turn, automatically adding up every scoring die in the current roll (whether or not you've tapped it) &mdash; or tap specific dice and press Roll Again to lock just those in and reroll the rest.</li>
         <li>A single 1 scores 100; a single 5 scores 50.</li>
         <li>Three of a kind scores by face value: three 1s = 1000, three of any other number <em>n</em> = <em>n</em> &times; 100 (e.g. three 4s = 400).</li>
-        <li>Four, five, or six of a kind doubles the three-of-a-kind value for each extra matching die (four 4s = 800, five 4s = 1600, six 4s = 3200).</li>
+        <li>Four of a kind = 1000, five of a kind = 2000, six of a kind = 3000, regardless of which number is repeated &mdash; whichever way of scoring a roll is worth more is always used automatically (e.g. four 1s scores 1100, treating it as three 1s plus one leftover single 1, since that beats the flat 1000).</li>
+        <li>A straight (one each of 1&ndash;6) scores 1500. Three pairs (e.g. 2-2, 4-4, 6-6) scores 1500. Two separate triplets (e.g. three 2s and three 5s) scores 2500 &mdash; these three all use every one of the 6 dice in a single roll.</li>
         <li>If all 6 dice have scored during a turn (across one or more rolls), you get "hot dice" &mdash; roll all 6 again and keep adding to the same turn's total.</li>
         <li>A roll with no scoring dice at all is a Farkle: the turn ends immediately and everything banked so far <em>this turn</em> is lost (points already banked from earlier turns are safe).</li>
         <li>Your first banked turn must total at least 500 points to get on the board; every turn after that banks normally, however small.</li>
-        <li>The game plays to a target score (10,000 by default). With the final round option on, once someone banks a turn that reaches the target, every other player gets exactly one more turn before the game ends and the highest total wins (ties are possible). With it off, the game ends the instant anyone reaches the target.</li>
+        <li>The game plays to a target score (10,000 by default), shown at the top of the page once it starts. With the final round option on, once someone banks a turn that reaches the target, every other player gets exactly one more turn (announced on screen) before the game ends and the highest total wins (ties are possible). With it off, the game ends the instant anyone reaches the target.</li>
         <li>A host (or, in local pass-and-play, any player) can end the game early from the button bar instead of playing to the target.</li>
     </ul>
 </x-slot:rules>
@@ -834,40 +951,79 @@ new class extends Component
         </div>
     @else
         <div id="farkle-game" class="farkle-play">
-            <div class="status">{{ $this->statusText }}</div>
-
-            @if ($message && ! $gameOver)
-                <p class="status-line">{{ $message }}</p>
-            @endif
-
-            <div class="dice-area">
-                <div class="row">
-                    @for ($i = 0; $i < self::DICE_COUNT - $heldDiceCount; $i++)
-                        <div class="die {{ ($selected[$i] ?? false) ? 'selected' : '' }}" @if ($this->isMyTurn && ! $this->isSpectator && $dice !== []) wire:click="toggleSelect({{ $i }})" @endif>
-                            <span class="number">{{ $dice[$i] ?? '' }}</span>
-                        </div>
-                    @endfor
-                </div>
-
-                <div class="controls">
-                    @if ($this->isMyTurn && ! $this->isSpectator)
-                        @if ($dice === [])
-                            <button type="button" id="rollBtn" wire:click="roll" @disabled($gameOver)>Roll</button>
-                        @else
-                            <button type="button" id="rollAgainBtn" wire:click="rollAgain" @disabled(! $this->canRollAgain)>Roll Again</button>
-                            <button type="button" id="bankBtn" wire:click="bank" @disabled(! $this->canBank)>Bank {{ $turnScore + $this->selectionScore['score'] }}</button>
-                        @endif
-                    @endif
-                </div>
+            <div class="farkle-target-line">
+                Playing to {{ number_format($targetScore) }}{{ $withFinalRound ? '' : ' — first to reach it wins immediately' }}
             </div>
 
-            <div class="w-full bg-surface border-2 border-surface-border rounded-lg overflow-hidden">
+            @if ($finalRoundActive && ! $gameOver)
+                <div class="farkle-final-round-banner">Final Round!</div>
+            @endif
+
+            <div class="status">{{ $this->statusText }}</div>
+
+            {{--
+                Always rendered, fixed min-height (see app.css) -- the
+                previous version only rendered this <p> when a message
+                existed, so its own min-height never applied and the
+                whole page visibly jumped every time a message appeared
+                or disappeared (docs/concerns.md). Wrapping it in an
+                always-present container instead means the reserved space
+                never changes, whether or not there's currently a message
+                inside it.
+            --}}
+            <div class="farkle-message-slot">
+                @if ($message && ! $gameOver)
+                    <p class="status-line {{ $messageType === 'bust' ? 'farkle-message-bust' : '' }}">{{ $message }}</p>
+                @endif
+            </div>
+
+            @unless ($gameOver)
+                {{--
+                    Dice already locked in earlier this same turn (across
+                    however many rolls) -- shown separately from the
+                    active roll below, with its own border, rather than
+                    silently vanishing the moment they're set aside
+                    (docs/concerns.md).
+                --}}
+                @if ($bankedDiceThisTurn !== [])
+                    <div class="farkle-banked-row">
+                        @foreach ($bankedDiceThisTurn as $i => $value)
+                            <div class="die banked" wire:key="banked-{{ $i }}">
+                                <span class="number">{{ $value }}</span>
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
+
+                <div class="dice-area">
+                    <div class="row">
+                        @for ($i = 0; $i < self::DICE_COUNT - $heldDiceCount; $i++)
+                            <div class="die {{ ($selected[$i] ?? false) ? 'selected' : '' }}" @if ($this->isMyTurn && ! $this->isSpectator && $dice !== []) wire:click="toggleSelect({{ $i }})" @endif>
+                                <span class="number">{{ $dice[$i] ?? '' }}</span>
+                            </div>
+                        @endfor
+                    </div>
+
+                    <div class="controls">
+                        @if ($this->isMyTurn && ! $this->isSpectator)
+                            @if ($dice === [])
+                                <button type="button" id="rollBtn" wire:click="roll" @disabled($gameOver)>Roll</button>
+                            @else
+                                <button type="button" id="rollAgainBtn" wire:click="rollAgain" @disabled(! $this->canRollAgain)>Roll Again</button>
+                                <button type="button" id="bankBtn" wire:click="bank" @disabled(! $this->canBank)>Bank {{ $this->bankableAmount }}</button>
+                            @endif
+                        @endif
+                    </div>
+                </div>
+            @endunless
+
+            <div class="w-full bg-surface border-2 border-surface-border rounded-lg overflow-hidden {{ $gameOver ? 'farkle-final-scores' : '' }}">
                 <div class="grid" style="grid-template-columns: 1fr auto;">
                     @foreach ($players as $i => $player)
-                        <span wire:key="name-{{ $i }}" class="pl-6 pr-3 py-3 {{ $loop->first ? '' : 'border-t border-surface-border' }} text-sm {{ $i === $currentPlayer ? 'font-bold text-text' : 'text-text/80' }}">
-                            {{ $player['name'] }}{{ $i === $currentPlayer ? ' (current)' : '' }}
+                        <span wire:key="name-{{ $i }}" class="pl-6 pr-3 py-3 {{ $loop->first ? '' : 'border-t border-surface-border' }} {{ $gameOver ? '' : 'text-sm' }} {{ $i === $currentPlayer && ! $gameOver ? 'font-bold text-text' : 'text-text/80' }}">
+                            {{ $player['name'] }}{{ $i === $currentPlayer && ! $gameOver ? ' (current)' : '' }}
                         </span>
-                        <span wire:key="score-{{ $i }}" class="pl-3 pr-6 py-3 {{ $loop->first ? '' : 'border-t border-surface-border' }} text-sm text-text text-right">
+                        <span wire:key="score-{{ $i }}" class="pl-3 pr-6 py-3 {{ $loop->first ? '' : 'border-t border-surface-border' }} {{ $gameOver ? 'font-bold' : 'text-sm' }} text-text text-right">
                             {{ $player['bankedScore'] }}
                         </span>
                     @endforeach

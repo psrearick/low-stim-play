@@ -164,6 +164,46 @@ test('rolling again applies the selection and immediately rerolls only the remai
 });
 
 /**
+ * Regression test for a real bug found live: Livewire's legacy
+ * getXxxProperty() convention memoizes each computed property's value
+ * the first time it's read within a request. rollAgain() used to read
+ * $this->canRollAgain in its own guard *before* mutating $dice/
+ * $selected -- caching the pre-mutation (true) answer -- and Blade's
+ * later render of the same property silently reused that stale cached
+ * value instead of recomputing against the post-mutation (fresh, all-
+ * unselected) state. The server-rendered HTML itself proved it: the
+ * button rendered with no `disabled` attribute at all, immediately
+ * clickable with nothing selected. Fixed by having every action call a
+ * private, uncached `xValue()` twin instead of the public cached
+ * property. See docs/DEVLOG.md's "Farkle" section for the full story.
+ */
+test('canRollAgain and selectionScore correctly reflect the fresh roll after rollAgain, not the prior selection', function () {
+    $component = null;
+
+    for ($attempt = 0; $attempt < 30; $attempt++) {
+        $component = Livewire::test('pages::farkle.play')
+            ->call('startGame')
+            ->set('dice', [1, 1, 2, 3, 4, 6])
+            ->call('toggleSelect', 0)->call('toggleSelect', 1) // two 1s = 200, applied by rollAgain()
+            ->call('rollAgain');
+
+        if ($component->get('dice') !== []) {
+            break;
+        }
+    }
+
+    $component->assertSet('selected', [false, false, false, false])
+        ->assertSet('selectionScore', ['score' => 0, 'valid' => false])
+        ->assertSet('canRollAgain', false)
+        // The real bug rendered with no disabled attribute at all --
+        // asserting the raw HTML directly (not just the property) is
+        // what actually caught it, since a stale *cached* property read
+        // via ->assertSet() alone wouldn't necessarily have surfaced a
+        // Blade-rendering-specific discrepancy.
+        ->assertSeeHtml('id="rollAgainBtn" wire:click="rollAgain" disabled');
+});
+
+/**
  * Same real-follow-up-roll caveat as the test above, just with a smaller
  * (~2.3%) bust chance on the fresh 6-dice hot-dice reroll.
  */
@@ -173,7 +213,7 @@ test('setting aside every die earns hot dice -- a fresh set of 6, turn score kep
     for ($attempt = 0; $attempt < 30; $attempt++) {
         $component = Livewire::test('pages::farkle.play')
             ->call('startGame')
-            ->set('dice', [1, 1, 1, 1, 1, 1]) // six 1s = 8000, all 6 dice score
+            ->set('dice', [1, 1, 1, 1, 1, 1]) // six of a kind is a flat 3000, regardless of face
             ->call('toggleSelect', 0)->call('toggleSelect', 1)->call('toggleSelect', 2)
             ->call('toggleSelect', 3)->call('toggleSelect', 4)->call('toggleSelect', 5)
             ->call('rollAgain');
@@ -183,7 +223,7 @@ test('setting aside every die earns hot dice -- a fresh set of 6, turn score kep
         }
     }
 
-    $component->assertSet('turnScore', 8000)
+    $component->assertSet('turnScore', 3000)
         ->assertSet('heldDiceCount', 0) // reset, not left at 6
         ->assertCount('dice', 6); // a fresh full set, not 0
 });
@@ -342,6 +382,7 @@ function farkleOnlineState(array $users): array
         'currentSeat' => 0,
         'dice' => [],
         'selected' => [],
+        'bankedDiceThisTurn' => [],
         'turnScore' => 0,
         'heldDiceCount' => 0,
         'targetScore' => 10000,
@@ -350,5 +391,6 @@ function farkleOnlineState(array $users): array
         'finalRoundRemaining' => null,
         'gameOver' => false,
         'message' => null,
+        'messageType' => null,
     ];
 }

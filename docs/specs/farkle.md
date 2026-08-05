@@ -19,12 +19,21 @@ against that existing system rather than as a one-off.
 
 ## 2. Design decisions
 
-- **Scoring (standard variant, no straight/3-pair bonus):**
+- **Scoring, corrected 2026-08-05 per `docs/concerns.md` (supersedes the original
+  "doubling" variant this shipped with, which was wrong):**
   - Single 1 = 100 points. Single 5 = 50 points.
   - Three of a kind: 1s = 1000; any other number `n` = `n × 100` (e.g. three 4s = 400).
-  - Four of a kind = 2× the three-of-a-kind value for that number. Five of a kind = 4×.
-    Six of a kind = 8×.
-  - No bonus for a 1–6 straight or three pairs in one roll — not part of this ruleset.
+  - Four of a kind = 1000, five of a kind = 2000, six of a kind = 3000 — **flat values,
+    not scaled by which face is repeated** (four 4s = 1000, not 800; four 1s and four
+    6s score the same 1000 base). Whichever way of scoring a given roll is worth more
+    is always used automatically: four 1s is scored as three 1s (1000) plus one
+    leftover single 1 (100) = 1100, since that beats the flat four-of-a-kind value of
+    1000; four 5s is scored as the flat 1000, since that beats three 5s (500) plus one
+    leftover single 5 (550).
+  - **Three more special patterns, each using all 6 dice in a single roll**: a straight
+    (one each of 1–6) = 1500; three pairs (e.g. 2-2, 4-4, 6-6) = 1500; two separate
+    triplets (e.g. three 2s and three 5s) = 2500. These replace the normal per-face
+    decomposition entirely for that roll rather than adding to it.
   - A roll that scores nothing at all is a Farkle: the turn ends immediately and the
     entire turn's unbanked score is lost (not just discarded down to what was already
     banked this turn — the whole turn is zero).
@@ -54,13 +63,14 @@ against that existing system rather than as a one-off.
   local mode). Online rooms use the existing decoupled room system —
   `GameType::Farkle->roomRoute()` → a `pages::farkle.room` page — rather than a
   one-off build.
-- **Turn UI shape:** Roll → the player taps/selects which scoring dice to keep (must
-  select at least one scoring combination from the roll to continue, otherwise it's a
-  Farkle) → Bank (adds the turn's running total to their overall score, turn passes to
-  the next player) or Roll Again (re-rolls the remaining, not-yet-held dice). This
-  matches Yahtzee's existing "roll → act → confirm" rhythm closely enough to reuse the
-  same general interaction pattern, just with dice *selection* instead of *category*
-  selection as the scoring action.
+- **Turn UI shape:** Roll → Bank (auto-includes every scoring die in the current roll
+  and ends the turn, regardless of what's manually tapped — see `docs/concerns.md`:
+  clicking Bank should never leave un-clicked scoring dice off the total) or, to keep
+  going, tap specific dice to lock in and press Roll Again (re-rolls only the
+  remaining, not-yet-held dice; Roll Again *does* require an explicit, valid manual
+  selection, unlike Bank). This matches Yahtzee's existing "roll → act → confirm"
+  rhythm closely enough to reuse the same general interaction pattern, just with dice
+  *selection* instead of *category* selection as the scoring action.
 
 ## 3. Data model
 

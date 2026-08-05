@@ -26,6 +26,14 @@ class GameEngine
     }
 
     /**
+     * @param  list<int>  $values  a full roll, not a manual selection
+     */
+    public function scoreMaximal(array $values): int
+    {
+        return $this->scorer->scoreMaximal($values);
+    }
+
+    /**
      * Whether banking `$projectedTurnScore` right now would count at all --
      * always true once a player has already gotten on the board once
      * before (`$hasQualified`), otherwise only once this turn alone

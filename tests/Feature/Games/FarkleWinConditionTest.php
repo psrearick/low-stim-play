@@ -10,20 +10,22 @@ uses(RefreshDatabase::class);
 
 /**
  * Isolates the win-condition/final-round bookkeeping from real dice --
- * every bank() call here forces $dice/$selected directly first, so the
- * outcome being tested (target crossed, final round countdown, game end)
- * never depends on chance the way an actual roll would.
+ * every bank() call here forces $dice directly first, so the outcome
+ * being tested (target crossed, final round countdown, game end) never
+ * depends on chance the way an actual roll would. $selected is
+ * deliberately never set -- bank() auto-includes every scoring die in
+ * $dice regardless of manual selection (see docs/concerns.md), so these
+ * helpers double as coverage of that.
  */
-function bankSixOnes(mixed $component): mixed
+function bankSixOfAKind(mixed $component): mixed
 {
     // Not ->call('roll') then ->set('dice', ...) -- see FarkleGameTest's
     // own comment on the same pattern: a real roll() has a genuine chance
     // of busting for real before the override takes effect, which here
     // would silently shift whose turn it actually is, before any of this
-    // helper's own forced dice/selection ever applies.
+    // helper's own forced dice ever applies.
     return $component
-        ->set('dice', [1, 1, 1, 1, 1, 1]) // six 1s = 8000
-        ->set('selected', [true, true, true, true, true, true])
+        ->set('dice', [1, 1, 1, 1, 1, 1]) // six of a kind is a flat 3000, regardless of face
         ->call('bank');
 }
 
@@ -38,7 +40,6 @@ function bankThreeOnes(mixed $component): mixed
 {
     return $component
         ->set('dice', [1, 1, 1, 2, 3, 4]) // three 1s = 1000
-        ->set('selected', [true, true, true, false, false, false])
         ->call('bank');
 }
 
@@ -51,7 +52,6 @@ function bankSingleOne(mixed $component): mixed
 {
     return $component
         ->set('dice', [1, 2, 3, 4, 6, 6]) // a single 1 = 100
-        ->set('selected', [true, false, false, false, false, false])
         ->call('bank');
 }
 
@@ -62,9 +62,9 @@ test('with the final round on, crossing the target gives every other player exac
         ->set('withFinalRound', true)
         ->call('startGame');
 
-    // Player 0 crosses 1000 in one turn (six 1s = 8000).
-    bankSixOnes($component)
-        ->assertSet('players.0.bankedScore', 8000)
+    // Player 0 crosses 1000 in one turn (six of a kind = 3000).
+    bankSixOfAKind($component)
+        ->assertSet('players.0.bankedScore', 3000)
         ->assertSet('finalRoundActive', true)
         ->assertSet('finalRoundRemaining', 2)
         ->assertSet('gameOver', false)
@@ -84,9 +84,9 @@ test('with the final round on, crossing the target gives every other player exac
         ->assertSet('players.2.bankedScore', 1000)
         ->assertSet('gameOver', true);
 
-    // Player 0's 8000 still wins outright.
+    // Player 0's 3000 still wins outright.
     $session = GameSession::sole();
-    $winner = GameParticipant::where('score', 8000)->sole();
+    $winner = GameParticipant::where('score', 3000)->sole();
     $loser = GameParticipant::where('score', 1000)->first();
 
     expect($session->settings['target_score'])->toBe(1000)
@@ -101,9 +101,9 @@ test('without the final round, the game ends the instant anyone crosses the targ
         ->set('withFinalRound', false)
         ->call('startGame');
 
-    bankSixOnes($component)
+    bankSixOfAKind($component)
         ->assertSet('gameOver', true)
-        ->assertSet('players.0.bankedScore', 8000)
+        ->assertSet('players.0.bankedScore', 3000)
         // Players 1 and 2 never got a turn at all.
         ->assertSet('players.1.bankedScore', 0)
         ->assertSet('players.2.bankedScore', 0);
@@ -118,11 +118,11 @@ test('a tie for the highest banked score at game end is recorded as a draw for b
         ->set('withFinalRound', true)
         ->call('startGame');
 
-    bankSixOnes($component) // player 0 crosses, triggers the final round
+    bankSixOfAKind($component) // player 0 crosses, triggers the final round
         ->assertSet('finalRoundActive', true);
 
-    // Player 1's one final turn also banks exactly 8000 -- a tie.
-    bankSixOnes($component)
+    // Player 1's one final turn also banks exactly 3000 -- a tie.
+    bankSixOfAKind($component)
         ->assertSet('gameOver', true);
 
     expect(GameParticipant::where('result', GameResult::Draw)->count())->toBe(2);
@@ -137,16 +137,46 @@ test('a manual early end-game evaluates the current banked totals, final round o
         ->assertSet('players.0.bankedScore', 0) // 100 is under the 500 minimum, never actually banked
         ->assertSet('currentPlayer', 0); // turn never advanced -- bank() was a no-op
 
-    bankSixOnes($component) // 8000 qualifies outright
-        ->assertSet('players.0.bankedScore', 8000)
+    bankSixOfAKind($component) // 3000 qualifies outright
+        ->assertSet('players.0.bankedScore', 3000)
         ->assertSet('currentPlayer', 1);
 
     $component->call('endGameManually')
         ->assertSet('gameOver', true);
 
-    $winner = GameParticipant::where('score', 8000)->sole();
+    $winner = GameParticipant::where('score', 3000)->sole();
     $loser = GameParticipant::where('score', 0)->sole();
 
     expect($winner->result)->toBe(GameResult::Win)
         ->and($loser->result)->toBe(GameResult::Loss);
+});
+
+test('bank() auto-includes every scoring die even when none were manually clicked', function () {
+    // Regression coverage for docs/concerns.md's "if there are scoring
+    // dice they did not click, those should be added up and banked too"
+    // -- $selected is never touched here at all.
+    $component = Livewire::test('pages::farkle.play')
+        ->call('setPlayerCount', 1)
+        ->call('startGame')
+        ->set('dice', [4, 4, 4, 1, 5]) // three 4s (400) + a 1 (100) + a 5 (50) = 550
+        ->assertSet('selected', [])
+        ->call('bank');
+
+    expect($component->get('players.0.bankedScore'))->toBe(550);
+});
+
+test('the Bank button label always matches what actually gets banked', function () {
+    // Regression coverage for docs/concerns.md's "the Bank amount... is
+    // wrong" -- bankableAmount (used for the label) and what bank()
+    // actually credits must never disagree.
+    $component = Livewire::test('pages::farkle.play')
+        ->call('setPlayerCount', 1)
+        ->call('startGame')
+        ->set('dice', [4, 4, 4, 1, 5]);
+
+    expect($component->get('bankableAmount'))->toBe(550);
+
+    $component->call('bank');
+
+    expect($component->get('players.0.bankedScore'))->toBe(550);
 });

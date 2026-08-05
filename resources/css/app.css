@@ -1367,6 +1367,102 @@ body.scrollable.farkle-play.in-game {
     user-select: none;
 }
 
+/* Reserved-width buttons so the digits inside "Bank N" changing (0 vs.
+   3200) doesn't itself reflow the row -- and a reserved-width .controls
+   so the row growing from one button (Roll) to two (Roll Again + Bank)
+   doesn't visibly shrink the dice next to it either. Both are examples of
+   docs/concerns.md's "the screen jumps" complaint. #rollBtn itself is
+   also used, unscoped, by Yahtzee's own play page -- scoped here under
+   .farkle-play so this doesn't change Yahtzee's Roll button width too. */
+.farkle-play #rollBtn,
+#rollAgainBtn,
+#bankBtn {
+    min-width: 120px;
+}
+
+.farkle-play .dice-area .controls {
+    min-width: 260px;
+    justify-content: flex-end;
+}
+
+/* Dice already locked in earlier this same turn -- flex, not the grid
+   .row above, since the count varies turn to turn (a long multi-roll
+   turn, especially with hot dice, can hold more than 6). Smaller and
+   muted relative to the active roll below, since it's a record of what's
+   already secured, not something to keep interacting with. */
+.farkle-banked-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: clamp(4px, 0.8vh, 12px);
+    width: min(56vw, 42vh, 720px);
+    opacity: 0.75;
+}
+
+.farkle-banked-row .die {
+    width: clamp(32px, 6vmin, 56px);
+    aspect-ratio: 1 / 1;
+    flex: 0 0 auto;
+    background: var(--die);
+    border: 2px solid var(--accent);
+    border-radius: clamp(5px, 0.8vmin, 12px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: default;
+}
+
+.farkle-banked-row .number {
+    font-size: clamp(14px, 3.6vmin, 32px);
+    font-weight: bold;
+    color: var(--ink);
+    line-height: 1;
+    user-select: none;
+}
+
+.farkle-target-line {
+    color: var(--ink);
+    opacity: 0.75;
+    font-size: clamp(12px, 1.4vh, 15px);
+    text-align: center;
+}
+
+.farkle-final-round-banner {
+    color: var(--warn);
+    font-weight: bold;
+    font-size: clamp(14px, 1.8vh, 18px);
+    letter-spacing: 0.05em;
+    text-align: center;
+}
+
+/* Fixed min-height, always rendered (see the Blade around this) -- the
+   message inside (a bust, a bank, or nothing at all) used to only exist
+   in the DOM when non-empty, so .status-line's own min-height never
+   actually reserved anything and the page visibly jumped every time a
+   message appeared or disappeared. */
+.farkle-message-slot {
+    min-height: 1.8em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.farkle-message-slot .status-line {
+    margin: 0;
+}
+
+.farkle-message-bust {
+    color: var(--warn);
+    font-weight: bold;
+    font-size: clamp(15px, 2vh, 20px);
+}
+
+.farkle-final-scores .grid > span {
+    font-size: clamp(16px, 2.4vh, 22px);
+    padding-top: clamp(10px, 1.4vh, 16px);
+    padding-bottom: clamp(10px, 1.4vh, 16px);
+}
+
 .setup-row {
     display: flex;
     align-items: center;

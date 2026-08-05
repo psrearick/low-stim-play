@@ -99,6 +99,7 @@ new class extends Component
                 'currentSeat' => 0,
                 'dice' => [],
                 'selected' => [],
+                'bankedDiceThisTurn' => [],
                 'turnScore' => 0,
                 'heldDiceCount' => 0,
                 'targetScore' => $this->targetScore,
@@ -107,6 +108,7 @@ new class extends Component
                 'finalRoundRemaining' => null,
                 'gameOver' => false,
                 'message' => null,
+                'messageType' => null,
             ];
 
             $session = GameSession::create([
