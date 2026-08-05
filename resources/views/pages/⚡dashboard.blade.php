@@ -19,33 +19,9 @@ new class extends Component
 ?>
 
 <x-slot:title>Dashboard — Low Stim Play</x-slot>
+<x-slot:sidebar>1</x-slot:sidebar>
 
 <div class="flex flex-col items-center gap-6 w-full max-w-2xl">
-    {{--
-        Teleported (see layouts/app.blade.php's #game-actions anchor)
-        rather than a layout $barRight slot -- this is a Livewire
-        full-page component, and a plain layout slot is only ever
-        evaluated once at the very first render; it lives outside the
-        component's own root element, so a later Livewire round trip
-        would never touch it again. Matches every other Livewire page's
-        bar-right content (Boggle/Yahtzee/Family Feud/profile), even
-        though this particular page has no wire:click actions today.
-        Both buttons need one wrapping `display: contents` element --
-        @teleport only relocates a single root node, so two bare
-        siblings directly inside it silently drops everything after
-        the first (confirmed: only "Edit Profile" made it across
-        without this wrapper).
-    --}}
-    @teleport('#game-actions')
-        <div style="display: contents;">
-            <a href="{{ route('profile') }}"><button type="button">Edit Profile</button></a>
-            <form method="POST" action="{{ route('logout') }}">
-                @csrf
-                <button type="submit">Log Out</button>
-            </form>
-        </div>
-    @endteleport
-
     <div class="flex items-center gap-4 w-full">
         <x-avatar :name="auth()->user()->name" />
         <div class="flex flex-col">
@@ -63,8 +39,4 @@ new class extends Component
     </div>
 
     <x-player-stats :stats="$this->stats" :recent-games="$this->recentGames" :linkable="true" />
-
-    <a href="{{ route('profile.games') }}" class="text-sm text-text/65 hover:text-text underline">
-        View all games &rarr;
-    </a>
 </div>

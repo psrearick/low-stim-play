@@ -91,12 +91,9 @@ new class extends Component
 ?>
 
 <x-slot:title>Profile — Low Stim Play</x-slot>
+<x-slot:sidebar>1</x-slot:sidebar>
 
 <div class="flex flex-col items-center gap-6 w-full">
-    @teleport('#game-actions')
-        <a href="{{ route('dashboard') }}"><button type="button">Dashboard</button></a>
-    @endteleport
-
     <x-panel heading="Profile">
         @if ($saved)
             <p class="text-sm text-text/80 text-center">Profile saved.</p>

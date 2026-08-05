@@ -45,6 +45,9 @@
         <div class="button-bar{{ isset($manyButtons) ? ' many-buttons' : '' }}">
             <div class="left">
                 <a href="{{ url('/') }}"><button type="button">Home</button></a>
+                @isset($sidebar)
+                    <button type="button" id="sidebar-menu-toggle" aria-label="Open navigation menu">Menu</button>
+                @endisset
                 @isset($rules)
                     <button type="button" id="rules-btn" aria-label="Rules">?</button>
                 @endisset
@@ -107,8 +110,18 @@
             </dialog>
         @endisset
 
-        {{ $slot ?? '' }}
-        @yield('content')
+        @isset($sidebar)
+            <div class="app-shell">
+                <x-app-sidebar />
+                <main class="app-main">
+                    {{ $slot ?? '' }}
+                    @yield('content')
+                </main>
+            </div>
+        @else
+            {{ $slot ?? '' }}
+            @yield('content')
+        @endisset
 
         <footer class="site-footer">
             <a href="{{ route('about') }}">About</a>

@@ -48,6 +48,7 @@ new class extends Component
 ?>
 
 <x-slot:title>Boggle Game — Low Stim Play</x-slot>
+<x-slot:sidebar>1</x-slot:sidebar>
 
 <div class="flex flex-col items-center gap-6 w-full max-w-2xl">
     <a href="{{ route('profile.boggle') }}" class="self-start text-sm text-text/65 hover:text-text">&larr; Boggle Stats</a>

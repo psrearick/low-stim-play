@@ -2006,3 +2006,117 @@ body.scrollable.family-feud-play {
     font-weight: bold;
     border-top: 2px solid var(--die-border);
 }
+
+/* ---- App sidebar navigation (Dashboard/Profile/Stats pages only --
+   game-play pages keep their own existing button-bar chrome untouched).
+   Persistent on desktop; on narrower screens it becomes an off-canvas
+   panel toggled by a "Menu" button in the button-bar, using the same
+   900px breakpoint already used throughout this app. Toggling is an
+   instant display swap, not an animated slide -- this app avoids motion
+   everywhere else (see the Rules dialog's own backdrop above, and
+   family-feud-spec's "no fast or bouncing animation" rule), so a sliding
+   drawer would be inconsistent with that. ---- */
+.app-shell {
+    display: flex;
+    align-items: flex-start;
+    gap: 24px;
+    width: 100%;
+}
+
+.app-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 220px;
+    flex-shrink: 0;
+    padding: 16px;
+    background: var(--surface);
+    border: 2px solid var(--surface-border);
+    border-radius: 10px;
+}
+
+.app-sidebar-link {
+    display: block;
+    width: 100%;
+    padding: 10px 14px;
+    border-radius: 6px;
+    background: none;
+    border: none;
+    color: var(--ink);
+    font-size: 15px;
+    font-weight: bold;
+    letter-spacing: 0.02em;
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.app-sidebar-link:hover,
+.app-sidebar-link:focus-visible {
+    background: var(--btn);
+}
+
+.app-sidebar-link.active {
+    background: var(--btn);
+    color: var(--bar);
+}
+
+.app-sidebar-divider {
+    height: 1px;
+    margin: 8px 4px;
+    background: var(--surface-border);
+}
+
+.app-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+#sidebar-menu-toggle {
+    display: none;
+}
+
+.app-sidebar-backdrop {
+    display: none;
+}
+
+@media (max-width: 899px) {
+    #sidebar-menu-toggle {
+        display: inline-flex;
+    }
+
+    .app-shell {
+        gap: 0;
+    }
+
+    .app-sidebar {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        z-index: 20;
+        width: min(80vw, 280px);
+        border-radius: 0;
+        border-top: none;
+        border-bottom: none;
+        border-left: none;
+        overflow-y: auto;
+        padding-top: calc(16px + env(safe-area-inset-top, 0px));
+    }
+
+    .app-sidebar.open {
+        display: flex;
+    }
+
+    .app-sidebar-backdrop.open {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 19;
+        background: oklch(from var(--bg) calc(l - 0.2) c h / 0.6);
+    }
+}

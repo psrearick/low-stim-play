@@ -109,7 +109,11 @@ test('a win is shown distinctly from a loss or no result', function () {
 test('the dashboard links to the all-games page', function () {
     $user = User::factory()->create();
 
-    Livewire::actingAs($user)
-        ->test('pages::dashboard')
-        ->assertSeeHtml(route('profile.games'));
+    // The link now lives in the sidebar (see resources/views/components/
+    // app-sidebar.blade.php), which is part of the layout, not the
+    // Livewire component's own template -- Livewire::test() only renders
+    // the latter, so this needs a real full-page request to see it.
+    $this->actingAs($user)
+        ->get('/dashboard')
+        ->assertSee(route('profile.games'), escape: false);
 });

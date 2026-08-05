@@ -40,12 +40,9 @@ new class extends Component
 ?>
 
 <x-slot:title>All Games — Low Stim Play</x-slot>
+<x-slot:sidebar>1</x-slot:sidebar>
 
 <div class="flex flex-col items-center gap-6 w-full max-w-2xl">
-    @teleport('#game-actions')
-        <a href="{{ route('dashboard') }}"><button type="button">Dashboard</button></a>
-    @endteleport
-
     <h1 class="text-bar font-bold tracking-wide text-2xl text-center">All Games</h1>
 
     @if ($this->games->isEmpty())

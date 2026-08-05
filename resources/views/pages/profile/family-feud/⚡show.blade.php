@@ -30,6 +30,7 @@ new class extends Component
 ?>
 
 <x-slot:title>Family Feud Game — Low Stim Play</x-slot>
+<x-slot:sidebar>1</x-slot:sidebar>
 
 <div class="flex flex-col items-center gap-6 w-full max-w-2xl">
     <a href="{{ route('profile.family-feud') }}" class="self-start text-sm text-text/65 hover:text-text">&larr; Family Feud Stats</a>

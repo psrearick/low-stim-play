@@ -50,6 +50,33 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // ---- App sidebar navigation (Dashboard/Profile/Stats pages only) -----
+    // Bound directly (like the Rules dialog above), not delegated -- the
+    // sidebar and its toggle button live in the layout itself, rendered
+    // once per page load, never inside a Livewire component's own
+    // re-rendered root.
+    const sidebarToggle = document.getElementById('sidebar-menu-toggle');
+    const appSidebar = document.getElementById('app-sidebar');
+    const appSidebarBackdrop = document.getElementById('app-sidebar-backdrop');
+
+    if (sidebarToggle && appSidebar && appSidebarBackdrop) {
+        const closeSidebar = () => {
+            appSidebar.classList.remove('open');
+            appSidebarBackdrop.classList.remove('open');
+        };
+
+        sidebarToggle.addEventListener('click', () => {
+            appSidebar.classList.toggle('open');
+            appSidebarBackdrop.classList.toggle('open');
+        });
+
+        appSidebarBackdrop.addEventListener('click', closeSidebar);
+
+        document.querySelectorAll('[data-sidebar-close]').forEach((link) => {
+            link.addEventListener('click', closeSidebar);
+        });
+    }
+
     // ---- Generic low-stim dialogs (<x-dialog>/<x-confirm-dialog>) --------
     // Delegated on `document`, not bound per-element like the Rules dialog
     // above, because these dialogs and their trigger buttons commonly live
