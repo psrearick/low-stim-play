@@ -2,6 +2,7 @@
 
 use App\Enums\GameMode;
 use App\Enums\GameType;
+use App\Enums\RoomStatus;
 use App\Events\RoomGameEnded;
 use App\Models\GameParticipant;
 use App\Models\GameSession;
@@ -331,6 +332,16 @@ new class extends Component
         if ($this->isSharedSession) {
             $session = GameSession::find($this->gameSessionId);
             $session->update(['ended_at' => now()]);
+
+            // Room only, not an async $challenge -- see docs/DEVLOG.md's
+            // Farkle "Back to room" fix. Without this, Room.status/
+            // game_session_id stay exactly as they were when the game
+            // started, and pages::boggle.room's own
+            // redirectIfAlreadyStarted() bounces "Back to room" straight
+            // back into this now-finished game instead of the lobby.
+            if ($this->room !== null) {
+                Room::where('code', $this->room)->update(['status' => RoomStatus::Finished]);
+            }
         } else {
             $session = GameSession::create([
                 'type' => GameType::Boggle,

@@ -19,7 +19,7 @@ function loginAndVisitDashboard(User $user): PendingAwaitablePage
 
     $page->fill('email', $user->email)
         ->fill('password', 'password')
-        ->click('button[type=submit]');
+        ->click('#login-submit');
 
     $page->navigate('/dashboard')->resize(375, 800);
 

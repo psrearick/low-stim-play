@@ -259,7 +259,7 @@ test('a roll with no scoring dice at all busts the turn, losing its points and a
     $component->assertSet('turnScore', 0)
         ->assertSet('players.0.farkleCount', 1)
         ->assertSet('currentPlayer', 1)
-        ->assertSee('rolled a Farkle', false);
+        ->assertSee('busted', false);
 });
 
 test('a bust loses only this turn\'s points, not points already banked in earlier turns', function () {

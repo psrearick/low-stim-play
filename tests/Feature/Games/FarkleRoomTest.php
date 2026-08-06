@@ -35,40 +35,37 @@ function readyUpAndStartFarkle(Room $room, User $host, User $guest): array
     ];
 }
 
-test('the setup screen always shows the host button, regardless of auth state', function () {
-    $guest = User::createGuest('Alex');
-
-    $this->actingAs($guest)->get('/farkle')->assertSee('Host an Online Room');
-
+test('the setup screen shows no room UI at all for a user hosting no rooms', function () {
+    // "Join a Room" is deliberately excluded from this assertion -- that's
+    // the global navbar rooms-menu's own always-present action (see
+    // tests/Feature/RoomsMenuTest.php), unrelated to whether *this* game's
+    // own setup screen has anything room-related to show.
     $user = User::factory()->create();
 
-    $this->actingAs($user)->get('/farkle')->assertSee('Host an Online Room');
+    $this->actingAs($user)->get('/farkle')
+        ->assertDontSee('Play in a room you host')
+        ->assertDontSee('Host an Online Room');
 
-    $this->get('/farkle')->assertSee('Host an Online Room');
+    $this->get('/farkle')->assertDontSee('Play in a room you host');
 });
 
-test('a logged-out visitor can host a room, auto-provisioning a guest account', function () {
-    Livewire::test('pages::farkle.play')
-        ->set('guestName', 'Alex')
-        ->call('createRoom')
-        ->assertRedirect();
+test('the setup screen shows a dropdown of rooms the user hosts, linking into each one\'s lobby', function () {
+    $host = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
 
-    $room = Room::sole();
-    $host = User::find($room->host_user_id);
-
-    expect($host->is_guest)->toBeTrue()
-        ->and($host->name)->toBe('Alex');
+    $this->actingAs($host)->get('/farkle')
+        ->assertSee('Play in a room you host')
+        ->assertSee($room->code)
+        ->assertSeeHtml(route('farkle.room', ['code' => $room->code]));
 });
 
-test('joining with a valid code redirects to the farkle room', function () {
-    $room = Room::factory()->create();
-    $user = User::factory()->create();
+test('the hosted-rooms dropdown excludes rooms hosted by other users and expired rooms', function () {
+    $host = User::factory()->create();
+    Room::factory()->create(); // someone else's room
+    Room::factory()->expired()->create(['host_user_id' => $host->id]);
 
-    Livewire::actingAs($user)
-        ->test('pages::farkle.play')
-        ->set('joinID', strtolower($room->code))
-        ->call('joinRoom')
-        ->assertRedirect(route('farkle.room', ['code' => $room->code]));
+    $this->actingAs($host)->get('/farkle')
+        ->assertDontSee('Play in a room you host');
 });
 
 test('a guest can view the farkle room page without an account, and is given a throwaway one', function () {

@@ -1389,14 +1389,50 @@ body.scrollable.farkle-play.in-game {
    .row above, since the count varies turn to turn (a long multi-roll
    turn, especially with hot dice, can hold more than 6). Smaller and
    muted relative to the active roll below, since it's a record of what's
-   already secured, not something to keep interacting with. */
+   already secured, not something to keep interacting with.
+
+   nowrap + horizontal scroll, not flex-wrap -- docs/concerns.md: a long
+   turn's banked dice used to wrap onto a second line once they exceeded
+   this row's width, growing the row vertically and pushing the active
+   roll/Roll button down the page. Staying on one row and scrolling
+   sideways instead keeps everything below it in a fixed position
+   regardless of how many dice are banked this turn. */
+/* docs/concerns.md: the shared .dice-area rule above is deliberately
+   nowrap (Roll sharing a row with the dice, see its own comment) so
+   Yahtzee's scorecard gets the extra vertical room -- but Farkle's own
+   min-width:260px .controls (space for both Roll Again and Bank, not
+   just Roll) left no real room for the six-die row in a narrow portrait
+   viewport, squeezing it down to an illegible sliver next to the
+   buttons rather than any two elements literally stacking on top of
+   each other. Confirmed live via a real 390x844 portrait screenshot.
+   Wrapping onto two rows here, portrait-only, trades the vertical space
+   Yahtzee's version was protecting for dice that are actually legible. */
+@media (max-width: 899px) and (orientation: portrait) {
+    .farkle-play .dice-area {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .farkle-play .row {
+        width: min(92vw, 480px);
+    }
+
+    .farkle-play .dice-area .controls {
+        flex: 1 1 100%;
+        min-width: 0;
+        justify-content: center;
+    }
+}
+
 .farkle-banked-row {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     justify-content: center;
     gap: clamp(4px, 0.8vh, 12px);
     width: min(56vw, 42vh, 720px);
     opacity: 0.75;
+    overflow-x: auto;
+    overflow-y: hidden;
 }
 
 .farkle-banked-row .die {
@@ -1457,10 +1493,36 @@ body.scrollable.farkle-play.in-game {
     font-size: clamp(15px, 2vh, 20px);
 }
 
+/* docs/concerns.md: on a short mobile viewport, #farkle-game's flex
+   chain (flex:1; min-height:0) could squeeze this container down far
+   enough that its own overflow (needed for the rounded-corner clipping
+   trick) silently cut off the lower player rows entirely, with nothing
+   scrollable to reach them -- confirmed live via a real narrow-viewport
+   browser session (scoreHeight/clientHeight both fit the box exactly,
+   this element's own scrollHeight taller than its clientHeight). Fixed
+   by letting it scroll internally instead of clipping, and reserving a
+   minimum viewing height so it isn't squeezed to near-nothing first. */
+.farkle-scoreboard {
+    flex: 1 1 auto;
+    min-height: min(160px, 25vh);
+}
+
 .farkle-final-scores .grid > span {
     font-size: clamp(16px, 2.4vh, 22px);
     padding-top: clamp(10px, 1.4vh, 16px);
     padding-bottom: clamp(10px, 1.4vh, 16px);
+}
+
+/* docs/concerns.md: the live (in-progress) scoreboard only ever used
+   Tailwind's plain text-sm, unlike .farkle-final-scores' own clamp above
+   -- fine on mobile, too small to read comfortably on a desktop-size
+   screen with room to spare. */
+@media (min-width: 900px) {
+    .farkle-scoreboard:not(.farkle-final-scores) .grid > span {
+        font-size: 18px;
+        padding-top: 12px;
+        padding-bottom: 12px;
+    }
 }
 
 .setup-row {

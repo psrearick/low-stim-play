@@ -39,6 +39,8 @@ new class extends Component
                 request()->session()->regenerate();
             }
         }
+
+        $this->room->addMember(Auth::user());
     }
 
     /**

@@ -16,46 +16,27 @@ use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
 
-test('logged-out visitors see both the host button and the join form', function () {
-    $this->get('/boggle')
-        ->assertSee('Host an Online Room')
-        ->assertSee('Room ID');
-});
-
-test('authenticated users can create a room and are redirected into it', function () {
+test('the lobby shows no room UI at all for a user hosting no rooms', function () {
+    // "Join a Room"/"Host an Online Room" no longer exist here at all --
+    // hosting/joining now only happens through the global navbar
+    // rooms-menu (see tests/Feature/RoomsMenuTest.php), unrelated to
+    // whether *this* lobby has anything room-related of its own to show.
     $user = User::factory()->create();
 
-    Livewire::actingAs($user)
-        ->test('pages::boggle.lobby')
-        ->call('createRoom')
-        ->assertRedirect();
+    $this->actingAs($user)->get('/boggle')
+        ->assertDontSee('Play in a room you host');
 
-    $room = Room::sole();
-
-    expect($room->host_user_id)->toBe($user->id)
-        ->and($room->status)->toBe(RoomStatus::Lobby);
+    $this->get('/boggle')->assertDontSee('Play in a room you host');
 });
 
-test('joining with a valid code redirects to the room', function () {
-    $room = Room::factory()->create();
-    $user = User::factory()->create();
+test('the lobby shows a dropdown of rooms the user hosts, linking into each one\'s room page', function () {
+    $host = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
 
-    Livewire::actingAs($user)
-        ->test('pages::boggle.lobby')
-        ->set('joinID', strtolower($room->code))
-        ->call('joinRoom')
-        ->assertRedirect(route('boggle.room', ['code' => $room->code]));
-});
-
-test('joining with an invalid code shows an error instead of redirecting', function () {
-    $user = User::factory()->create();
-
-    Livewire::actingAs($user)
-        ->test('pages::boggle.lobby')
-        ->set('joinID', 'NOPE99')
-        ->call('joinRoom')
-        ->assertNoRedirect()
-        ->assertSet('joinError', 'No active room with that code.');
+    $this->actingAs($host)->get('/boggle')
+        ->assertSee('Play in a room you host')
+        ->assertSee($room->code)
+        ->assertSeeHtml(route('boggle.room', ['code' => $room->code]));
 });
 
 test('a guest can view a room page without an account, and is given a throwaway one', function () {
@@ -68,60 +49,6 @@ test('a guest can view a room page without an account, and is given a throwaway 
     expect($guest->is_guest)->toBeTrue()
         ->and($guest->name)->toBe('Guest')
         ->and(auth()->id())->toBe($guest->id);
-});
-
-test('joining a room from the lobby without an account creates a guest and uses the chosen name', function () {
-    $room = Room::factory()->create();
-
-    Livewire::test('pages::boggle.lobby')
-        ->set('guestName', 'Alex')
-        ->set('joinID', $room->code)
-        ->call('joinRoom')
-        ->assertRedirect(route('boggle.room', ['code' => $room->code]));
-
-    $guest = User::where('is_guest', true)->sole();
-
-    expect($guest->is_guest)->toBeTrue()
-        ->and($guest->name)->toBe('Alex');
-});
-
-test('an already-authenticated guest can host a room without a second throwaway account being created', function () {
-    $guest = User::createGuest('Alex');
-
-    Livewire::actingAs($guest)
-        ->test('pages::boggle.lobby')
-        ->call('createRoom')
-        ->assertRedirect();
-
-    $room = Room::sole();
-
-    expect($room->host_user_id)->toBe($guest->id)
-        ->and(User::count())->toBe(1);
-});
-
-test('a logged-out visitor can host a room, auto-provisioning a guest account', function () {
-    Livewire::test('pages::boggle.lobby')
-        ->set('guestName', 'Alex')
-        ->call('createRoom')
-        ->assertRedirect();
-
-    $room = Room::sole();
-    $host = User::find($room->host_user_id);
-
-    expect($host->is_guest)->toBeTrue()
-        ->and($host->name)->toBe('Alex');
-});
-
-test('the lobby always shows the host button, regardless of auth state', function () {
-    $guest = User::createGuest('Alex');
-
-    $this->actingAs($guest)->get('/boggle')->assertSee('Host an Online Room');
-
-    $user = User::factory()->create();
-
-    $this->actingAs($user)->get('/boggle')->assertSee('Host an Online Room');
-
-    $this->get('/boggle')->assertSee('Host an Online Room');
 });
 
 test('an unknown room code 404s', function () {
@@ -318,6 +245,18 @@ test('players in a room play the same board and are ranked against each other', 
 
     expect($hostParticipant->result)->toBe(GameResult::Win)
         ->and($guestParticipant->result)->toBe(GameResult::Loss);
+
+    // docs/concerns.md: "Back to room button does not do anything on
+    // game over screen." Root cause was that Room.status/game_session_id
+    // never changed once a game ended, so pages::boggle.room's own
+    // redirectIfAlreadyStarted() kept bouncing straight back into the
+    // now-finished game. Confirm both halves of the fix.
+    expect($room->fresh()->status)->toBe(RoomStatus::Finished);
+
+    Livewire::actingAs($host)
+        ->test('pages::boggle.room', ['code' => $room->code])
+        ->assertOk()
+        ->assertSee('Word Grid Room');
 });
 
 test('a word both players found scores nothing for either of them', function () {

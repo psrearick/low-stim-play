@@ -4,13 +4,13 @@ use App\Enums\FamilyFeudPhase;
 use App\Enums\GameMode;
 use App\Enums\GameResult;
 use App\Enums\GameType;
+use App\Enums\RoomStatus;
 use App\Events\RoomGameStateUpdated;
 use App\Models\FamilyFeudQuestion;
 use App\Models\GameParticipant;
 use App\Models\GameSession;
 use App\Models\Room;
 use App\Models\RoomSeat;
-use App\Models\User;
 use App\Services\FamilyFeud\JudgeService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -141,12 +141,6 @@ new class extends Component
      */
     public array $teamTurnPointer = [0, 0];
 
-    public string $joinID = '';
-
-    public string $guestName = '';
-
-    public ?string $joinError = null;
-
     public function mount(): void
     {
         // maxRounds() floors to MIN_ROUNDS even when the bank has zero
@@ -267,54 +261,16 @@ new class extends Component
         ];
     }
 
-    public function createRoom(): void
+    /**
+     * @return \Illuminate\Support\Collection<int, Room>
+     */
+    public function getHostedRoomsProperty(): \Illuminate\Support\Collection
     {
-        // Hosting while logged out now works the same way joining already
-        // did -- see joinRoom() below for why a guest account (not true
-        // anonymity) is required either way. Mirrors pages::yahtzee.play's
-        // own createRoom() exactly.
         if (Auth::guest()) {
-            Auth::login(User::createGuest($this->guestName));
-
-            if (request()->hasSession()) {
-                request()->session()->regenerate();
-            }
+            return collect();
         }
 
-        $room = Room::create(['host_user_id' => Auth::id()]);
-
-        $this->redirect(route('family-feud.room', ['code' => $room->code]));
-    }
-
-    public function joinRoom(): void
-    {
-        $code = strtoupper(trim($this->joinID));
-        $room = Room::notExpired()->where('code', $code)->first();
-
-        if (! $room) {
-            $this->joinError = 'No active room with that code.';
-
-            return;
-        }
-
-        // A room's presence channel always authenticates via the guard (see
-        // routes/channels.php) -- there's no "anonymous" option in Laravel's
-        // broadcasting auth -- so joining without a real account still needs
-        // a real `users` row. Only hosting (createRoom() above) is actually
-        // restricted to non-guest accounts.
-        if (Auth::guest()) {
-            Auth::login(User::createGuest($this->guestName));
-
-            // Guarded rather than unconditional -- Livewire::test() drives
-            // this component directly, without the full HTTP kernel/session
-            // middleware a real request goes through, so there's no session
-            // store attached to request() there.
-            if (request()->hasSession()) {
-                request()->session()->regenerate();
-            }
-        }
-
-        $this->redirect(route('family-feud.room', ['code' => $room->code]));
+        return Room::where('host_user_id', Auth::id())->notExpired()->get();
     }
 
     /**
@@ -631,6 +587,13 @@ new class extends Component
             // pages::yahtzee.play's own endGame().
             $session = GameSession::findOrFail($this->gameSessionId);
             $session->update(['ended_at' => now()]);
+
+            // See docs/DEVLOG.md's Farkle "Back to room" fix -- without
+            // this, Room.status/game_session_id stay exactly as
+            // startGame() left them, and pages::family-feud.room's own
+            // redirectIfAlreadyStarted() bounces "Back to room" straight
+            // back into this now-finished game instead of the lobby.
+            $this->resolveRoom()->update(['status' => RoomStatus::Finished]);
 
             // Every seat is a real (if possibly guest) account -- one
             // GameParticipant per seat (not per team), each carrying its
@@ -993,24 +956,20 @@ new class extends Component
         <div class="setup" id="setup">
             <div class="heading">Survey Says</div>
 
-            @unless (Auth::check() && ! Auth::user()->is_guest)
-                <input type="text" wire:model="guestName" maxlength="24" placeholder="Your name (optional)">
-            @endunless
+            @if ($this->hostedRooms->isNotEmpty())
+                <div class="flex flex-col items-center gap-2 w-full">
+                    <p class="status-line">Play in a room you host:</p>
+                    <div class="flex flex-wrap justify-center gap-2">
+                        @foreach ($this->hostedRooms as $hostedRoom)
+                            <a href="{{ route('family-feud.room', ['code' => $hostedRoom->code]) }}" wire:key="hosted-room-{{ $hostedRoom->id }}">
+                                <button type="button" id="hosted-room-{{ $hostedRoom->code }}">{{ $hostedRoom->code }}</button>
+                            </a>
+                        @endforeach
+                    </div>
+                </div>
 
-            <button type="button" wire:click="createRoom">Host an Online Room</button>
-
-            <div class="status-line">or</div>
-
-            <form wire:submit="joinRoom" class="flex gap-2 w-full">
-                <input type="text" id="join" wire:model="joinID" placeholder="Room ID" autocomplete="off" style="flex: 1; text-transform: uppercase;">
-                <button type="submit">Join</button>
-            </form>
-
-            @if ($joinError)
-                <p class="status-line" style="color: var(--warn);">{{ $joinError }}</p>
+                <div class="status-line">or play locally:</div>
             @endif
-
-            <div class="status-line">or play locally:</div>
 
             <div class="team-inputs">
                 <div class="team-input-row">
@@ -1228,24 +1187,3 @@ new class extends Component
     @endunless
 </div>
 
-<script>
-    // Same fix as boggle/⚡lobby.blade.php's and yahtzee/⚡play.blade.php's
-    // own join field: nothing here sets autofocus, but mobile Safari can
-    // still focus this field and raise the keyboard on its own
-    // (back-forward cache restore, or its verification-code autofill
-    // heuristics treating a short, "code"-labeled field as an OTP input)
-    // -- blur it whenever it's focused before the user has actually
-    // interacted with the page.
-    let userInteracted = false;
-    window.addEventListener('pointerdown', () => { userInteracted = true; }, { once: true, capture: true });
-
-    const blurAutofocusedJoinID = () => {
-        const joinID = document.getElementById('join');
-        if (! userInteracted && joinID && document.activeElement === joinID) {
-            joinID.blur();
-        }
-    };
-
-    window.addEventListener('pageshow', blurAutofocusedJoinID);
-    window.addEventListener('load', () => setTimeout(blurAutofocusedJoinID, 0));
-</script>

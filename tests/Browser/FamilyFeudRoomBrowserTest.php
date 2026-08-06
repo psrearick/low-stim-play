@@ -85,34 +85,24 @@ function loginAsAndVisitFeud(User $user, string $path): PendingAwaitablePage
 
     $page->fill('email', $user->email)
         ->fill('password', 'password')
-        ->click('button[type=submit]');
+        ->click('#login-submit');
 
     $page->navigate($path);
 
     return $page;
 }
 
-test('a real account can host an online room from the setup screen', function () {
+test('a host sees a dropdown of their own rooms on the setup screen and can jump into one', function () {
     $host = User::factory()->create(['password' => bcrypt('password')]);
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
 
     $page = loginAsAndVisitFeud($host, '/family-feud');
 
-    $page->assertSee('Host an Online Room')
-        ->click('Host an Online Room');
+    $page->assertSee('Play in a room you host')
+        ->click('#hosted-room-'.$room->code);
 
-    $page->assertPathBeginsWith('/family-feud/room/')
+    $page->assertPathIs('/family-feud/room/'.$room->code)
         ->assertSee("I'm ready");
-});
-
-test('a guest can join an existing room by code from the setup screen', function () {
-    $room = Room::factory()->create();
-
-    $page = visit('/family-feud');
-
-    $page->fill('#join', $room->code)
-        ->click('Join');
-
-    $page->assertPathBeginsWith('/family-feud/room/');
 });
 
 test('the acting seat sees the guess form, not a waiting message', function () {
@@ -163,9 +153,16 @@ function triggerFeudRoomStarting(PendingAwaitablePage $page, array $players): vo
 {
     $json = json_encode($players);
 
+    // Looked up by wire:name, not the first [wire\:id] in the DOM --
+    // <livewire:rooms-menu/> now renders earlier in the layout on every
+    // page, so a bare "first wire:id element" query silently grabbed it
+    // instead of this page's own component and threw a
+    // MethodNotFoundException (rooms-menu has no onRoomStarting()) that
+    // hung the whole browser session instead of failing fast. Same root
+    // cause as tests/Browser/FarkleMobileLayoutTest.php's own fix.
     $page->script(<<<JS
         (() => {
-            const el = document.querySelector("[wire\\\\:id]");
+            const el = document.querySelector('[wire\\\\:name="pages::family-feud.room"]');
             const component = window.Livewire.find(el.getAttribute("wire:id"));
             component.call("onRoomStarting", {$json});
             return true;

@@ -86,6 +86,8 @@ new class extends Component
             }
         }
 
+        $this->room->addMember(Auth::user());
+
         // See pages::yahtzee.room's identical check for why this matters:
         // a reconnecting player whose device dropped at the exact moment
         // the host clicked "Start" would otherwise never receive

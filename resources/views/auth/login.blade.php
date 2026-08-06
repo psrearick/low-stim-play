@@ -41,7 +41,7 @@
                 Remember me
             </label>
 
-            <button type="submit" class="rounded px-6 py-2 font-bold tracking-wide bg-surface border-2 border-surface-border text-text">
+            <button type="submit" id="login-submit" class="rounded px-6 py-2 font-bold tracking-wide bg-surface border-2 border-surface-border text-text">
                 Sign in
             </button>
         </form>

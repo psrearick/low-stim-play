@@ -3,12 +3,12 @@
 use App\Enums\GameMode;
 use App\Enums\GameResult;
 use App\Enums\GameType;
+use App\Enums\RoomStatus;
 use App\Events\RoomGameStateUpdated;
 use App\Models\GameParticipant;
 use App\Models\GameSession;
 use App\Models\Room;
 use App\Models\RoomSeat;
-use App\Models\User;
 use App\Services\Farkle\DiceRoller;
 use App\Services\Farkle\GameEngine;
 use App\Services\Farkle\Scorer;
@@ -115,12 +115,6 @@ new class extends Component
      * mirrors pages::yahtzee.play's own $meIndex exactly.
      */
     public ?int $meIndex = null;
-
-    public string $joinID = '';
-
-    public string $guestName = '';
-
-    public ?string $joinError = null;
 
     /**
      * The online room this play-through belongs to, if any -- mirrors
@@ -269,41 +263,16 @@ new class extends Component
         ];
     }
 
-    public function createRoom(): void
+    /**
+     * @return \Illuminate\Support\Collection<int, Room>
+     */
+    public function getHostedRoomsProperty(): \Illuminate\Support\Collection
     {
         if (Auth::guest()) {
-            Auth::login(User::createGuest($this->guestName));
-
-            if (request()->hasSession()) {
-                request()->session()->regenerate();
-            }
+            return collect();
         }
 
-        $room = Room::create(['host_user_id' => Auth::id()]);
-
-        $this->redirect(route('farkle.room', ['code' => $room->code]));
-    }
-
-    public function joinRoom(): void
-    {
-        $code = strtoupper(trim($this->joinID));
-        $room = Room::notExpired()->where('code', $code)->first();
-
-        if (! $room) {
-            $this->joinError = 'No active room with that code.';
-
-            return;
-        }
-
-        if (Auth::guest()) {
-            Auth::login(User::createGuest($this->guestName));
-
-            if (request()->hasSession()) {
-                request()->session()->regenerate();
-            }
-        }
-
-        $this->redirect(route('farkle.room', ['code' => $room->code]));
+        return Room::where('host_user_id', Auth::id())->notExpired()->get();
     }
 
     public function setPlayerCount(int $count): void
@@ -447,7 +416,7 @@ new class extends Component
             $this->heldDiceCount = 0;
             $this->dice = [];
             $this->selected = [];
-            $this->message = "{$name} rolled a Farkle — the turn's points are lost.";
+            $this->message = "{$name} busted — the turn's points are lost.";
             $this->messageType = 'bust';
             $this->advanceTurn();
 
@@ -587,6 +556,17 @@ new class extends Component
         if ($this->room !== null) {
             $session = GameSession::findOrFail($this->gameSessionId);
             $session->update(['ended_at' => now()]);
+
+            // Room.status/game_session_id otherwise stay exactly as
+            // startGame() left them ('active', pointing at this now-
+            // finished session) -- pages::farkle.room's own
+            // redirectIfAlreadyStarted() only checks those two fields to
+            // decide "bounce a visitor straight back into the game," with
+            // no way to tell "still being played" from "already over."
+            // Without this, the "Back to room" button above visibly did
+            // nothing: it navigated to the room page, which immediately
+            // redirected right back here. See docs/concerns.md.
+            $this->resolveRoom()->update(['status' => RoomStatus::Finished]);
 
             $seatUserIds = RoomSeat::where('room_id', $this->resolveRoom()->id)
                 ->orderBy('seat_index')
@@ -811,18 +791,18 @@ new class extends Component
 };
 ?>
 
-<x-slot:title>Farkle — Low Stim Play</x-slot>
-<x-slot:description>A full Farkle scorecard for 1-8 players, with hot dice and a configurable final round, in a calm, low-contrast design.</x-slot>
+<x-slot:title>10,000 — Low Stim Play</x-slot>
+<x-slot:description>A full 10,000 scorecard for 1-8 players, with hot dice and a configurable final round, in a calm, low-contrast design.</x-slot>
 <x-slot:bodyClass>farkle-play</x-slot:bodyClass>
 <x-slot:fullscreenToggle>1</x-slot:fullscreenToggle>
-<x-slot:rulesTitle>Farkle Rules</x-slot:rulesTitle>
+<x-slot:rulesTitle>10,000 Rules</x-slot:rulesTitle>
 <x-slot:rules>
     <h3>How to Use This Page</h3>
     <ul>
         <li>Set the number of players (1&ndash;8) and optional names, plus the target score and final-round option, then press Start Game.</li>
         <li>On your turn, press Roll. Bank ends your turn and keeps every scoring die's points automatically &mdash; you don't have to tap each one first.</li>
         <li>Only tap individual dice if you want to lock some in and Roll Again for the rest &mdash; only dice that actually score can be selected that way.</li>
-        <li>A roll with no scoring dice at all is a Farkle &mdash; the turn ends immediately and everything banked so far this turn is lost.</li>
+        <li>A roll with no scoring dice at all is a bust &mdash; the turn ends immediately and everything banked so far this turn is lost.</li>
     </ul>
 
     <h3>Full Rules</h3>
@@ -833,7 +813,7 @@ new class extends Component
         <li>Four of a kind = 1000, five of a kind = 2000, six of a kind = 3000, regardless of which number is repeated &mdash; whichever way of scoring a roll is worth more is always used automatically (e.g. four 1s scores 1100, treating it as three 1s plus one leftover single 1, since that beats the flat 1000).</li>
         <li>A straight (one each of 1&ndash;6) scores 1500. Three pairs (e.g. 2-2, 4-4, 6-6) scores 1500. Two separate triplets (e.g. three 2s and three 5s) scores 2500 &mdash; these three all use every one of the 6 dice in a single roll.</li>
         <li>If all 6 dice have scored during a turn (across one or more rolls), you get "hot dice" &mdash; roll all 6 again and keep adding to the same turn's total.</li>
-        <li>A roll with no scoring dice at all is a Farkle: the turn ends immediately and everything banked so far <em>this turn</em> is lost (points already banked from earlier turns are safe).</li>
+        <li>A roll with no scoring dice at all is a bust: the turn ends immediately and everything banked so far <em>this turn</em> is lost (points already banked from earlier turns are safe).</li>
         <li>Your first banked turn must total at least 500 points to get on the board; every turn after that banks normally, however small.</li>
         <li>The game plays to a target score (10,000 by default), shown at the top of the page once it starts. With the final round option on, once someone banks a turn that reaches the target, every other player gets exactly one more turn (announced on screen) before the game ends and the highest total wins (ties are possible). With it off, the game ends the instant anyone reaches the target.</li>
         <li>A host (or, in local pass-and-play, any player) can end the game early from the button bar instead of playing to the target.</li>
@@ -878,26 +858,22 @@ new class extends Component
 
     @unless ($started)
         <div class="setup" id="setup">
-            <div class="heading">Farkle</div>
+            <div class="heading">10,000</div>
 
-            @unless (Auth::check() && ! Auth::user()->is_guest)
-                <input type="text" wire:model="guestName" maxlength="24" placeholder="Your name (optional)">
-            @endunless
+            @if ($this->hostedRooms->isNotEmpty())
+                <div class="flex flex-col items-center gap-2 w-full">
+                    <p class="status-line">Play in a room you host:</p>
+                    <div class="flex flex-wrap justify-center gap-2">
+                        @foreach ($this->hostedRooms as $hostedRoom)
+                            <a href="{{ route('farkle.room', ['code' => $hostedRoom->code]) }}" wire:key="hosted-room-{{ $hostedRoom->id }}">
+                                <button type="button" id="hosted-room-{{ $hostedRoom->code }}">{{ $hostedRoom->code }}</button>
+                            </a>
+                        @endforeach
+                    </div>
+                </div>
 
-            <button type="button" wire:click="createRoom">Host an Online Room</button>
-
-            <div class="status-line">or</div>
-
-            <form wire:submit="joinRoom" class="flex gap-2 w-full">
-                <input type="text" id="join" wire:model="joinID" placeholder="Room ID" autocomplete="off" style="flex: 1; text-transform: uppercase;">
-                <button type="submit">Join</button>
-            </form>
-
-            @if ($joinError)
-                <p class="status-line" style="color: var(--warn);">{{ $joinError }}</p>
+                <div class="status-line">or play locally:</div>
             @endif
-
-            <div class="status-line">or play locally:</div>
 
             <div class="setup-row">
                 <label id="playerCountLabel">Number of Players</label>
@@ -1017,7 +993,7 @@ new class extends Component
                 </div>
             @endunless
 
-            <div class="w-full bg-surface border-2 border-surface-border rounded-lg overflow-hidden {{ $gameOver ? 'farkle-final-scores' : '' }}">
+            <div class="farkle-scoreboard w-full bg-surface border-2 border-surface-border rounded-lg overflow-y-auto overflow-x-hidden {{ $gameOver ? 'farkle-final-scores' : '' }}">
                 <div class="grid" style="grid-template-columns: 1fr auto;">
                     @foreach ($players as $i => $player)
                         <span wire:key="name-{{ $i }}" class="pl-6 pr-3 py-3 {{ $loop->first ? '' : 'border-t border-surface-border' }} {{ $gameOver ? '' : 'text-sm' }} {{ $i === $currentPlayer && ! $gameOver ? 'font-bold text-text' : 'text-text/80' }}">
@@ -1077,19 +1053,3 @@ new class extends Component
 </script>
 @endscript
 
-<script>
-    // Same fix as pages::yahtzee.play's own join field -- see its comment
-    // for why this is needed at all.
-    let userInteracted = false;
-    window.addEventListener('pointerdown', () => { userInteracted = true; }, { once: true, capture: true });
-
-    const blurAutofocusedJoinID = () => {
-        const joinID = document.getElementById('join');
-        if (! userInteracted && joinID && document.activeElement === joinID) {
-            joinID.blur();
-        }
-    };
-
-    window.addEventListener('pageshow', blurAutofocusedJoinID);
-    window.addEventListener('load', () => setTimeout(blurAutofocusedJoinID, 0));
-</script>

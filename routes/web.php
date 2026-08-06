@@ -138,3 +138,11 @@ Route::livewire('/farkle', 'pages::farkle.play')->name('farkle.play');
 // screen) uses the same provisioning.
 Route::livewire('/farkle/room/{code}', 'pages::farkle.room')
     ->name('farkle.room');
+
+// The room hub -- game-agnostic, unlike every /{game}/room/{code} above
+// (each of those is specifically the seat-assignment/start screen for
+// *that* game). This is where a room's own code/member list/host controls
+// live, and where the navbar's Rooms menu links each room to. No auth
+// middleware, same reasoning as every other room route: mount() auto-
+// provisions a guest for a first-time direct visitor.
+Route::livewire('/room/{code}', 'pages::room.show')->name('room.show');

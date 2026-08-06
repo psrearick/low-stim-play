@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable(['code', 'game_session_id', 'host_user_id', 'status', 'max_players', 'expires_at'])]
 class Room extends Model
@@ -32,6 +33,15 @@ class Room extends Model
         static::creating(function (Room $room): void {
             $room->code ??= static::generateUniqueCode();
             $room->expires_at ??= now()->addMinutes(self::LIFETIME_MINUTES);
+        });
+
+        // The host is a member of their own room from the instant it
+        // exists -- every other join path (joinRoom(), a game's own
+        // room.blade.php mount(), pages::room.show's mount()) calls
+        // addMember() explicitly, but the host has no separate "join"
+        // step of their own to hang that call off of.
+        static::created(function (Room $room): void {
+            $room->addMember($room->host);
         });
     }
 
@@ -65,6 +75,27 @@ class Room extends Model
     public function host(): BelongsTo
     {
         return $this->belongsTo(User::class, 'host_user_id');
+    }
+
+    /**
+     * @return HasMany<RoomMember, $this>
+     */
+    public function members(): HasMany
+    {
+        return $this->hasMany(RoomMember::class);
+    }
+
+    /**
+     * Records that $user belongs to this room -- the one durable "I am in
+     * this room" fact, independent of both ephemeral presence-channel
+     * membership (who's connected to room.{code} *right now*) and
+     * RoomSeat (who has a seat in the *currently active game*, recreated
+     * every time one starts). Every existing join/host/direct-URL entry
+     * point calls this instead of duplicating the membership logic.
+     */
+    public function addMember(User $user): RoomMember
+    {
+        return $this->members()->firstOrCreate(['user_id' => $user->id]);
     }
 
     /**

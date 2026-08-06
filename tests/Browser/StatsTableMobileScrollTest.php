@@ -28,7 +28,7 @@ function loginAndVisit(User $user, string $path): PendingAwaitablePage
 
     $page->fill('email', $user->email)
         ->fill('password', 'password')
-        ->click('button[type=submit]');
+        ->click('#login-submit');
 
     $page->navigate($path);
 

@@ -37,6 +37,8 @@ new class extends Component
             }
         }
 
+        $this->room->addMember(Auth::user());
+
         // The game may already be running by the time anyone actually
         // lands here -- a reconnecting seated player whose device was
         // disconnected at the exact moment the host clicked "Start" would

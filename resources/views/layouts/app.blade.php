@@ -54,6 +54,14 @@
             </div>
             <div class="right">
                 {{--
+                    Rendered directly here (not a teleport target) --
+                    unlike #game-actions below, this needs to appear on
+                    every page, including plain (non pages::) Blade views
+                    like welcome.blade.php that never trigger a Livewire
+                    round trip of their own for a teleport to react to.
+                --}}
+                <livewire:rooms-menu />
+                {{--
                     A stable teleport target (see Livewire's @teleport
                     directive), not a slot -- game-specific right-side
                     buttons (End Game/New Game, Reveal, ...) depend on

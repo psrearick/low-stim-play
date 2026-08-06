@@ -36,3 +36,34 @@ test('notExpired scope excludes expired rooms', function () {
     expect(Room::notExpired()->get())->toHaveCount(1)
         ->and(Room::notExpired()->first()->is($active))->toBeTrue();
 });
+
+test('the host automatically becomes a member the instant a room is created', function () {
+    $host = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    expect($room->members()->count())->toBe(1)
+        ->and($room->members()->first()->user_id)->toBe($host->id);
+});
+
+test('addMember is idempotent -- calling it twice for the same user does not duplicate', function () {
+    $room = Room::factory()->create();
+    $user = User::factory()->create();
+
+    $first = $room->addMember($user);
+    $second = $room->addMember($user);
+
+    expect($first->id)->toBe($second->id)
+        ->and($room->members()->where('user_id', $user->id)->count())->toBe(1);
+});
+
+test('addMember records a distinct member per user', function () {
+    $room = Room::factory()->create();
+    $userA = User::factory()->create();
+    $userB = User::factory()->create();
+
+    $room->addMember($userA);
+    $room->addMember($userB);
+
+    // 3: the host (auto-added on creation) plus these two.
+    expect($room->members()->count())->toBe(3);
+});

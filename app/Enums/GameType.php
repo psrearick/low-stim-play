@@ -24,7 +24,7 @@ enum GameType: string
             self::Boggle => 'Word Grid',
             self::Yahtzee => 'Yacht',
             self::FamilyFeud => 'Survey Says',
-            self::Farkle => 'Farkle',
+            self::Farkle => '10,000',
         };
     }
 
@@ -43,6 +43,23 @@ enum GameType: string
             self::Yahtzee => 'yahtzee.room',
             self::FamilyFeud => 'family-feud.room',
             self::Farkle => 'farkle.room',
+        };
+    }
+
+    /**
+     * The named route for this game's own online-play page (`pages::
+     * {game}.play`) -- used by pages::room.show to link a member straight
+     * into a room's currently active game (resuming their own seat, or
+     * spectating) without detouring through the lobby/seat-assignment
+     * page roomRoute() above points at.
+     */
+    public function playRoute(): string
+    {
+        return match ($this) {
+            self::Boggle => 'boggle.play',
+            self::Yahtzee => 'yahtzee.play',
+            self::FamilyFeud => 'family-feud.play',
+            self::Farkle => 'farkle.play',
         };
     }
 }

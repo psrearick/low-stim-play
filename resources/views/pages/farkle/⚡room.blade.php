@@ -47,6 +47,8 @@ new class extends Component
             }
         }
 
+        $this->room->addMember(Auth::user());
+
         // See pages::yahtzee.room's identical check for why this matters:
         // a reconnecting seated player whose device dropped at exactly the
         // wrong moment would otherwise never receive RoomGameStarting and
@@ -163,10 +165,10 @@ new class extends Component
 };
 ?>
 
-<x-slot:title>Farkle Room — Low Stim Play</x-slot>
+<x-slot:title>10,000 Room — Low Stim Play</x-slot>
 
 <div class="flex flex-col items-center" style="gap: inherit;">
-    <div class="heading">Farkle Room</div>
+    <div class="heading">10,000 Room</div>
 
     @if ($this->isHost)
         <div class="setup">

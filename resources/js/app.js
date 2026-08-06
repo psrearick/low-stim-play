@@ -77,6 +77,37 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // ---- Rooms menu (navbar, every page) ----------------------------------
+    // Delegated, not bound directly like the sidebar toggle above -- unlike
+    // the sidebar, <livewire:rooms-menu>'s own root re-renders on every
+    // action it takes (joinByCode's error message, for one), and a direct
+    // binding would silently stop working the first time that happens.
+    // The toggle button and panel themselves carry wire:ignore.self so
+    // Livewire's morph never resets the open/closed state JS manages here
+    // out from under a re-render -- the same fix class as the scoreboard-
+    // drawer's dialog[open] bug documented in docs/DEVLOG.md, applied
+    // proactively here instead of after the fact.
+    document.addEventListener('click', (event) => {
+        const toggle = event.target.closest('#rooms-menu-toggle');
+        const panel = document.getElementById('rooms-menu-panel');
+
+        if (!panel) {
+            return;
+        }
+
+        if (toggle) {
+            const willOpen = panel.hasAttribute('hidden');
+            panel.toggleAttribute('hidden', !willOpen);
+            toggle.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+            return;
+        }
+
+        if (!panel.hasAttribute('hidden') && !panel.contains(event.target)) {
+            panel.setAttribute('hidden', '');
+            document.getElementById('rooms-menu-toggle')?.setAttribute('aria-expanded', 'false');
+        }
+    });
+
     // ---- Generic low-stim dialogs (<x-dialog>/<x-confirm-dialog>) --------
     // Delegated on `document`, not bound per-element like the Rules dialog
     // above, because these dialogs and their trigger buttons commonly live

@@ -2,6 +2,7 @@
 
 use App\Enums\GameResult;
 use App\Enums\GameType;
+use App\Enums\RoomStatus;
 use App\Models\FamilyFeudQuestion;
 use App\Models\GameParticipant;
 use App\Models\GameSession;
@@ -90,40 +91,28 @@ function startFeudRoomWithDefaultTeams(Room $room, array $users): array
     return [$component, $players];
 }
 
-test('the setup screen always shows the host button, regardless of auth state', function () {
-    $guest = User::createGuest('Alex');
-
-    $this->actingAs($guest)->get('/family-feud')->assertSee('Host an Online Room');
-
+test('the setup screen shows no room UI at all for a user hosting no rooms', function () {
+    // "Join a Room" is deliberately excluded from this assertion -- that's
+    // the global navbar rooms-menu's own always-present action (see
+    // tests/Feature/RoomsMenuTest.php), unrelated to whether *this* game's
+    // own setup screen has anything room-related to show.
     $user = User::factory()->create();
 
-    $this->actingAs($user)->get('/family-feud')->assertSee('Host an Online Room');
+    $this->actingAs($user)->get('/family-feud')
+        ->assertDontSee('Play in a room you host')
+        ->assertDontSee('Host an Online Room');
 
-    $this->get('/family-feud')->assertSee('Host an Online Room');
+    $this->get('/family-feud')->assertDontSee('Play in a room you host');
 });
 
-test('a logged-out visitor can host a room, auto-provisioning a guest account', function () {
-    Livewire::test('pages::family-feud.play')
-        ->set('guestName', 'Alex')
-        ->call('createRoom')
-        ->assertRedirect();
+test('the setup screen shows a dropdown of rooms the user hosts, linking into each one\'s lobby', function () {
+    $host = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
 
-    $room = Room::sole();
-    $host = User::find($room->host_user_id);
-
-    expect($host->is_guest)->toBeTrue()
-        ->and($host->name)->toBe('Alex');
-});
-
-test('joining with a valid code redirects to the family feud room', function () {
-    $room = Room::factory()->create();
-    $user = User::factory()->create();
-
-    Livewire::actingAs($user)
-        ->test('pages::family-feud.play')
-        ->set('joinID', strtolower($room->code))
-        ->call('joinRoom')
-        ->assertRedirect(route('family-feud.room', ['code' => $room->code]));
+    $this->actingAs($host)->get('/family-feud')
+        ->assertSee('Play in a room you host')
+        ->assertSee($room->code)
+        ->assertSeeHtml(route('family-feud.room', ['code' => $room->code]));
 });
 
 test('a guest can view the family feud room page without an account, and is given a throwaway one', function () {
@@ -530,4 +519,16 @@ test('a full online game writes one correctly-attributed GameParticipant per sea
         ->and($guestParticipant->result)->toBe(GameResult::Loss)
         ->and($guestParticipant->stats['team_index'])->toBe(1)
         ->and($guestParticipant->stats['is_captain'])->toBeTrue();
+
+    // docs/concerns.md: "Back to room button does not do anything on
+    // game over screen." Root cause was that Room.status/game_session_id
+    // never changed once a game ended, so pages::family-feud.room's own
+    // redirectIfAlreadyStarted() kept bouncing straight back into the
+    // now-finished game. Confirm both halves of the fix.
+    expect($room->fresh()->status)->toBe(RoomStatus::Finished);
+
+    Livewire::actingAs($host)
+        ->test('pages::family-feud.room', ['code' => $room->code])
+        ->assertOk()
+        ->assertSee('Survey Says Room');
 });

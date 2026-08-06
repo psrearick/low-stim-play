@@ -29,14 +29,14 @@ new class extends Component
 };
 ?>
 
-<x-slot:title>Farkle Game — Low Stim Play</x-slot>
+<x-slot:title>10,000 Game — Low Stim Play</x-slot>
 <x-slot:sidebar>1</x-slot:sidebar>
 
 <div class="flex flex-col items-center gap-6 w-full max-w-2xl">
-    <a href="{{ route('profile.farkle') }}" class="self-start text-sm text-text/65 hover:text-text">&larr; Farkle Stats</a>
+    <a href="{{ route('profile.farkle') }}" class="self-start text-sm text-text/65 hover:text-text">&larr; 10,000 Stats</a>
 
     <div class="flex flex-col items-center gap-1">
-        <h1 class="text-bar font-bold tracking-wide text-2xl text-center">Farkle Game</h1>
+        <h1 class="text-bar font-bold tracking-wide text-2xl text-center">10,000 Game</h1>
         <p class="text-sm text-text/65">
             {{ $participant->created_at->format('M j, Y g:ia') }} &middot; {{ $participant->gameSession->mode->label() }}
         </p>
@@ -61,7 +61,7 @@ new class extends Component
         </div>
         <div class="flex flex-col items-center gap-2 bg-surface border-2 border-surface-border rounded-lg px-5 py-4 flex-1 basis-32">
             <span class="text-2xl font-bold text-text">{{ $this->stats['farkleCount'] }}</span>
-            <span class="text-xs text-text/65">Farkles</span>
+            <span class="text-xs text-text/65">Busts</span>
         </div>
     </div>
 </div>

@@ -24,7 +24,7 @@ function loginAsHostAndVisitRoom(User $host, string $path): PendingAwaitablePage
 
     $page->fill('email', $host->email)
         ->fill('password', 'password')
-        ->click('button[type=submit]');
+        ->click('#login-submit');
 
     $page->navigate($path);
 

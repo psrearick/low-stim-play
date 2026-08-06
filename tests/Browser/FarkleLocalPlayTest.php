@@ -34,7 +34,7 @@ function currentFarkleDice($page): array
 it('plays through several turns of a solo game, ending via a real click', function () {
     $page = visit('/farkle');
 
-    $page->assertSee('Farkle')
+    $page->assertSee('10,000')
         ->click('[aria-label="Fewer players"]')
         ->click('Start Game')
         ->assertSee('Roll');
@@ -68,7 +68,7 @@ it('plays through several turns of a solo game, ending via a real click', functi
     $page->click('#rollBtn')->wait(0.3);
 
     for ($turn = 0; $turn < 4; $turn++) {
-        if ($page->script("document.body.textContent.includes('rolled a Farkle')")) {
+        if ($page->script("document.body.textContent.includes('busted')")) {
             break;
         }
 

@@ -51,10 +51,10 @@
             </div>
         </div>
         <div class="game-card">
-            <div class="game-card-title">Farkle</div>
+            <div class="game-card-title">10,000</div>
             <p class="game-card-desc">Roll six dice, set aside whatever scores, and decide each turn whether to bank your points or risk them on another roll for 1&ndash;8 players.</p>
             <div class="game-card-actions">
-                <a href="{{ route('farkle.play') }}"><button type="button">Farkle</button></a>
+                <a href="{{ route('farkle.play') }}"><button type="button">10,000</button></a>
             </div>
         </div>
     </div>

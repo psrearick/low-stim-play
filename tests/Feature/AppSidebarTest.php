@@ -21,7 +21,7 @@ function assertHasSidebar(TestCase $test, string $path): void
         ->assertSee('Word Grid Stats')
         ->assertSee('Yacht Stats')
         ->assertSee('Survey Says Stats')
-        ->assertSee('Farkle Stats')
+        ->assertSee('10,000 Stats')
         ->assertSee('Edit Profile')
         ->assertSee('Log Out');
 }
