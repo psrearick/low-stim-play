@@ -1,0 +1,10 @@
+- Change Farkle's name everywhere visible to 10,000 because Farkle is trademarked
+- It doesn't scroll on mobile, so you cannot see the players scores
+- After banking, the bank dice push the screen down, and fold onto two rows, it should stay one row of banked dice and one roll of active dice
+- It does not work in portrait on mobile because the dice overlap the roll button
+- The font size on desktop for the scores is too small
+- Back to room button does not do anything on game over screen
+- Hitting home should keep you in the room, but not in the game. If you are in a room, and have a seat in a game, but it's not on the screen, going to that game should let your resume the game in the same seat
+- You should be able to leave a game and start another in the same room without re-entering the code and the room's code should stay the same and more people should be able to join the room, but not join an active game so they can play the next game. They should still have access to a non-player watch only mode of active games in the room.
+- A user should be able to create a room without starting a game from the home page or a game page, then optionally use that room when starting a game. Other users should be able to join a room without being on a game page. Users should be able to leave a group. A host should be able to end a group session, removing the group and removing all group members from a group.
+- Users can be in multiple groups at once. There is a list of groups someone is in shown somewhere. Maybe a dropdown menu in the header, like "Groups" with a down chevron, and the user can select an active group or chose to leave a group - the options should not be easy to accidentally hit the wrong button. That menu is also where the join group feature is, with a dialogue asking which group to join, using the app dialogue, not the browser native
