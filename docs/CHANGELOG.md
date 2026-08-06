@@ -5,6 +5,7 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 ## 2026-08-06
 
 - `68d528f` — Fixed six Farkle mobile/UX bugs found in real play (renamed "Farkle" to "10,000" for trademark, mobile scoreboard scroll, banked-dice single-row layout, portrait dice overlap, desktop score font size, and "Back to Room" doing nothing on game over in all four games). Made rooms a persistent, cross-game feature: new `RoomMember` table, a room hub page (`/room/{code}`), and a navbar "Rooms" dropdown for creating/joining rooms from anywhere; each game's setup screen now shows a "rooms you host" shortcut instead of its own Host/Join UI.
+- `b4d321f` — Fixed the room hub's "Start a new game" not actually letting anyone but the host into the game (now broadcasts the same event `GameLobby::switchGame()` uses, so other members follow along); fixed the navbar Rooms dropdown positioning off-screen on mobile; fixed the dashboard's mobile menu having a transparent background (a CSS custom property was never actually defined).
 
 ## 2026-08-05
 
