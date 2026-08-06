@@ -99,6 +99,32 @@ document.addEventListener('DOMContentLoaded', () => {
             const willOpen = panel.hasAttribute('hidden');
             panel.toggleAttribute('hidden', !willOpen);
             toggle.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+
+            // Positioned in JS, not left to the CSS right-0/top-full
+            // classes alone -- those assume the toggle button sits at
+            // the screen's right edge, which is only true when
+            // .button-bar .right fits on one line. On a narrow viewport
+            // it wraps, the button can land anywhere on that second
+            // line, and a fixed right-0 offset then pushed the panel
+            // partly off the left edge of the screen entirely (confirmed
+            // live: negative getBoundingClientRect().left). Measuring the
+            // toggle's real position and clamping the panel to the
+            // viewport works regardless of where wrapping puts it.
+            if (willOpen) {
+                const toggleRect = toggle.getBoundingClientRect();
+                const margin = 8;
+                const panelWidth = panel.offsetWidth;
+                const left = Math.max(
+                    margin,
+                    Math.min(toggleRect.right - panelWidth, window.innerWidth - panelWidth - margin),
+                );
+
+                panel.style.position = 'fixed';
+                panel.style.top = `${toggleRect.bottom + margin}px`;
+                panel.style.left = `${left}px`;
+                panel.style.right = 'auto';
+            }
+
             return;
         }
 

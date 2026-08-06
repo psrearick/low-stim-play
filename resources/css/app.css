@@ -2248,8 +2248,16 @@ body.scrollable.family-feud-play {
     width: 220px;
     flex-shrink: 0;
     padding: 16px;
-    background: var(--surface);
-    border: 2px solid var(--surface-border);
+    /* --die/--die-border, not --surface/--surface-border -- see this
+       file's own @theme inline block up top: --color-surface (the
+       Tailwind-consumable token bg-surface/border-surface-border
+       resolve to) is just an alias for --die, and a bare --surface was
+       never actually defined anywhere. Left this way, the whole
+       shorthand was invalid at compute time and silently fell back to
+       transparent -- confirmed live (a real getComputedStyle() returned
+       rgba(0, 0, 0, 0)) rather than assumed. */
+    background: var(--die);
+    border: 2px solid var(--die-border);
     border-radius: 10px;
 }
 
@@ -2282,7 +2290,7 @@ body.scrollable.family-feud-play {
 .app-sidebar-divider {
     height: 1px;
     margin: 8px 4px;
-    background: var(--surface-border);
+    background: var(--die-border);
 }
 
 .app-main {

@@ -24,6 +24,23 @@ test('the Rooms button opens and closes the dropdown panel', function () {
         ->assertMissing('#rooms-menu-panel:not([hidden])');
 });
 
+test('the dropdown panel stays fully on-screen on a narrow mobile viewport', function () {
+    // .button-bar .right wraps onto its own line below 900px, and the
+    // Rooms toggle button (first in that group) can land anywhere on
+    // that wrapped line rather than at the screen's right edge -- a
+    // fixed right-0 CSS offset assumed it always would, and pushed the
+    // panel partly off the left edge of the screen entirely. Confirmed
+    // live via a real getBoundingClientRect() before this was fixed.
+    $page = visit('/')->resize(390, 844);
+
+    $page->click('#rooms-menu-toggle')->wait(0.3);
+
+    $rect = $page->script('document.getElementById("rooms-menu-panel").getBoundingClientRect()');
+
+    expect($rect['left'])->toBeGreaterThanOrEqual(0)
+        ->and($rect['right'])->toBeLessThanOrEqual(390);
+});
+
 test('Create a Room navigates straight into the new room hub', function () {
     $user = User::factory()->create();
     $this->actingAs($user);

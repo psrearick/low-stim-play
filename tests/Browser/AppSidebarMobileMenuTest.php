@@ -49,6 +49,29 @@ test('clicking a sidebar link closes the mobile menu', function () {
     $page->assertMissing('#app-sidebar.open');
 });
 
+test('the mobile menu panel has a real, opaque background, not a transparent one', function () {
+    // .app-sidebar's `background: var(--surface)` referenced a custom
+    // property that was never actually defined anywhere (only
+    // --color-surface, the Tailwind-consumable alias, existed) -- an
+    // undefined var() with no fallback makes the whole shorthand invalid
+    // at compute time, silently falling back to the property's initial
+    // value (transparent), which let page content underneath show
+    // straight through the open mobile menu. Confirmed live via a real
+    // getComputedStyle() before the fix (rgba(0, 0, 0, 0)).
+    $user = User::factory()->create(['password' => bcrypt('password')]);
+
+    $page = loginAndVisitDashboard($user);
+
+    $page->click('#sidebar-menu-toggle')
+        ->assertVisible('#app-sidebar.open');
+
+    $background = $page->script(
+        "getComputedStyle(document.querySelector('.app-sidebar')).backgroundColor"
+    );
+
+    expect($background)->not->toBe('rgba(0, 0, 0, 0)');
+});
+
 test('clicking the backdrop closes the mobile menu', function () {
     $user = User::factory()->create(['password' => bcrypt('password')]);
 

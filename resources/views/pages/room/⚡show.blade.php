@@ -3,6 +3,7 @@
 use App\Enums\GameType;
 use App\Enums\RoomStatus;
 use App\Events\RoomEnded;
+use App\Events\RoomGameSwitched;
 use App\Models\Room;
 use App\Models\RoomMember;
 use App\Models\RoomSeat;
@@ -53,6 +54,7 @@ new class extends Component
             "echo-presence:{$channel},joining" => 'onJoining',
             "echo-presence:{$channel},leaving" => 'onLeaving',
             "echo-presence:{$channel},RoomEnded" => 'onRoomEnded',
+            "echo-presence:{$channel},RoomGameSwitched" => 'onGameSwitched',
         ];
     }
 
@@ -122,6 +124,44 @@ new class extends Component
         return GameType::cases();
     }
 
+    /**
+     * The host picking a game here is the *only* doorway from the room
+     * hub into that game's own lobby (pages::{game}.room) -- without
+     * broadcasting this, only the host's own browser would navigate
+     * there; every other member sitting on this same hub page would be
+     * left behind with no way to follow, since nothing else tells them
+     * which game was just chosen. Mirrors <livewire:game-lobby>'s own
+     * switchGame() exactly (same event, same game_session_id reset
+     * reasoning -- a stale non-null id here would make that game's own
+     * onRoomStarting() skip creating a fresh session and silently reuse
+     * an old, already-finished one).
+     */
+    public function startGame(GameType $type): void
+    {
+        abort_unless($this->isHost, 403);
+
+        $this->room->update(['game_session_id' => null]);
+
+        RoomGameSwitched::dispatch($this->room, $type);
+
+        $this->redirect(route($type->roomRoute(), ['code' => $this->room->code]));
+    }
+
+    /**
+     * @param  array{type: string}  $event
+     */
+    public function onGameSwitched(array $event): void
+    {
+        $type = GameType::from($event['type']);
+
+        // The host's own browser already navigated directly from
+        // startGame() above -- this only fires for *other* members
+        // reacting to the broadcast, but harmlessly redirects the host's
+        // own connection to the same place again if it somehow arrives
+        // there too. Mirrors <livewire:game-lobby>'s own onGameSwitched().
+        $this->redirect(route($type->roomRoute(), ['code' => $this->room->code]));
+    }
+
     public function endRoom(): void
     {
         abort_unless($this->isHost, 403);
@@ -189,9 +229,9 @@ new class extends Component
             <p class="status-line">Start a new game in this room:</p>
             <div class="flex flex-wrap justify-center gap-2">
                 @foreach ($this->startableGames as $type)
-                    <a id="start-game-{{ $type->value }}" href="{{ route($type->roomRoute(), ['code' => $room->code]) }}" wire:key="start-{{ $type->value }}">
-                        <button type="button">{{ $type->label() }}</button>
-                    </a>
+                    <button type="button" id="start-game-{{ $type->value }}" wire:click="startGame('{{ $type->value }}')" wire:key="start-{{ $type->value }}">
+                        {{ $type->label() }}
+                    </button>
                 @endforeach
             </div>
         </div>

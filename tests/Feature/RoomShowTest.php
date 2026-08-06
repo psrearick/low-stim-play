@@ -120,3 +120,52 @@ test('shows no active-game link once the room has finished', function () {
         ->assertDontSee('Resume your seat')
         ->assertDontSee('>Watch<', false);
 });
+
+test('the host starting a game resets a stale game_session_id and redirects into that game\'s lobby', function () {
+    $host = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id, 'status' => RoomStatus::Finished]);
+    $staleSession = GameSession::create([
+        'type' => GameType::Yahtzee,
+        'mode' => GameMode::Online,
+        'settings' => [],
+        'started_at' => now(),
+        'ended_at' => now(),
+    ]);
+    $room->update(['game_session_id' => $staleSession->id]);
+
+    Livewire::actingAs($host)
+        ->test('pages::room.show', ['code' => $room->code])
+        ->call('startGame', GameType::Farkle)
+        ->assertRedirect(route('farkle.room', ['code' => $room->code]));
+
+    expect($room->fresh()->game_session_id)->toBeNull();
+});
+
+test('a non-host cannot start a game from the room hub', function () {
+    $host = User::factory()->create();
+    $guest = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+    $room->addMember($guest);
+
+    Livewire::actingAs($guest)
+        ->test('pages::room.show', ['code' => $room->code])
+        ->call('startGame', GameType::Farkle)
+        ->assertForbidden();
+});
+
+test('another member on the room hub follows the host into the chosen game\'s lobby', function () {
+    // Stands in for the real broadcast the same way tests/Browser/
+    // YahtzeeRoomBrowserTest.php's onStateUpdated() calls do -- this app's
+    // test env runs with BROADCAST_CONNECTION=null, so nothing ever really
+    // reaches a second connection during a test. This proves the listener
+    // itself does the right thing when the broadcast *does* arrive.
+    $host = User::factory()->create();
+    $guest = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+    $room->addMember($guest);
+
+    Livewire::actingAs($guest)
+        ->test('pages::room.show', ['code' => $room->code])
+        ->call('onGameSwitched', ['type' => GameType::Farkle->value])
+        ->assertRedirect(route('farkle.room', ['code' => $room->code]));
+});
