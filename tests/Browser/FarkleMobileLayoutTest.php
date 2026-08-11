@@ -1,14 +1,24 @@
 <?php
 
+use App\Enums\GameMode;
+use App\Enums\GameType;
+use App\Enums\RoomStatus;
+use App\Models\GameSession;
+use App\Models\Room;
+use App\Models\RoomSeat;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
 /**
- * Regression coverage for docs/concerns.md's four Farkle layout reports
- * (#2, #3, #4, #5) -- all CSS/layout bugs that a Livewire-level test can't
- * see, per CLAUDE.md's own testing rules, so each is confirmed against
- * real rendered layout instead of just asserting the markup exists.
+ * Regression coverage for Farkle's layout reports in docs/concerns.md
+ * (both the original round and the follow-up round covering the banked
+ * dice row's position/grouping, the mobile cutoff, and the scoreboard
+ * font size again) -- all CSS/layout bugs that a Livewire-level test
+ * can't see, per CLAUDE.md's own testing rules, so each is confirmed
+ * against real rendered layout instead of just asserting the markup
+ * exists.
  */
 it('lets every player row be reached by scrolling the scoreboard on a short mobile viewport', function () {
     // 500px tall -- short enough that #farkle-game's flex chain squeezes
@@ -49,32 +59,37 @@ it('lets every player row be reached by scrolling the scoreboard on a short mobi
     expect($lastRowVisible)->toBeTrue();
 });
 
-it('keeps banked dice on a single row instead of wrapping and pushing the roll row down', function () {
+it('renders banked dice below the main dice row, one row per roll of up to six', function () {
     $page = visit('/farkle')->resize(1280, 900);
 
     $page->click('Start Game')->assertSee('Roll');
 
     // A long multi-roll turn (more than 6 dice banked, since hot dice
-    // resets the count) is what used to wrap onto a second line -- set
-    // directly via the Livewire component rather than actually playing
-    // out a hot-dice streak, which isn't reliably reachable from real
-    // random_int() rolls. Looked up by wire:id (via #farkle-game's
-    // closest [wire\\:id] ancestor), not window.Livewire.first() --
-    // <livewire:rooms-menu/> now renders earlier in the layout on every
-    // page, so .first() no longer reliably returns the Farkle page's own
-    // component and silently threw a PublicPropertyNotFoundException
-    // that hung the whole browser session instead of failing fast.
+    // resets the count) used to render as a single row that either
+    // wrapped (pushing the roll row down) or scrolled sideways (cutting
+    // dice off on mobile) -- docs/concerns.md asked for it to render
+    // below the main dice row instead, split into one row per roll of
+    // up to six. Set directly via the Livewire component rather than
+    // actually playing out a hot-dice streak, which isn't reliably
+    // reachable from real random_int() rolls. Looked up by wire:id (via
+    // #farkle-game's closest [wire\\:id] ancestor), not
+    // window.Livewire.first() -- <livewire:rooms-menu/> now renders
+    // earlier in the layout on every page, so .first() no longer
+    // reliably returns the Farkle page's own component and silently
+    // threw a PublicPropertyNotFoundException that hung the whole
+    // browser session instead of failing fast.
     $page->script(
         "window.Livewire.find(document.getElementById('farkle-game').closest('[wire\\\\:id]').getAttribute('wire:id')).set('bankedDiceThisTurn', [1,2,3,4,5,6,1,2,3,4,5,6,1,2])"
     );
     $page->wait(0.3);
 
-    $row = $page->script(
-        "(() => { const el = document.querySelector('.farkle-banked-row'); return {flexWrap: getComputedStyle(el).flexWrap, scrollWidth: el.scrollWidth, clientWidth: el.clientWidth}; })()"
+    $info = $page->script(
+        "(() => { const rows = [...document.querySelectorAll('.farkle-banked-row')]; const diceAreaBottom = document.querySelector('.dice-area').getBoundingClientRect().bottom; const firstRowTop = rows[0].getBoundingClientRect().top; return {perRow: rows.map(r => r.querySelectorAll('.die').length), belowDiceArea: firstRowTop > diceAreaBottom, anyOverflow: rows.some(r => r.scrollWidth > r.clientWidth + 1)}; })()"
     );
 
-    expect($row['flexWrap'])->toBe('nowrap');
-    expect($row['scrollWidth'])->toBeGreaterThan($row['clientWidth']);
+    expect($info['perRow'])->toBe([6, 6, 2]);
+    expect($info['belowDiceArea'])->toBeTrue();
+    expect($info['anyOverflow'])->toBeFalse();
 });
 
 it('does not overlap the dice with the roll button in a narrow portrait viewport', function () {
@@ -101,6 +116,68 @@ it('does not overlap the dice with the roll button in a narrow portrait viewport
     }
 });
 
+it('keeps a full row of six banked dice on screen on a narrow mobile viewport', function () {
+    // docs/concerns.md: on mobile the banked-dice row got cut off on the
+    // sides instead of showing all six dice. At the shared (desktop-
+    // oriented) min(56vw, ...) width this row used before, six dice
+    // didn't reliably fit on a real phone; the portrait-only override
+    // widens it to match .farkle-play .row's own portrait width.
+    $page = visit('/farkle')->resize(390, 844);
+
+    $page->click('Start Game')->assertSee('Roll');
+
+    $page->script(
+        "window.Livewire.find(document.getElementById('farkle-game').closest('[wire\\\\:id]').getAttribute('wire:id')).set('bankedDiceThisTurn', [1,2,3,4,5,6])"
+    );
+    $page->wait(0.3);
+
+    $info = $page->script(
+        "(() => { const row = document.querySelector('.farkle-banked-row'); const rect = row.getBoundingClientRect(); return {right: rect.right, viewport: window.innerWidth, dieCount: row.querySelectorAll('.die').length, overflow: row.scrollWidth > row.clientWidth + 1}; })()"
+    );
+
+    expect($info['dieCount'])->toBe(6);
+    expect($info['right'])->toBeLessThanOrEqual($info['viewport']);
+    expect($info['overflow'])->toBeFalse();
+});
+
+it('keeps every button-bar button reachable and the fullscreen toggle on screen in a crowded online-room Farkle game', function () {
+    // docs/concerns.md: "The navbar buttons are too tight on mobile in a
+    // farkle game and the full screen button is off the screen, and the
+    // end game button is too easy to hit because it is so crowded." An
+    // online-room game (as host, mid-turn) is the crowded case: Rooms,
+    // Scores, Watch only, End Game, and the fullscreen toggle all render
+    // in .button-bar .right at once, alongside Home + Rules in .left.
+    $host = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+    $session = GameSession::create([
+        'type' => GameType::Farkle,
+        'mode' => GameMode::Online,
+        'settings' => ['player_count' => 1, 'target_score' => 10000, 'with_final_round' => true],
+        'state' => [
+            'seats' => [['seatIndex' => 0, 'name' => $host->name, 'bankedScore' => 0, 'hasQualified' => false, 'farkleCount' => 0, 'hotDiceCount' => 0, 'bestTurnScore' => 0]],
+            'currentSeat' => 0, 'dice' => [], 'selected' => [], 'bankedDiceThisTurn' => [],
+            'turnScore' => 0, 'heldDiceCount' => 0, 'targetScore' => 10000, 'withFinalRound' => true,
+            'finalRoundActive' => false, 'finalRoundRemaining' => null, 'gameOver' => false, 'message' => null, 'messageType' => null,
+        ],
+        'started_at' => now(),
+    ]);
+    $room->update(['status' => RoomStatus::Active, 'game_session_id' => $session->id]);
+    RoomSeat::create(['room_id' => $room->id, 'seat_index' => 0, 'user_id' => $host->id]);
+
+    $this->actingAs($host);
+
+    $page = visit('/farkle?room='.$room->code)->resize(375, 812);
+    $page->assertSee('Roll');
+
+    $info = $page->script(
+        "(() => { const viewport = window.innerWidth; const buttons = [...document.querySelectorAll('.button-bar button, .button-bar a')]; const offscreen = buttons.filter(b => { const r = b.getBoundingClientRect(); return r.right > viewport || r.left < 0; }).map(b => b.id || b.textContent.trim()); const fullscreen = document.querySelector('#chrome-toggle-btn').getBoundingClientRect(); return {viewport, offscreen, fullscreenRight: fullscreen.right, fullscreenLeft: fullscreen.left}; })()"
+    );
+
+    expect($info['offscreen'])->toBe([]);
+    expect($info['fullscreenRight'])->toBeLessThanOrEqual($info['viewport']);
+    expect($info['fullscreenLeft'])->toBeGreaterThanOrEqual(0);
+});
+
 it('shows the live scoreboard in a larger font on desktop', function () {
     $page = visit('/farkle')->resize(1280, 900);
 
@@ -111,7 +188,9 @@ it('shows the live scoreboard in a larger font on desktop', function () {
     );
 
     // Tailwind's plain text-sm (used unconditionally before this fix) is
-    // 14px -- assert meaningfully larger, not an exact value, so this
-    // doesn't churn every time the clamp/size is tuned further.
-    expect((int) $fontSize)->toBeGreaterThan(14);
+    // 14px, and an earlier pass only bumped this to 18px before still
+    // being reported too small (docs/concerns.md) -- assert it's now at
+    // least as large as that intermediate value, not an exact number, so
+    // this doesn't churn every time the clamp/size is tuned further.
+    expect((int) $fontSize)->toBeGreaterThan(18);
 });

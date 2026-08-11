@@ -691,6 +691,19 @@ new class extends Component
         return $this->selectionScoreValue();
     }
 
+    /**
+     * $bankedDiceThisTurn chunked into one row per DICE_COUNT dice, so a
+     * turn that goes past hot dice (more than 6 banked) renders as
+     * multiple stacked rows -- one per roll -- instead of a single row
+     * that keeps growing sideways (docs/concerns.md).
+     *
+     * @return list<list<int>>
+     */
+    public function getBankedDiceRowsProperty(): array
+    {
+        return array_chunk($this->bankedDiceThisTurn, self::DICE_COUNT);
+    }
+
     private function canRollAgainValue(): bool
     {
         if ($this->dice === [] || $this->gameOver || $this->isSpectatorValue() || ! $this->isMyTurnValue()) {
@@ -954,23 +967,6 @@ new class extends Component
             </div>
 
             @unless ($gameOver)
-                {{--
-                    Dice already locked in earlier this same turn (across
-                    however many rolls) -- shown separately from the
-                    active roll below, with its own border, rather than
-                    silently vanishing the moment they're set aside
-                    (docs/concerns.md).
-                --}}
-                @if ($bankedDiceThisTurn !== [])
-                    <div class="farkle-banked-row">
-                        @foreach ($bankedDiceThisTurn as $i => $value)
-                            <div class="die banked" wire:key="banked-{{ $i }}">
-                                <span class="number">{{ $value }}</span>
-                            </div>
-                        @endforeach
-                    </div>
-                @endif
-
                 <div class="dice-area">
                     <div class="row">
                         @for ($i = 0; $i < self::DICE_COUNT - $heldDiceCount; $i++)
@@ -991,6 +987,26 @@ new class extends Component
                         @endif
                     </div>
                 </div>
+
+                {{--
+                    Dice already locked in earlier this same turn (across
+                    however many rolls) -- shown below the active roll,
+                    one row per roll, rather than silently vanishing the
+                    moment they're set aside (docs/concerns.md).
+                --}}
+                @if ($this->bankedDiceRows !== [])
+                    <div class="farkle-banked-rows">
+                        @foreach ($this->bankedDiceRows as $rowIndex => $row)
+                            <div class="farkle-banked-row" wire:key="banked-row-{{ $rowIndex }}">
+                                @foreach ($row as $i => $value)
+                                    <div class="die banked" wire:key="banked-{{ $rowIndex }}-{{ $i }}">
+                                        <span class="number">{{ $value }}</span>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
             @endunless
 
             <div class="farkle-scoreboard w-full bg-surface border-2 border-surface-border rounded-lg overflow-y-auto overflow-x-hidden {{ $gameOver ? 'farkle-final-scores' : '' }}">

@@ -119,6 +119,8 @@ body {
     justify-content: center;
     gap: clamp(16px, 3vmin, 40px);
     padding: 16px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
     overflow: hidden;
 }
 
@@ -145,6 +147,14 @@ body.scrollable {
     position: fixed;
     display: flex;
     justify-content: space-between;
+    /* Without this, flex's default align-items: stretch makes .left match
+       .right's height whenever .right grows taller than one line (the
+       many-buttons wrap below) -- and since .left's own direct-child
+       buttons (unlike Home, which is wrapped in an <a>) are themselves
+       flex items, they stretched into tall, narrow rectangles rather than
+       staying their normal button height. Confirmed live via a real
+       screenshot of a crowded online-room Farkle game. */
+    align-items: flex-start;
     /* A floor on the space between the .left and .right groups themselves
        -- matches .left/.right's own internal button-to-button gap below,
        so all three gaps (within .left, within .right, and between the two
@@ -158,7 +168,10 @@ body.scrollable {
     right: 0;
     top: 0;
     left: 0;
-    padding: calc(1rem + env(safe-area-inset-top, 0px)) 1rem 1rem 1rem;
+    padding-top: calc(1rem + env(safe-area-inset-top, 0px));
+    padding-right: max(1rem, env(safe-area-inset-right, 0px));
+    padding-bottom: 1rem;
+    padding-left: max(1rem, env(safe-area-inset-left, 0px));
     z-index: 2;
     background: var(--bg);
     border-bottom: 1px solid var(--die-border);
@@ -186,6 +199,50 @@ body.scrollable {
     .button-bar.many-buttons .left,
     .button-bar.many-buttons .right {
         gap: 6px;
+        row-gap: 8px;
+    }
+
+    /* docs/concerns.md: an online-room game (Rooms + Scores + Watch only +
+       End Game + the fullscreen toggle, all in .right at once) had nowhere
+       left to shrink to at this width -- .right just overflowed the bar,
+       pushing the fullscreen toggle off screen and leaving End Game
+       crammed against its neighbors. flex-basis: 100% forces .right onto
+       its own full-width line below .left (rather than only wrapping once
+       it happens to overflow, which is harder to reason about and to
+       test), and its own flex-wrap lets its buttons spill onto a second
+       line if even the full bar width isn't enough, instead of overflowing
+       sideways. Confirmed live: this is the exact scenario a real online
+       Farkle game reproduces (see FarkleMobileLayoutTest.php). */
+    .button-bar.many-buttons .right {
+        flex: 1 1 100%;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+
+    /* A little breathing room before the one button in this bar that
+       opens a confirmation dialog for something hard to undo -- so it
+       doesn't sit flush against Scores/Watch-only and invite an
+       accidental tap now that everything else here is packed tightly
+       (docs/concerns.md: "the end game button is too easy to hit because
+       it is so crowded"). Shared id across Farkle and Family Feud. */
+    .button-bar.many-buttons #end-game-trigger {
+        margin-left: 8px;
+    }
+}
+
+/* Reserves enough top padding for .button-bar's own taller, two-line
+   height once .right wraps onto its own line below .left -- without
+   this, the fixed-position bar's real height outgrows the page's fixed
+   clamp(80px, 10vmin, 96px) reservation and the top of the page's content
+   renders hidden underneath it. 108px is the real measured height for
+   Farkle's crowded online-room case (Home/Rules on one line, Rooms
+   /Scores/Watch only/End Game/fullscreen-toggle wrapped below) at both
+   375px and 320px wide, confirmed live via getBoundingClientRect() --
+   125px leaves a real margin above that without reserving so much it
+   visibly gaps on pages with fewer buttons. */
+@media (max-width: 480px) {
+    body.scrollable:has(.button-bar.many-buttons) {
+        padding-top: clamp(125px, 26vmin, 150px);
     }
 }
 
@@ -272,7 +329,10 @@ body.scrollable {
     display: flex;
     justify-content: space-between;
     gap: clamp(16px, 3vmin, 32px);
-    padding: 0.85rem 1rem calc(0.85rem + env(safe-area-inset-bottom, 0px)) 1rem;
+    padding-top: 0.85rem;
+    padding-right: max(1rem, env(safe-area-inset-right, 0px));
+    padding-bottom: calc(0.85rem + env(safe-area-inset-bottom, 0px));
+    padding-left: max(1rem, env(safe-area-inset-left, 0px));
     z-index: 2;
     background: var(--bg);
     border-top: 1px solid var(--die-border);
@@ -1385,18 +1445,55 @@ body.scrollable.farkle-play.in-game {
     justify-content: flex-end;
 }
 
-/* Dice already locked in earlier this same turn -- flex, not the grid
-   .row above, since the count varies turn to turn (a long multi-roll
-   turn, especially with hot dice, can hold more than 6). Smaller and
-   muted relative to the active roll below, since it's a record of what's
-   already secured, not something to keep interacting with.
+/* Dice already locked in earlier this same turn -- shown below the
+   active roll (docs/concerns.md: it used to render above the main dice
+   row, which read backwards). One .farkle-banked-row per roll made this
+   turn (getBankedDiceRowsProperty chunks by DICE_COUNT), stacked in
+   .farkle-banked-rows, rather than a single row that either wrapped
+   (growing tall enough to push controls around) or scrolled sideways
+   (cutting dice off on narrow mobile screens, docs/concerns.md again).
+   Capping each row at DICE_COUNT and sizing the dice to comfortably fit
+   that many within the shared row width means no row needs to scroll or
+   wrap on its own. */
+.farkle-banked-rows {
+    display: flex;
+    flex-direction: column;
+    gap: clamp(4px, 0.8vh, 12px);
+    width: min(56vw, 42vh, 720px);
+}
 
-   nowrap + horizontal scroll, not flex-wrap -- docs/concerns.md: a long
-   turn's banked dice used to wrap onto a second line once they exceeded
-   this row's width, growing the row vertically and pushing the active
-   roll/Roll button down the page. Staying on one row and scrolling
-   sideways instead keeps everything below it in a fixed position
-   regardless of how many dice are banked this turn. */
+.farkle-banked-row {
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: center;
+    gap: clamp(4px, 0.8vh, 12px);
+    width: 100%;
+    opacity: 0.75;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+.farkle-banked-row .die {
+    width: clamp(32px, 6vmin, 56px);
+    aspect-ratio: 1 / 1;
+    flex: 0 0 auto;
+    background: var(--die);
+    border: 2px solid var(--accent);
+    border-radius: clamp(5px, 0.8vmin, 12px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: default;
+}
+
+.farkle-banked-row .number {
+    font-size: clamp(14px, 3.6vmin, 32px);
+    font-weight: bold;
+    color: var(--ink);
+    line-height: 1;
+    user-select: none;
+}
+
 /* docs/concerns.md: the shared .dice-area rule above is deliberately
    nowrap (Roll sharing a row with the dice, see its own comment) so
    Yahtzee's scorecard gets the extra vertical room -- but Farkle's own
@@ -1422,38 +1519,14 @@ body.scrollable.farkle-play.in-game {
         min-width: 0;
         justify-content: center;
     }
-}
 
-.farkle-banked-row {
-    display: flex;
-    flex-wrap: nowrap;
-    justify-content: center;
-    gap: clamp(4px, 0.8vh, 12px);
-    width: min(56vw, 42vh, 720px);
-    opacity: 0.75;
-    overflow-x: auto;
-    overflow-y: hidden;
-}
-
-.farkle-banked-row .die {
-    width: clamp(32px, 6vmin, 56px);
-    aspect-ratio: 1 / 1;
-    flex: 0 0 auto;
-    background: var(--die);
-    border: 2px solid var(--accent);
-    border-radius: clamp(5px, 0.8vmin, 12px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: default;
-}
-
-.farkle-banked-row .number {
-    font-size: clamp(14px, 3.6vmin, 32px);
-    font-weight: bold;
-    color: var(--ink);
-    line-height: 1;
-    user-select: none;
+    /* Matches .farkle-play .row's own portrait width above -- at the
+       narrower default (min(56vw, ...)) 6 banked dice didn't reliably
+       fit on one row on a real phone, cutting the ones past the edge off
+       (docs/concerns.md). */
+    .farkle-banked-rows {
+        width: min(92vw, 480px);
+    }
 }
 
 .farkle-target-line {
@@ -1516,12 +1589,15 @@ body.scrollable.farkle-play.in-game {
 /* docs/concerns.md: the live (in-progress) scoreboard only ever used
    Tailwind's plain text-sm, unlike .farkle-final-scores' own clamp above
    -- fine on mobile, too small to read comfortably on a desktop-size
-   screen with room to spare. */
+   screen with room to spare. First bumped to 18px, then reported still
+   too small (docs/concerns.md again) -- raised to match
+   .farkle-final-scores' own 22px so the live and final scoreboards read
+   at the same size, rather than picking a new number. */
 @media (min-width: 900px) {
     .farkle-scoreboard:not(.farkle-final-scores) .grid > span {
-        font-size: 18px;
-        padding-top: 12px;
-        padding-bottom: 12px;
+        font-size: 22px;
+        padding-top: 14px;
+        padding-bottom: 14px;
     }
 }
 
