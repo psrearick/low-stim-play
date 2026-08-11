@@ -966,59 +966,74 @@ new class extends Component
                 @endif
             </div>
 
-            @unless ($gameOver)
-                <div class="dice-area">
-                    <div class="row">
-                        @for ($i = 0; $i < self::DICE_COUNT - $heldDiceCount; $i++)
-                            <div class="die {{ ($selected[$i] ?? false) ? 'selected' : '' }}" @if ($this->isMyTurn && ! $this->isSpectator && $dice !== []) wire:click="toggleSelect({{ $i }})" @endif>
-                                <span class="number">{{ $dice[$i] ?? '' }}</span>
+            {{--
+                farkle-game-area/-dice-column exist purely for landscape
+                mobile (see app.css): plain display: contents everywhere
+                else, so they're invisible to layout and change nothing by
+                default -- only the landscape media query turns them into
+                real flex containers, putting the dice column and
+                scoreboard side by side so the scoreboard gets far more
+                usable height than the single stacked column below it ever
+                could on a short landscape viewport (docs/concerns.md).
+            --}}
+            <div class="farkle-game-area">
+                @unless ($gameOver)
+                    <div class="farkle-dice-column">
+                        <div class="dice-area">
+                            <div class="row">
+                                @for ($i = 0; $i < self::DICE_COUNT - $heldDiceCount; $i++)
+                                    <div class="die {{ ($selected[$i] ?? false) ? 'selected' : '' }}" @if ($this->isMyTurn && ! $this->isSpectator && $dice !== []) wire:click="toggleSelect({{ $i }})" @endif>
+                                        <span class="number">{{ $dice[$i] ?? '' }}</span>
+                                    </div>
+                                @endfor
                             </div>
-                        @endfor
-                    </div>
 
-                    <div class="controls">
-                        @if ($this->isMyTurn && ! $this->isSpectator)
-                            @if ($dice === [])
-                                <button type="button" id="rollBtn" wire:click="roll" @disabled($gameOver)>Roll</button>
-                            @else
-                                <button type="button" id="rollAgainBtn" wire:click="rollAgain" @disabled(! $this->canRollAgain)>Roll Again</button>
-                                <button type="button" id="bankBtn" wire:click="bank" @disabled(! $this->canBank)>Bank {{ $this->bankableAmount }}</button>
-                            @endif
-                        @endif
-                    </div>
-                </div>
+                            <div class="controls">
+                                @if ($this->isMyTurn && ! $this->isSpectator)
+                                    @if ($dice === [])
+                                        <button type="button" id="rollBtn" wire:click="roll" @disabled($gameOver)>Roll</button>
+                                    @else
+                                        <button type="button" id="rollAgainBtn" wire:click="rollAgain" @disabled(! $this->canRollAgain)>Roll Again</button>
+                                        <button type="button" id="bankBtn" wire:click="bank" @disabled(! $this->canBank)>Bank {{ $this->bankableAmount }}</button>
+                                    @endif
+                                @endif
+                            </div>
+                        </div>
 
-                {{--
-                    Dice already locked in earlier this same turn (across
-                    however many rolls) -- shown below the active roll,
-                    one row per roll, rather than silently vanishing the
-                    moment they're set aside (docs/concerns.md).
-                --}}
-                @if ($this->bankedDiceRows !== [])
-                    <div class="farkle-banked-rows">
-                        @foreach ($this->bankedDiceRows as $rowIndex => $row)
-                            <div class="farkle-banked-row" wire:key="banked-row-{{ $rowIndex }}">
-                                @foreach ($row as $i => $value)
-                                    <div class="die banked" wire:key="banked-{{ $rowIndex }}-{{ $i }}">
-                                        <span class="number">{{ $value }}</span>
+                        {{--
+                            Dice already locked in earlier this same turn
+                            (across however many rolls) -- shown below the
+                            active roll, one row per roll, rather than
+                            silently vanishing the moment they're set aside
+                            (docs/concerns.md).
+                        --}}
+                        @if ($this->bankedDiceRows !== [])
+                            <div class="farkle-banked-rows">
+                                @foreach ($this->bankedDiceRows as $rowIndex => $row)
+                                    <div class="farkle-banked-row" wire:key="banked-row-{{ $rowIndex }}">
+                                        @foreach ($row as $i => $value)
+                                            <div class="die banked" wire:key="banked-{{ $rowIndex }}-{{ $i }}">
+                                                <span class="number">{{ $value }}</span>
+                                            </div>
+                                        @endforeach
                                     </div>
                                 @endforeach
                             </div>
+                        @endif
+                    </div>
+                @endunless
+
+                <div class="farkle-scoreboard w-full bg-surface border-2 border-surface-border rounded-lg overflow-y-auto overflow-x-hidden {{ $gameOver ? 'farkle-final-scores' : '' }}">
+                    <div class="grid" style="grid-template-columns: 1fr auto;">
+                        @foreach ($players as $i => $player)
+                            <span wire:key="name-{{ $i }}" class="pl-6 pr-3 py-3 {{ $loop->first ? '' : 'border-t border-surface-border' }} {{ $gameOver ? '' : 'text-sm' }} {{ $i === $currentPlayer && ! $gameOver ? 'font-bold text-text' : 'text-text/80' }}">
+                                {{ $player['name'] }}{{ $i === $currentPlayer && ! $gameOver ? ' (current)' : '' }}
+                            </span>
+                            <span wire:key="score-{{ $i }}" class="pl-3 pr-6 py-3 {{ $loop->first ? '' : 'border-t border-surface-border' }} {{ $gameOver ? 'font-bold' : 'text-sm' }} text-text text-right">
+                                {{ $player['bankedScore'] }}
+                            </span>
                         @endforeach
                     </div>
-                @endif
-            @endunless
-
-            <div class="farkle-scoreboard w-full bg-surface border-2 border-surface-border rounded-lg overflow-y-auto overflow-x-hidden {{ $gameOver ? 'farkle-final-scores' : '' }}">
-                <div class="grid" style="grid-template-columns: 1fr auto;">
-                    @foreach ($players as $i => $player)
-                        <span wire:key="name-{{ $i }}" class="pl-6 pr-3 py-3 {{ $loop->first ? '' : 'border-t border-surface-border' }} {{ $gameOver ? '' : 'text-sm' }} {{ $i === $currentPlayer && ! $gameOver ? 'font-bold text-text' : 'text-text/80' }}">
-                            {{ $player['name'] }}{{ $i === $currentPlayer && ! $gameOver ? ' (current)' : '' }}
-                        </span>
-                        <span wire:key="score-{{ $i }}" class="pl-3 pr-6 py-3 {{ $loop->first ? '' : 'border-t border-surface-border' }} {{ $gameOver ? 'font-bold' : 'text-sm' }} text-text text-right">
-                            {{ $player['bankedScore'] }}
-                        </span>
-                    @endforeach
                 </div>
             </div>
         </div>

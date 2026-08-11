@@ -1393,6 +1393,20 @@ body.scrollable.farkle-play.in-game {
     gap: clamp(10px, 1.2vh, 18px);
 }
 
+/* Invisible to layout everywhere except the short-landscape-mobile media
+   query further down -- display: contents means these two wrapper divs
+   don't generate a box of their own, so their children (.dice-area,
+   .farkle-banked-rows, .farkle-scoreboard) lay out exactly as if they
+   were direct children of #farkle-game, identical to before these
+   wrappers existed. Only overridden to real flex containers in landscape,
+   where they put the dice column and scoreboard side by side instead of
+   stacked (docs/concerns.md: the scoreboard had nowhere near enough
+   height to show every player on a short landscape viewport). */
+.farkle-game-area,
+.farkle-dice-column {
+    display: contents;
+}
+
 .farkle-play .row {
     display: grid;
     grid-template-columns: repeat(6, 1fr);
@@ -1526,6 +1540,87 @@ body.scrollable.farkle-play.in-game {
        (docs/concerns.md). */
     .farkle-banked-rows {
         width: min(92vw, 480px);
+    }
+}
+
+/* docs/concerns.md: two landscape-mobile reports, both from the same root
+   cause -- a short landscape viewport (as little as ~320px tall) forces
+   everything (target line, status, dice, banked-dice rows, scoreboard)
+   into one stacked column with no room to spare, unlike the portrait fix
+   above, which only had to solve dice-vs-controls width. Landscape has
+   the opposite problem: width to spare, height to protect. Puts the dice
+   column and scoreboard side by side (.farkle-game-area/-dice-column are
+   plain display: contents everywhere else -- see their own comment above
+   -- so this is the only place they become real flex containers), which
+   both gives the scoreboard roughly the full available height instead of
+   a ~90px sliver (it's a flex item of a row container with the default
+   align-items: stretch, so it fills the row's height with no extra rule
+   needed) and, by also wrapping .dice-area the same way the portrait fix
+   already does, guarantees Roll Again/Bank always render on their own
+   line below the dice rather than sharing a row narrow enough for the
+   two to visually crowd together. */
+@media (max-width: 899px) and (orientation: landscape) {
+    .farkle-game-area {
+        display: flex;
+        flex-direction: row;
+        align-items: stretch;
+        gap: 16px;
+        width: 100%;
+        flex: 1;
+        min-height: 0;
+    }
+
+    .farkle-dice-column {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        gap: clamp(8px, 1vh, 14px);
+        flex: 0 0 auto;
+    }
+
+    /* Explicit width on .dice-area itself, not just .row -- otherwise
+       .row's own flex-grow: 1 (from the shared base rule, needed so
+       Yahtzee/desktop Farkle can grow to fill their own, unconstrained
+       row) has nothing to grow *against* once .dice-area sits inside the
+       new narrow .farkle-dice-column instead of the full-width layout
+       every other width formula assumes, and it grows back out to
+       something like its own max-content size instead of the intended
+       column width. Confirmed live: without this, .row measured ~400px
+       wide against a ~140px intended width. flex: 0 0 auto on .row pins
+       it to exactly its own width instead of trying to grow at all. */
+    /* clamp()'s floor, not just its preferred/max, is load-bearing: the
+       two-button Roll Again + Bank row (each min-width: 120px, plus gap)
+       needs a real ~260px minimum regardless of how little vertical
+       height is available, or the buttons overflow their own too-narrow
+       line -- confirmed live: with a plain min()-based width shrunk to
+       ~140px, the Roll Again button's own rect.left went negative
+       (rendered partly off the left edge). */
+    .farkle-play .dice-area {
+        flex-wrap: wrap;
+        justify-content: center;
+        width: clamp(260px, 46vw, 380px);
+    }
+
+    .farkle-play .row {
+        flex: 0 0 auto;
+        width: clamp(260px, 46vw, 380px);
+    }
+
+    .farkle-play .dice-area .controls {
+        flex: 1 1 100%;
+        min-width: 0;
+        justify-content: center;
+    }
+
+    .farkle-banked-rows {
+        width: clamp(260px, 46vw, 380px);
+    }
+
+    .farkle-scoreboard {
+        flex: 1;
+        min-width: 0;
+        width: auto;
     }
 }
 

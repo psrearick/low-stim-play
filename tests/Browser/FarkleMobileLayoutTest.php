@@ -194,3 +194,63 @@ it('shows the live scoreboard in a larger font on desktop', function () {
     // this doesn't churn every time the clamp/size is tuned further.
     expect((int) $fontSize)->toBeGreaterThan(18);
 });
+
+it('does not let Roll Again/Bank overlap the dice in mobile landscape', function () {
+    // docs/concerns.md: "In Mobile Landscape, the 'Roll Again' button
+    // covers the last die on the right." A short landscape viewport puts
+    // .dice-area's default nowrap row (dice + controls sharing one row)
+    // under real width pressure. Fixed by giving Farkle a dedicated
+    // landscape layout (.farkle-game-area/-dice-column, see app.css) that
+    // wraps the dice-area the same way the portrait fix already does, so
+    // Roll Again/Bank always render on their own line below the dice.
+    $page = visit('/farkle')->resize(568, 320);
+
+    $page->click('Start Game')->assertSee('Roll');
+    $page->click('#rollBtn');
+    $page->wait(0.3);
+
+    $info = $page->script(
+        "(() => { const dice = [...document.querySelectorAll('.dice-area .row .die')].map(el => el.getBoundingClientRect()); const controls = document.querySelector('.dice-area .controls').getBoundingClientRect(); const anyOverlap = dice.some(die => die.left < controls.right && die.right > controls.left && die.top < controls.bottom && die.bottom > controls.top); const anyOffscreenLeft = [...document.querySelectorAll('.dice-area .row .die, #rollAgainBtn, #bankBtn')].some(el => el.getBoundingClientRect().left < 0); return {anyOverlap, anyOffscreenLeft}; })()"
+    );
+
+    expect($info['anyOverlap'])->toBeFalse();
+    expect($info['anyOffscreenLeft'])->toBeFalse();
+});
+
+it('gives the scoreboard enough height to reach every player in mobile landscape', function () {
+    // docs/concerns.md: "In Mobile Landscape, the page does not scroll,
+    // so you cannot see all the scores." The scoreboard's own
+    // overflow-y: auto (see the earlier short-mobile-viewport fix above)
+    // is real, but landscape's own stacked layout only ever gave it a
+    // ~90px sliver to work with, an unusably small internal scroll area
+    // for more than a couple of players. Fixed by putting the dice
+    // column and scoreboard side by side in landscape (.farkle-game-area,
+    // see app.css), which gives the scoreboard roughly the full available
+    // height instead. Local pass-and-play, not an online room -- a room
+    // game's extra button-bar buttons (Scores/Watch only/End Game) run
+    // into their own, separate width limit around this viewport size that
+    // isn't one of this round's two reported bugs; isolating this test to
+    // local play keeps it from coupling to that unrelated behavior.
+    $page = visit('/farkle')->resize(667, 375);
+
+    for ($i = 0; $i < 6; $i++) {
+        $page->click('[aria-label="More players"]');
+        $page->wait(0.15);
+    }
+
+    $page->click('Start Game')->assertSee('Roll');
+
+    $before = $page->script(
+        "(() => { const el = document.querySelector('.farkle-scoreboard'); return {clientHeight: el.clientHeight, scrollable: el.scrollHeight > el.clientHeight}; })()"
+    );
+
+    // A pre-fix ~90px sliver is barely one row tall; the side-by-side
+    // landscape layout should give it noticeably more room than that.
+    expect($before['clientHeight'])->toBeGreaterThan(120);
+
+    $lastRowReachable = $page->script(
+        "(() => { const el = document.querySelector('.farkle-scoreboard'); el.scrollTop = 99999; const rows = el.querySelectorAll('.grid > span'); const last = rows[rows.length - 1]; const lastRect = last.getBoundingClientRect(); const elRect = el.getBoundingClientRect(); return lastRect.bottom <= elRect.bottom + 1 && lastRect.top >= elRect.top - 1; })()"
+    );
+
+    expect($lastRowReachable)->toBeTrue();
+});

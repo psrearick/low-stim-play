@@ -5,6 +5,7 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 ## 2026-08-11
 
 - Fixed five more Farkle layout bugs: banked dice now render below the main dice row in one row per roll instead of a single row above it; the banked-dice row no longer gets cut off on narrow mobile; the desktop live scoreboard font is larger; the button-bar wraps instead of overflowing off-screen in a crowded online-room game (plus two follow-on bugs found live: a stretched Rules button, insufficient reserved top padding); and body/button-bar/site-footer now account for `safe-area-inset-left/right` for landscape camera-notch handling.
+- Added a dedicated Farkle mobile-landscape layout (dice column and scoreboard side by side, mirroring Boggle's own landscape layout) fixing two bugs: Roll Again/Bank overlapping the last die, and the scoreboard having too little height to reach every player.
 
 ## 2026-08-06
 
