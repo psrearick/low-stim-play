@@ -222,15 +222,17 @@ For full usage — backend examples, browser testing, screenshots, responsive ch
 
 # Project Documentation
 
-This project keeps three docs files in `docs/`, each with a distinct job. Keeping them current is a standing instruction, not a one-time task — do it as part of the same turn as the change, not as separate follow-up work.
+This project keeps four docs files in `docs/`, each with a distinct job. Keeping them current is a standing instruction, not a one-time task — do it as part of the same turn as the change, not as separate follow-up work.
 
 - **`docs/DEVLOG.md`** — the detailed record of *why* this app is built the way it is: decisions made, deliberate deviations from any plan and why, and bugs found along the way (including why they happened, not just what fixed them). Organized by feature/area (Boggle, Yahtzee, Room system, Site-wide design system, ...), not by when the work happened.
-- **`docs/CHANGELOG.md`** — a terse, commit-by-commit record of *what* changed, newest first, with no rationale or decisions (that belongs in `docs/DEVLOG.md`). Grouped by date, one bullet per commit: short hash + a one-line summary of the actual change.
+- **`docs/CHANGELOG.md`** — a terse, commit-by-commit record of *what* changed, newest first, with no rationale or decisions (that belongs in `docs/DEVLOG.md`). Grouped by date, one bullet per commit: a one-line summary of the actual change. No commit hash in the text — `git log -1 -- docs/CHANGELOG.md` finds the last commit that touched the file, which is enough to find anything newer.
 - **`docs/TODO.md`** — incomplete/deferred work only. Once something here is done, move its writeup into `docs/DEVLOG.md` (under the relevant feature section) and delete it from this file rather than checking it off in place.
+- **`docs/notes.md`** — the user's personal scratch space, written to directly while a session is running. Never read, summarize, or act on its contents unless the user explicitly points to it or brings it up — it's an inbox for unprocessed thoughts, not a task list. Don't proactively triage it either; that's the user's call.
 
 Update triggers:
 - **After every non-trivial change** (a bug fix, a new feature, a real deviation from a plan) — add an entry to `docs/DEVLOG.md` in the same turn, filed under the relevant existing feature section (add a new section only for a genuinely new feature area).
-- **Update `docs/CHANGELOG.md`** when the user explicitly asks you to update it, OR whenever the user asks you to make a commit (add that commit's entry as part of the same commit), OR proactively — before starting new work, check `git log` for commits since you last touched this file; if any aren't reflected in it yet, inspect what was actually committed (`git show`/`git diff`) and add terse entries for them. Don't copy an uninformative commit message (e.g. "wip") verbatim — describe the actual change from the diff instead.
+- **Update `docs/CHANGELOG.md`** when the user explicitly asks you to update it, OR whenever the user asks you to make a commit (fold the changelog update into that same commit — entries don't reference their own hash, so there's no ordering problem), OR proactively — before starting new work, run `git log -1 -- docs/CHANGELOG.md` to find the last commit that touched the file, then `git log <that hash>..HEAD --oneline` for everything since. Inspect what was actually committed (`git show`/`git diff`) for anything not yet reflected and add terse entries for them. Don't copy an uninformative commit message (e.g. "wip") verbatim — describe the actual change from the diff instead.
+- **Whenever you modify `CLAUDE.md`, check whether `AGENTS.md` needs the same change.** They're kept as near-duplicate, independent files (not a symlink) for different tools to read — a change to one that reflects a real, tool-agnostic instruction (not something Claude Code-specific) belongs in both, in the same turn.
 
 # Automated Browser Testing
 
