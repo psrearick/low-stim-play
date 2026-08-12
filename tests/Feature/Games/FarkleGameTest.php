@@ -13,7 +13,7 @@ use Livewire\Livewire;
 uses(RefreshDatabase::class);
 
 test('the setup screen renders', function () {
-    $this->get('/farkle')->assertSeeLivewire('pages::farkle.play');
+    $this->get('/10000')->assertSeeLivewire('pages::farkle.play');
 });
 
 test('player count is clamped between 1 and 8', function () {

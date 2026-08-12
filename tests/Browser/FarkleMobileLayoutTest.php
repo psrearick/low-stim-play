@@ -29,7 +29,7 @@ it('lets every player row be reached by scrolling the scoreboard on a short mobi
     // session: scrollHeight/clientHeight both fit the outer document
     // exactly, while the scoreboard's own scrollHeight was taller than
     // its clientHeight).
-    $page = visit('/farkle')->resize(390, 500);
+    $page = visit('/10000')->resize(390, 500);
 
     // One click at a time, waiting for each Livewire round trip to land
     // before the next -- firing all 6 clicks back to back raced the
@@ -60,7 +60,7 @@ it('lets every player row be reached by scrolling the scoreboard on a short mobi
 });
 
 it('renders banked dice below the main dice row, one row per roll of up to six', function () {
-    $page = visit('/farkle')->resize(1280, 900);
+    $page = visit('/10000')->resize(1280, 900);
 
     $page->click('Start Game')->assertSee('Roll');
 
@@ -93,7 +93,7 @@ it('renders banked dice below the main dice row, one row per roll of up to six',
 });
 
 it('does not overlap the dice with the roll button in a narrow portrait viewport', function () {
-    $page = visit('/farkle')->resize(390, 844);
+    $page = visit('/10000')->resize(390, 844);
 
     $page->click('Start Game')->assertSee('Roll');
 
@@ -122,7 +122,7 @@ it('keeps a full row of six banked dice on screen on a narrow mobile viewport', 
     // oriented) min(56vw, ...) width this row used before, six dice
     // didn't reliably fit on a real phone; the portrait-only override
     // widens it to match .farkle-play .row's own portrait width.
-    $page = visit('/farkle')->resize(390, 844);
+    $page = visit('/10000')->resize(390, 844);
 
     $page->click('Start Game')->assertSee('Roll');
 
@@ -166,7 +166,7 @@ it('keeps every button-bar button reachable and the fullscreen toggle on screen 
 
     $this->actingAs($host);
 
-    $page = visit('/farkle?room='.$room->code)->resize(375, 812);
+    $page = visit('/10000?room='.$room->code)->resize(375, 812);
     $page->assertSee('Roll');
 
     $info = $page->script(
@@ -179,7 +179,7 @@ it('keeps every button-bar button reachable and the fullscreen toggle on screen 
 });
 
 it('shows the live scoreboard in a larger font on desktop', function () {
-    $page = visit('/farkle')->resize(1280, 900);
+    $page = visit('/10000')->resize(1280, 900);
 
     $page->click('Start Game')->assertSee('Roll');
 
@@ -203,7 +203,7 @@ it('does not let Roll Again/Bank overlap the dice in mobile landscape', function
     // landscape layout (.farkle-game-area/-dice-column, see app.css) that
     // wraps the dice-area the same way the portrait fix already does, so
     // Roll Again/Bank always render on their own line below the dice.
-    $page = visit('/farkle')->resize(568, 320);
+    $page = visit('/10000')->resize(568, 320);
 
     $page->click('Start Game')->assertSee('Roll');
     $page->click('#rollBtn');
@@ -231,7 +231,7 @@ it('gives the scoreboard enough height to reach every player in mobile landscape
     // into their own, separate width limit around this viewport size that
     // isn't one of this round's two reported bugs; isolating this test to
     // local play keeps it from coupling to that unrelated behavior.
-    $page = visit('/farkle')->resize(667, 375);
+    $page = visit('/10000')->resize(667, 375);
 
     for ($i = 0; $i < 6; $i++) {
         $page->click('[aria-label="More players"]');

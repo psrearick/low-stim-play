@@ -58,6 +58,6 @@ it('keeps room membership after visiting Home, and resumes the same seat from th
     // Resuming actually lands back in the same seat (not spectating) --
     // the roll button, hidden entirely for a spectator, is visible.
     $page->click('Resume your seat')->wait(0.5);
-    $page->assertPathIs('/farkle');
+    $page->assertPathIs('/10000');
     $page->assertVisible('#rollBtn');
 });

@@ -27,14 +27,14 @@ function farkleParticipantFor(User $user, int $score = 500, int $farkleCount = 0
 }
 
 test('guests are redirected to login for the farkle stats index', function () {
-    $this->get('/profile/farkle')->assertRedirect('/login');
+    $this->get('/profile/10000')->assertRedirect('/login');
 });
 
 test('guests are redirected to login for a farkle game detail page', function () {
     $user = User::factory()->create();
     $participant = farkleParticipantFor($user);
 
-    $this->get("/profile/farkle/{$participant->id}")->assertRedirect('/login');
+    $this->get("/profile/10000/{$participant->id}")->assertRedirect('/login');
 });
 
 test('the farkle stats index renders for an authenticated user', function () {
@@ -42,7 +42,7 @@ test('the farkle stats index renders for an authenticated user', function () {
     farkleParticipantFor($user, score: 2400);
 
     $this->actingAs($user)
-        ->get('/profile/farkle')
+        ->get('/profile/10000')
         ->assertSeeLivewire('pages::profile.farkle.index')
         ->assertSee('2400');
 });
@@ -65,7 +65,7 @@ test('the farkle stats index links the highest-score personal best to the game i
     $best = farkleParticipantFor($user, score: 5000);
 
     $this->actingAs($user)
-        ->get('/profile/farkle')
+        ->get('/profile/10000')
         ->assertSee(route('profile.farkle.show', $best), escape: false);
 });
 
@@ -74,7 +74,7 @@ test('a farkle game detail page shows its headline stats', function () {
     $participant = farkleParticipantFor($user, score: 6200, farkleCount: 2, hotDiceCount: 1, bestTurnScore: 3200);
 
     $this->actingAs($user)
-        ->get("/profile/farkle/{$participant->id}")
+        ->get("/profile/10000/{$participant->id}")
         ->assertSeeLivewire('pages::profile.farkle.show')
         ->assertSee('6200')
         ->assertSee('3200')
@@ -88,7 +88,7 @@ test('a user cannot view another user\'s farkle game detail page', function () {
     $participant = farkleParticipantFor($otherUser);
 
     $this->actingAs($user)
-        ->get("/profile/farkle/{$participant->id}")
+        ->get("/profile/10000/{$participant->id}")
         ->assertNotFound();
 });
 
@@ -98,7 +98,7 @@ test('a farkle game detail page 404s for a non-Farkle participant', function () 
     $participant = GameParticipant::factory()->create(['game_session_id' => $session->id, 'user_id' => $user->id]);
 
     $this->actingAs($user)
-        ->get("/profile/farkle/{$participant->id}")
+        ->get("/profile/10000/{$participant->id}")
         ->assertNotFound();
 });
 

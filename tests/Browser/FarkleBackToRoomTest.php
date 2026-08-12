@@ -44,14 +44,14 @@ it('actually navigates back to the room after the host ends the game', function 
 
     $this->actingAs($host);
 
-    $page = visit('/farkle?room='.$room->code);
+    $page = visit('/10000?room='.$room->code);
     $page->assertSee('Roll')
         ->click('#end-game-trigger')
         ->assertSee('End the game?')
         ->click('#end-game-confirm')
         ->assertSee('Back to room')
         ->click('Back to room')
-        ->assertPathIs('/farkle/room/'.$room->code)
+        ->assertPathIs('/10000/room/'.$room->code)
         ->assertSee('10,000 Room');
 
     expect($room->fresh()->status)->toBe(RoomStatus::Finished);

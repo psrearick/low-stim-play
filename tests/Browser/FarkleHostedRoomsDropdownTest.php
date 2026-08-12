@@ -12,10 +12,10 @@ it('shows the hosted-rooms dropdown and jumps into the chosen room lobby', funct
 
     $this->actingAs($host);
 
-    $page = visit('/farkle');
+    $page = visit('/10000');
     $page->assertSee('Play in a room you host')
         ->click('#hosted-room-'.$room->code)
         ->wait(0.5);
 
-    $page->assertPathIs('/farkle/room/'.$room->code);
+    $page->assertPathIs('/10000/room/'.$room->code);
 });

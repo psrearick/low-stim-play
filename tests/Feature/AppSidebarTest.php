@@ -30,7 +30,7 @@ test('the sidebar appears on every Dashboard/Profile/Stats page', function () {
     $user = User::factory()->create();
     $this->actingAs($user);
 
-    foreach (['/dashboard', '/profile', '/profile/boggle', '/profile/yahtzee', '/profile/family-feud', '/profile/farkle', '/profile/games'] as $path) {
+    foreach (['/dashboard', '/profile', '/profile/boggle', '/profile/yahtzee', '/profile/family-feud', '/profile/10000', '/profile/games'] as $path) {
         assertHasSidebar($this, $path);
     }
 });

@@ -2,6 +2,10 @@
 
 A terse, commit-by-commit record of what changed, newest first. No rationale or decisions here — see `docs/DEVLOG.md` for the *why* behind anything listed here, organized by feature instead of by commit. See `docs/TODO.md` for what's still outstanding.
 
+## 2026-08-12
+
+- Changed Farkle's URL paths from `/farkle` to `/10000` (and `/profile/farkle` to `/profile/10000`), keeping route names, view names, and everything else internal unchanged.
+
 ## 2026-08-11
 
 - Fixed five more Farkle layout bugs: banked dice now render below the main dice row in one row per roll instead of a single row above it; the banked-dice row no longer gets cut off on narrow mobile; the desktop live scoreboard font is larger; the button-bar wraps instead of overflowing off-screen in a crowded online-room game (plus two follow-on bugs found live: a stretched Rules button, insufficient reserved top padding); and body/button-bar/site-footer now account for `safe-area-inset-left/right` for landscape camera-notch handling.

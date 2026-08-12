@@ -32,7 +32,7 @@ function currentFarkleDice($page): array
 }
 
 it('plays through several turns of a solo game, ending via a real click', function () {
-    $page = visit('/farkle');
+    $page = visit('/10000');
 
     $page->assertSee('10,000')
         ->click('[aria-label="Fewer players"]')
@@ -98,7 +98,7 @@ it('plays through several turns of a solo game, ending via a real click', functi
 });
 
 it('ends the game via the End Game button and shows final scores', function () {
-    $page = visit('/farkle');
+    $page = visit('/10000');
 
     $page->click('[aria-label="Fewer players"]')->click('Start Game');
 

@@ -27,7 +27,7 @@ it('lets the host pick a game from the room hub and land in that game\'s real lo
         ->click('#start-game-farkle')
         ->wait(0.5);
 
-    $page->assertPathIs('/farkle/room/'.$room->code)
+    $page->assertPathIs('/10000/room/'.$room->code)
         ->assertSee('10,000 Room');
 
     expect($room->fresh()->game_session_id)->toBeNull();

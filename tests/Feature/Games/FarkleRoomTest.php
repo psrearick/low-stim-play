@@ -42,18 +42,18 @@ test('the setup screen shows no room UI at all for a user hosting no rooms', fun
     // own setup screen has anything room-related to show.
     $user = User::factory()->create();
 
-    $this->actingAs($user)->get('/farkle')
+    $this->actingAs($user)->get('/10000')
         ->assertDontSee('Play in a room you host')
         ->assertDontSee('Host an Online Room');
 
-    $this->get('/farkle')->assertDontSee('Play in a room you host');
+    $this->get('/10000')->assertDontSee('Play in a room you host');
 });
 
 test('the setup screen shows a dropdown of rooms the user hosts, linking into each one\'s lobby', function () {
     $host = User::factory()->create();
     $room = Room::factory()->create(['host_user_id' => $host->id]);
 
-    $this->actingAs($host)->get('/farkle')
+    $this->actingAs($host)->get('/10000')
         ->assertSee('Play in a room you host')
         ->assertSee($room->code)
         ->assertSeeHtml(route('farkle.room', ['code' => $room->code]));
@@ -64,14 +64,14 @@ test('the hosted-rooms dropdown excludes rooms hosted by other users and expired
     Room::factory()->create(); // someone else's room
     Room::factory()->expired()->create(['host_user_id' => $host->id]);
 
-    $this->actingAs($host)->get('/farkle')
+    $this->actingAs($host)->get('/10000')
         ->assertDontSee('Play in a room you host');
 });
 
 test('a guest can view the farkle room page without an account, and is given a throwaway one', function () {
     $room = Room::factory()->create();
 
-    $this->get("/farkle/room/{$room->code}")->assertOk();
+    $this->get("/10000/room/{$room->code}")->assertOk();
 
     $guest = User::where('is_guest', true)->sole();
 
