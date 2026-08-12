@@ -5,6 +5,7 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 ## 2026-08-12
 
 - Changed Farkle's URL paths from `/farkle` to `/10000` (and `/profile/farkle` to `/profile/10000`), keeping route names, view names, and everything else internal unchanged.
+- Skipped the "busted" → "Farkled" concerns.md item (reverts a prior trademark-avoidance decision); no code changed.
 
 ## 2026-08-11
 
