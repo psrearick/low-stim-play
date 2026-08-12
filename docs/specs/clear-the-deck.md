@@ -31,11 +31,15 @@ private-hand game) — the per-seat view needs three tiers of visibility: fully 
 identities), and private-to-nobody-yet (face-down table cards, pre-dealt but withheld
 from everyone until played).
 
-Needs online rooms with a private per-seat view. Depends on `docs/TODO.md` #14
-(decoupling rooms from games) the same way Apples to Apples (`docs/TODO.md` #19) does,
-and shares its "hidden per-seat state" problem — worth building whichever of the two
-gets fully specced first, and having the other reuse that pattern rather than solving
-per-seat privacy twice.
+Needs online rooms with a private per-seat view — the room-decoupling infrastructure
+this depends on is already built (see `docs/DEVLOG.md`'s "Room system" section). Best
+Match (`docs/TODO.md` #1, née "Apples to Apples," see
+[`docs/specs/apple-match.md`](apple-match.md)) got fully specced first and already
+establishes the "hidden per-seat state" pattern to reuse here: never assign secret
+state to a rendered Livewire public property outside the one action that needs it,
+resolving it fresh from `GameSession.state`/the DB instead. This game's face-down,
+secret-from-its-own-owner cards are a harder version of the same problem, not a
+different one.
 
 ## 2. Physical rules → digital equivalents
 
@@ -71,9 +75,10 @@ physical constraint into the data model.
   this app needs one for online rooms (e.g. auto-skip after N seconds), consistent with
   whatever pattern the other online-room games (or `docs/TODO.md` #14's decoupled room
   system) settle on.
-- **Name/trademark check.** Lower risk than Apples to Apples, but not yet confirmed
-  either way — worth a quick check under `docs/TODO.md` #17 before shipping the name
-  as-is.
+- **Name/trademark check.** Lower risk than "Apples to Apples" (now "Best Match," see
+  `docs/specs/apple-match.md`) was, but not yet confirmed either way — worth a quick
+  check before shipping the name as-is, following `docs/DEVLOG.md`'s "Game renaming"
+  section's pattern if a change turns out to be needed.
 
 ## 4. Data model (draft once section 3 is answered)
 

@@ -8,6 +8,7 @@ enum GameType: string
     case Yahtzee = 'yahtzee';
     case FamilyFeud = 'family_feud';
     case Farkle = 'farkle';
+    case AppleMatch = 'apple_match';
 
     /**
      * The user-visible display name -- deliberately not the same as the
@@ -25,6 +26,7 @@ enum GameType: string
             self::Yahtzee => 'Yacht',
             self::FamilyFeud => 'Survey Says',
             self::Farkle => '10,000',
+            self::AppleMatch => 'Best Match',
         };
     }
 
@@ -43,6 +45,7 @@ enum GameType: string
             self::Yahtzee => 'yahtzee.room',
             self::FamilyFeud => 'family-feud.room',
             self::Farkle => 'farkle.room',
+            self::AppleMatch => 'apple-match.room',
         };
     }
 
@@ -60,6 +63,7 @@ enum GameType: string
             self::Yahtzee => 'yahtzee.play',
             self::FamilyFeud => 'family-feud.play',
             self::Farkle => 'farkle.play',
+            self::AppleMatch => 'apple-match.play',
         };
     }
 }

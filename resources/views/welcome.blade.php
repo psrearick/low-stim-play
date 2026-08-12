@@ -57,6 +57,13 @@
                 <a href="{{ route('farkle.play') }}"><button type="button">10,000</button></a>
             </div>
         </div>
+        <div class="game-card">
+            <div class="game-card-title">Best Match</div>
+            <p class="game-card-desc">A rotating judge reveals a prompt card; everyone else secretly submits their best-matching answer card for 3&ndash;8 players. Online rooms only, since a private hand is the whole point.</p>
+            <div class="game-card-actions">
+                <a href="{{ route('apple-match.play') }}"><button type="button">Best Match</button></a>
+            </div>
+        </div>
     </div>
 
 @endcomponent

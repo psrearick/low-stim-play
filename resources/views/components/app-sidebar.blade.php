@@ -6,6 +6,7 @@
         ['id' => 'yahtzee-stats', 'label' => \App\Enums\GameType::Yahtzee->label().' Stats', 'routes' => ['profile.yahtzee', 'profile.yahtzee.show']],
         ['id' => 'family-feud-stats', 'label' => \App\Enums\GameType::FamilyFeud->label().' Stats', 'routes' => ['profile.family-feud', 'profile.family-feud.show']],
         ['id' => 'farkle-stats', 'label' => \App\Enums\GameType::Farkle->label().' Stats', 'routes' => ['profile.farkle', 'profile.farkle.show']],
+        ['id' => 'apple-match-stats', 'label' => \App\Enums\GameType::AppleMatch->label().' Stats', 'routes' => ['profile.apple-match', 'profile.apple-match.show']],
         ['id' => 'edit-profile', 'label' => 'Edit Profile', 'routes' => ['profile']],
     ];
 @endphp

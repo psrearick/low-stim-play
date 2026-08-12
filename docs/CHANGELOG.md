@@ -4,6 +4,8 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 
 ## 2026-08-12
 
+- Added Best Match, a new online-rooms-only card-matching game (an "Apples to Apples"-style reinterpretation): `GameType::AppleMatch`, `apple_match_decks`/`apple_match_prompts`/`apple_match_cards` tables + a seeded default deck (~111 prompt cards, ~203 answer cards), a nullable `room_seats.hand` column, `pages::apple-match.room`/`play` Livewire pages, `AppleMatchStatsService` + profile stats pages, and homepage/sidebar wiring.
+- Filled in `docs/specs/apple-match.md`'s open design questions (name, online-only scope, static card content, player count, scoring, hand size) and its data model, including forward-compat for a still-deferred custom/AI deck-editor idea from `docs/notes.md`.
 - Changed Farkle's URL paths from `/farkle` to `/10000` (and `/profile/farkle` to `/profile/10000`), keeping route names, view names, and everything else internal unchanged.
 - Skipped the "busted" → "Farkled" concerns.md item (reverts a prior trademark-avoidance decision); no code changed.
 

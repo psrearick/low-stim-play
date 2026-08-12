@@ -1,0 +1,335 @@
+[
+    {
+        "text": "Disgusting"
+    },
+    {
+        "text": "Hilarious"
+    },
+    {
+        "text": "Terrifying"
+    },
+    {
+        "text": "Romantic"
+    },
+    {
+        "text": "Weird"
+    },
+    {
+        "text": "Adventurous"
+    },
+    {
+        "text": "Awkward"
+    },
+    {
+        "text": "Boring"
+    },
+    {
+        "text": "Brilliant"
+    },
+    {
+        "text": "Chaotic"
+    },
+    {
+        "text": "Charming"
+    },
+    {
+        "text": "Clever"
+    },
+    {
+        "text": "Clumsy"
+    },
+    {
+        "text": "Confusing"
+    },
+    {
+        "text": "Cozy"
+    },
+    {
+        "text": "Creepy"
+    },
+    {
+        "text": "Cute"
+    },
+    {
+        "text": "Dangerous"
+    },
+    {
+        "text": "Delicious"
+    },
+    {
+        "text": "Dramatic"
+    },
+    {
+        "text": "Dreamy"
+    },
+    {
+        "text": "Elegant"
+    },
+    {
+        "text": "Embarrassing"
+    },
+    {
+        "text": "Epic"
+    },
+    {
+        "text": "Exhausting"
+    },
+    {
+        "text": "Fancy"
+    },
+    {
+        "text": "Fascinating"
+    },
+    {
+        "text": "Forgettable"
+    },
+    {
+        "text": "Frustrating"
+    },
+    {
+        "text": "Glamorous"
+    },
+    {
+        "text": "Gross"
+    },
+    {
+        "text": "Heroic"
+    },
+    {
+        "text": "Impressive"
+    },
+    {
+        "text": "Inconvenient"
+    },
+    {
+        "text": "Inspiring"
+    },
+    {
+        "text": "Intense"
+    },
+    {
+        "text": "Irritating"
+    },
+    {
+        "text": "Legendary"
+    },
+    {
+        "text": "Lovable"
+    },
+    {
+        "text": "Lucky"
+    },
+    {
+        "text": "Magical"
+    },
+    {
+        "text": "Majestic"
+    },
+    {
+        "text": "Messy"
+    },
+    {
+        "text": "Mysterious"
+    },
+    {
+        "text": "Nostalgic"
+    },
+    {
+        "text": "Odd"
+    },
+    {
+        "text": "Old-fashioned"
+    },
+    {
+        "text": "Outrageous"
+    },
+    {
+        "text": "Overrated"
+    },
+    {
+        "text": "Peaceful"
+    },
+    {
+        "text": "Peculiar"
+    },
+    {
+        "text": "Perfect"
+    },
+    {
+        "text": "Pointless"
+    },
+    {
+        "text": "Powerful"
+    },
+    {
+        "text": "Precious"
+    },
+    {
+        "text": "Predictable"
+    },
+    {
+        "text": "Quiet"
+    },
+    {
+        "text": "Refreshing"
+    },
+    {
+        "text": "Relaxing"
+    },
+    {
+        "text": "Reliable"
+    },
+    {
+        "text": "Ridiculous"
+    },
+    {
+        "text": "Risky"
+    },
+    {
+        "text": "Sassy"
+    },
+    {
+        "text": "Satisfying"
+    },
+    {
+        "text": "Scandalous"
+    },
+    {
+        "text": "Scary"
+    },
+    {
+        "text": "Serious"
+    },
+    {
+        "text": "Shocking"
+    },
+    {
+        "text": "Silly"
+    },
+    {
+        "text": "Sneaky"
+    },
+    {
+        "text": "Sophisticated"
+    },
+    {
+        "text": "Spicy"
+    },
+    {
+        "text": "Spooky"
+    },
+    {
+        "text": "Stinky"
+    },
+    {
+        "text": "Strange"
+    },
+    {
+        "text": "Stressful"
+    },
+    {
+        "text": "Stubborn"
+    },
+    {
+        "text": "Stylish"
+    },
+    {
+        "text": "Suspicious"
+    },
+    {
+        "text": "Sweet"
+    },
+    {
+        "text": "Tacky"
+    },
+    {
+        "text": "Terrible"
+    },
+    {
+        "text": "Thoughtful"
+    },
+    {
+        "text": "Thrilling"
+    },
+    {
+        "text": "Tiny"
+    },
+    {
+        "text": "Tragic"
+    },
+    {
+        "text": "Trendy"
+    },
+    {
+        "text": "Underrated"
+    },
+    {
+        "text": "Unexpected"
+    },
+    {
+        "text": "Unforgettable"
+    },
+    {
+        "text": "Unnecessary"
+    },
+    {
+        "text": "Unpredictable"
+    },
+    {
+        "text": "Useless"
+    },
+    {
+        "text": "Wholesome"
+    },
+    {
+        "text": "Wild"
+    },
+    {
+        "text": "Wise"
+    },
+    {
+        "text": "Worthless"
+    },
+    {
+        "text": "Zany"
+    },
+    {
+        "text": "Ancient"
+    },
+    {
+        "text": "Bizarre"
+    },
+    {
+        "text": "Complicated"
+    },
+    {
+        "text": "Enormous"
+    },
+    {
+        "text": "Fearless"
+    },
+    {
+        "text": "Glorious"
+    },
+    {
+        "text": "Humble"
+    },
+    {
+        "text": "Icky"
+    },
+    {
+        "text": "Jolly"
+    },
+    {
+        "text": "Kooky"
+    },
+    {
+        "text": "Lazy"
+    },
+    {
+        "text": "Marvelous"
+    },
+    {
+        "text": "Nifty"
+    }
+]

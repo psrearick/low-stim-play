@@ -59,6 +59,15 @@ Route::livewire('/profile/10000/{gameParticipant}', 'pages::profile.farkle.show'
     ->name('profile.farkle.show');
 
 // Same registration-order reasoning as /profile/boggle etc. above.
+Route::livewire('/profile/apple-match', 'pages::profile.apple-match.index')
+    ->middleware(['auth', 'verified'])
+    ->name('profile.apple-match');
+
+Route::livewire('/profile/apple-match/{gameParticipant}', 'pages::profile.apple-match.show')
+    ->middleware(['auth', 'verified'])
+    ->name('profile.apple-match.show');
+
+// Same registration-order reasoning as /profile/boggle etc. above.
 Route::livewire('/profile/games', 'pages::profile.games.index')
     ->middleware(['auth', 'verified'])
     ->name('profile.games');
@@ -138,6 +147,19 @@ Route::livewire('/10000', 'pages::farkle.play')->name('farkle.play');
 // screen) uses the same provisioning.
 Route::livewire('/10000/room/{code}', 'pages::farkle.room')
     ->name('farkle.room');
+
+// Online rooms only, no pass-and-play (see docs/specs/apple-match.md
+// section 1) -- reachable bare (no #[Url] $room) from the homepage card,
+// which shows a "play in a room you host" list plus a pointer to the
+// navbar's Rooms menu, rather than a local setup form like every other
+// game's own bare .play route.
+Route::livewire('/apple-match', 'pages::apple-match.play')->name('apple-match.play');
+
+// No auth middleware -- same reasoning as boggle.room/yahtzee.room/etc.:
+// pages::apple-match.room's mount() auto-provisions a guest account for
+// anyone arriving without one.
+Route::livewire('/apple-match/room/{code}', 'pages::apple-match.room')
+    ->name('apple-match.room');
 
 // The room hub -- game-agnostic, unlike every /{game}/room/{code} above
 // (each of those is specifically the seat-assignment/start screen for

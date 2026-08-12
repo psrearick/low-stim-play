@@ -23,7 +23,8 @@ test('GameType::roomRoute() maps every case to its own room route name', functio
     expect(GameType::Boggle->roomRoute())->toBe('boggle.room')
         ->and(GameType::Yahtzee->roomRoute())->toBe('yahtzee.room')
         ->and(GameType::FamilyFeud->roomRoute())->toBe('family-feud.room')
-        ->and(GameType::Farkle->roomRoute())->toBe('farkle.room');
+        ->and(GameType::Farkle->roomRoute())->toBe('farkle.room')
+        ->and(GameType::AppleMatch->roomRoute())->toBe('apple-match.room');
 });
 
 test('otherGames excludes only the current game', function () {
@@ -33,7 +34,7 @@ test('otherGames excludes only the current game', function () {
     $component = Livewire::actingAs($host)
         ->test('game-lobby', ['room' => $room, 'currentGame' => GameType::Boggle]);
 
-    expect($component->get('otherGames'))->toBe([GameType::Yahtzee, GameType::FamilyFeud, GameType::Farkle]);
+    expect($component->get('otherGames'))->toBe([GameType::Yahtzee, GameType::FamilyFeud, GameType::Farkle, GameType::AppleMatch]);
 });
 
 test('the host can switch the room to a different game', function () {

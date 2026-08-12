@@ -25,6 +25,7 @@ class RoomSeatFactory extends Factory
             'user_id' => User::factory(),
             'team_index' => null,
             'is_captain' => false,
+            'hand' => null,
         ];
     }
 }
