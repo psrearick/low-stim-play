@@ -95,13 +95,14 @@ test('starting the room deals a 7-card hand to every seat and creates the round 
     expect($session->state['round'])->toBe(1);
 });
 
-test('starting the room declines silently with fewer than 3 players', function () {
+test('starting the room with fewer than 3 players shows the host a real error instead of silently doing nothing', function () {
     seedAppleMatchDeck();
     $host = User::factory()->create();
     $guest = User::factory()->create();
     $room = Room::factory()->create(['host_user_id' => $host->id]);
 
-    startAppleMatchRoom($room, [$host, $guest]);
+    startAppleMatchRoom($room, [$host, $guest])
+        ->assertSet('startError', 'Best Match needs at least 3 players to start — 2 here right now.');
 
     $room->refresh();
     expect($room->game_session_id)->toBeNull();

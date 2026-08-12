@@ -30,6 +30,14 @@ new class extends Component
 
     public int $targetScore = self::DEFAULT_TARGET;
 
+    /**
+     * Set only on the host's own connection when onRoomStarting() below
+     * declines to actually start -- 'room-game-starting' is a local,
+     * non-broadcast dispatch, so this never reaches anyone else, same
+     * reasoning as $assigningTeams on pages::family-feud.room.
+     */
+    public ?string $startError = null;
+
     public function mount(string $code): void
     {
         $this->room = Room::notExpired()->where('code', strtoupper($code))->firstOrFail();
@@ -84,12 +92,13 @@ new class extends Component
     }
 
     /**
-     * Deals starting hands and creates the shared round state. Declines
-     * silently (no message-passing path back into the lobby exists, same
-     * accepted limitation as pages::family-feud.room's own empty-question-
-     * bank guard) if there aren't enough players or the card deck hasn't
-     * been seeded -- the host just stays looking at the lobby; the note
-     * under the target-score setting below explains the player minimum.
+     * Deals starting hands and creates the shared round state. Unlike
+     * pages::family-feud.room's own empty-question-bank guard (a
+     * misconfigured-deployment edge case that's effectively never hit in
+     * real use), running into fewer than MIN_PLAYERS players here is a
+     * completely ordinary occurrence -- so this sets $startError, visible
+     * to the host on this same request/response, rather than silently
+     * doing nothing.
      *
      * @param  array<int, array{id: int, name: string, is_host: bool, ready: bool}>  $players
      */
@@ -106,14 +115,20 @@ new class extends Component
         $seats = array_values($players);
 
         if (count($seats) < self::MIN_PLAYERS) {
+            $this->startError = 'Best Match needs at least '.self::MIN_PLAYERS." players to start \u{2014} ".count($seats).' here right now.';
+
             return;
         }
 
         $deck = AppleMatchDeck::whereNull('owner_user_id')->where('source', 'system')->first();
 
         if ($deck === null || $deck->prompts()->doesntExist() || $deck->cards()->doesntExist()) {
+            $this->startError = 'The Best Match card deck hasn\'t been seeded yet -- ask whoever runs this deployment to run its database seeder.';
+
             return;
         }
+
+        $this->startError = null;
 
         $promptId = $deck->prompts()->inRandomOrder()->value('id');
         $cardIds = $deck->cards()->inRandomOrder()->limit(count($seats) * self::HAND_SIZE)->pluck('id')->all();
@@ -206,6 +221,10 @@ new class extends Component
             </div>
             <div class="setup-note">First to win this many green cards wins the game. Needs at least {{ self::MIN_PLAYERS }} players to start.</div>
         </div>
+    @endif
+
+    @if ($startError)
+        <p class="status-line" style="color: var(--warn);">{{ $startError }}</p>
     @endif
 
     <livewire:game-lobby :room="$room" :current-game="GameType::AppleMatch" />
