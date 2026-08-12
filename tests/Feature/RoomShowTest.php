@@ -121,6 +121,39 @@ test('shows no active-game link once the room has finished', function () {
         ->assertDontSee('>Watch<', false);
 });
 
+test('shows a join link for a game the host is setting up but hasn\'t started yet', function () {
+    $host = User::factory()->create();
+    $guest = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+    $room->addMember($guest);
+    $room->markPendingGame(GameType::AppleMatch);
+
+    Livewire::actingAs($guest)
+        ->test('pages::room.show', ['code' => $room->code])
+        ->assertSee('Best Match')
+        ->assertSee('Join')
+        ->assertSeeHtml(route('apple-match.room', ['code' => $room->code]));
+});
+
+test('the pending-game link disappears once a real game session exists', function () {
+    $host = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+    $room->markPendingGame(GameType::AppleMatch);
+
+    $session = GameSession::create([
+        'type' => GameType::AppleMatch,
+        'mode' => GameMode::Online,
+        'settings' => [],
+        'started_at' => now(),
+    ]);
+    $room->update(['status' => RoomStatus::Active, 'game_session_id' => $session->id]);
+
+    Livewire::actingAs($host)
+        ->test('pages::room.show', ['code' => $room->code])
+        ->assertSee('Playing Best Match right now.')
+        ->assertDontSee('hasn\'t started yet');
+});
+
 test('the host starting a game resets a stale game_session_id and redirects into that game\'s lobby', function () {
     $host = User::factory()->create();
     $room = Room::factory()->create(['host_user_id' => $host->id, 'status' => RoomStatus::Finished]);

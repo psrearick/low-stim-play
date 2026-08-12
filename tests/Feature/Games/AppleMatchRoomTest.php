@@ -95,6 +95,16 @@ test('starting the room deals a 7-card hand to every seat and creates the round 
     expect($session->state['round'])->toBe(1);
 });
 
+test('the host landing on the room page marks the room as pending Best Match, so a late-joining member can find it', function () {
+    seedAppleMatchDeck();
+    $host = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    Livewire::actingAs($host)->test('pages::apple-match.room', ['code' => $room->code]);
+
+    expect($room->fresh()->pendingGameType())->toBe(GameType::AppleMatch);
+});
+
 test('starting the room with fewer than 3 players shows the host a real error instead of silently doing nothing', function () {
     seedAppleMatchDeck();
     $host = User::factory()->create();

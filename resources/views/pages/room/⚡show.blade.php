@@ -117,6 +117,20 @@ new class extends Component
     }
 
     /**
+     * The game the host is currently sitting on the lobby of, if any and
+     * no game has actually started yet -- covers a member who loads this
+     * page *after* the host already got here (whether via this hub's own
+     * startGame() below or a game's own "play in a room you host"
+     * shortcut), since RoomGameSwitched only ever reaches whoever's
+     * viewing this page at the exact instant it's broadcast. See Room::
+     * pendingGameType()'s own docblock.
+     */
+    public function getPendingGameTypeProperty(): ?GameType
+    {
+        return $this->room->pendingGameType();
+    }
+
+    /**
      * @return list<GameType>
      */
     public function getStartableGamesProperty(): array
@@ -199,6 +213,13 @@ new class extends Component
             <p class="status-line">Playing {{ $this->activeGameType->label() }} right now.</p>
             <a href="{{ route($this->activeGameType->playRoute(), ['room' => $room->code]) }}">
                 <button type="button">{{ $this->mySeatIndex !== null ? 'Resume your seat' : 'Watch' }}</button>
+            </a>
+        </div>
+    @elseif ($this->pendingGameType !== null)
+        <div class="setup w-full">
+            <p class="status-line">The host is setting up {{ $this->pendingGameType->label() }} -- hasn't started yet.</p>
+            <a href="{{ route($this->pendingGameType->roomRoute(), ['code' => $room->code]) }}">
+                <button type="button">Join</button>
             </a>
         </div>
     @endif

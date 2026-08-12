@@ -1,6 +1,8 @@
 <?php
 
+use App\Enums\GameType;
 use App\Enums\RoomStatus;
+use App\Models\GameSession;
 use App\Models\Room;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -66,4 +68,37 @@ test('addMember records a distinct member per user', function () {
 
     // 3: the host (auto-added on creation) plus these two.
     expect($room->members()->count())->toBe(3);
+});
+
+test('pendingGameType is null until markPendingGame is called', function () {
+    $room = Room::factory()->create();
+
+    expect($room->pendingGameType())->toBeNull();
+});
+
+test('markPendingGame records which game the host is currently setting up', function () {
+    $room = Room::factory()->create();
+
+    $room->markPendingGame(GameType::AppleMatch);
+
+    expect($room->pendingGameType())->toBe(GameType::AppleMatch);
+});
+
+test('markPendingGame for a different game overwrites the previous one, not stacks', function () {
+    $room = Room::factory()->create();
+
+    $room->markPendingGame(GameType::Boggle);
+    $room->markPendingGame(GameType::AppleMatch);
+
+    expect($room->pendingGameType())->toBe(GameType::AppleMatch);
+});
+
+test('pendingGameType is null once a real game session exists, even with a stale marker', function () {
+    $room = Room::factory()->create();
+    $room->markPendingGame(GameType::AppleMatch);
+
+    $session = GameSession::factory()->create(['type' => GameType::AppleMatch]);
+    $room->update(['game_session_id' => $session->id]);
+
+    expect($room->fresh()->pendingGameType())->toBeNull();
 });

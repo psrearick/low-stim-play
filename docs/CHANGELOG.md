@@ -4,6 +4,7 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 
 ## 2026-08-12
 
+- Fixed a room member having no way to discover a game the host is setting up but hasn't started yet (only reachable before by being on the room hub at the exact broadcast instant) -- added `Room::markPendingGame()`/`pendingGameType()` and a "host is setting up X" join link on the room hub, wired into all five games' own room pages.
 - Fixed Best Match's room page silently doing nothing when the host tried to start with fewer than 3 players; now shows a real error message instead.
 - Added Best Match, a new online-rooms-only card-matching game (an "Apples to Apples"-style reinterpretation): `GameType::AppleMatch`, `apple_match_decks`/`apple_match_prompts`/`apple_match_cards` tables + a seeded default deck (~111 prompt cards, ~203 answer cards), a nullable `room_seats.hand` column, `pages::apple-match.room`/`play` Livewire pages, `AppleMatchStatsService` + profile stats pages, and homepage/sidebar wiring.
 - Filled in `docs/specs/apple-match.md`'s open design questions (name, online-only scope, static card content, player count, scoring, hand size) and its data model, including forward-compat for a still-deferred custom/AI deck-editor idea from `docs/notes.md`.

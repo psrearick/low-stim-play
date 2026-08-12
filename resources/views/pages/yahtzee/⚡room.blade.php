@@ -39,6 +39,14 @@ new class extends Component
 
         $this->room->addMember(Auth::user());
 
+        // Lets a member who loads the room hub after the host already
+        // landed here (missing the real-time RoomGameSwitched broadcast
+        // entirely) still discover and join this lobby -- see Room::
+        // markPendingGame()'s own docblock.
+        if (Auth::id() === $this->room->host_user_id && $this->room->game_session_id === null) {
+            $this->room->markPendingGame(GameType::Yahtzee);
+        }
+
         // The game may already be running by the time anyone actually
         // lands here -- a reconnecting seated player whose device was
         // disconnected at the exact moment the host clicked "Start" would
