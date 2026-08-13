@@ -2517,3 +2517,135 @@ body.scrollable.family-feud-play {
         background: oklch(from var(--bg) calc(l - 0.2) c h / 0.6);
     }
 }
+
+/* =====================================================================
+   Clear the Deck -- playing-card visuals (hand, table columns, center
+   pile). --ctd-card-w is set per instance (a fixed or clamp() length) by
+   <x-clear-the-deck-card>; every proportional measurement below (font
+   size, stacking offsets) derives from it with calc() rather than a fixed
+   px value, so one component works at every size this page uses.
+   ===================================================================== */
+
+.clear-the-deck-play .ctd-card {
+    width: var(--ctd-card-w);
+    aspect-ratio: 5 / 7;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    border-radius: var(--radius-md);
+    border: 2px solid var(--die-border);
+    background: var(--die);
+}
+
+.clear-the-deck-play .ctd-card-back {
+    background: var(--btn);
+}
+
+.clear-the-deck-play .ctd-card-selected {
+    background: var(--die-kept);
+    border-color: var(--accent);
+}
+
+.clear-the-deck-play .ctd-card-clickable {
+    cursor: pointer;
+}
+
+.clear-the-deck-play .ctd-card-value {
+    font-weight: bold;
+    line-height: 1;
+    color: var(--ink);
+    font-size: calc(var(--ctd-card-w) * 0.42);
+    user-select: none;
+}
+
+.clear-the-deck-play .ctd-card-sub {
+    font-weight: bold;
+    line-height: 1;
+    color: var(--ink);
+    opacity: 0.75;
+    font-size: calc(var(--ctd-card-w) * 0.2);
+    margin-top: 2px;
+    user-select: none;
+}
+
+.clear-the-deck-play .ctd-card-selected .ctd-card-value,
+.clear-the-deck-play .ctd-card-selected .ctd-card-sub {
+    color: var(--accent);
+}
+
+/* A table column stacks its face-down card first, with its face-up card
+   (if any) peeking below it -- same layered look as the design mockup's
+   own TableauColumn, using --ctd-card-w so the peek offset scales with
+   whatever size the column was given. */
+.clear-the-deck-play .ctd-column {
+    position: relative;
+    width: var(--ctd-card-w);
+    height: calc(var(--ctd-card-w) * 1.62);
+    flex-shrink: 0;
+}
+
+.clear-the-deck-play .ctd-column .ctd-card {
+    position: absolute;
+    left: 0;
+}
+
+.clear-the-deck-play .ctd-column .ctd-card-back {
+    top: 0;
+}
+
+.clear-the-deck-play .ctd-column .ctd-card-front {
+    top: calc(var(--ctd-card-w) * 0.22);
+}
+
+.clear-the-deck-play .ctd-column .ctd-card-front.ctd-column-no-peek {
+    top: 0;
+}
+
+.clear-the-deck-play .ctd-tableau {
+    display: flex;
+    gap: calc(var(--ctd-card-w) * 0.18);
+    justify-content: center;
+}
+
+/* The center pile fans up to three cards of the same value, offset a
+   little further apart each time, to show at a glance that there's a run
+   building without needing to count. */
+.clear-the-deck-play .ctd-pile-wrap {
+    position: relative;
+    width: calc(var(--ctd-card-w) * 1.36);
+    height: calc(var(--ctd-card-w) * 1.76);
+}
+
+.clear-the-deck-play .ctd-pile-wrap .ctd-card {
+    position: absolute;
+}
+
+.clear-the-deck-play .ctd-pile-wrap .ctd-card-offset-0 {
+    left: 0;
+    top: 0;
+}
+
+.clear-the-deck-play .ctd-pile-wrap .ctd-card-offset-1 {
+    left: calc(var(--ctd-card-w) * 0.18);
+    top: calc(var(--ctd-card-w) * 0.18);
+}
+
+.clear-the-deck-play .ctd-pile-wrap .ctd-card-offset-2 {
+    left: calc(var(--ctd-card-w) * 0.36);
+    top: calc(var(--ctd-card-w) * 0.36);
+}
+
+.clear-the-deck-play .ctd-opponents-row {
+    display: flex;
+    gap: clamp(20px, 4vw, 40px);
+    overflow-x: auto;
+    justify-content: center;
+    padding: 4px;
+}
+
+.clear-the-deck-play .ctd-opponents-row::-webkit-scrollbar {
+    display: none;
+}

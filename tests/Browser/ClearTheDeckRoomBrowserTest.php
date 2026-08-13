@@ -97,8 +97,8 @@ test('the active player sees their hand and play controls', function () {
 
     $page = loginAsAndVisitClearTheDeck($users[1], "/clear-the-deck?room={$room->code}");
 
-    $page->assertSee('Your turn')
-        ->assertSee('Play')
+    $page->assertSee('Your hand')
+        ->assertSee('Submit')
         ->assertDontSee('Waiting for');
 });
 
@@ -108,7 +108,7 @@ test('a seat waiting for another player\'s turn sees a waiting message instead o
     $page = loginAsAndVisitClearTheDeck($users->first(), "/clear-the-deck?room={$room->code}");
 
     $page->assertSee('Waiting for '.$users[1]->name)
-        ->assertDontSee('Your turn');
+        ->assertDontSee('Your hand');
 });
 
 test('an unseated spectator sees a watching message and no play controls', function () {
@@ -118,5 +118,5 @@ test('an unseated spectator sees a watching message and no play controls', funct
     $page = loginAsAndVisitClearTheDeck($spectator, "/clear-the-deck?room={$room->code}");
 
     $page->assertSee('Watching')
-        ->assertDontSee('Your turn');
+        ->assertDontSee('Your hand');
 });

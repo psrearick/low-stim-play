@@ -4,6 +4,7 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 
 ## 2026-08-13
 
+- Restyled Clear the Deck's play page with real playing-card visuals (hand, table columns, fanned center pile), imported from a Claude Design mockup via the `claude_design` MCP tool: new `<x-clear-the-deck-card>` component, a `columnsFor()` display-only helper reconstructing table columns from the aggregate face-up/face-down counts, and tap-to-select face-down flipping in place of the old stepper. Fixed a real layout bug found along the way (a positioned wrapper whose own `calc()`-based size depended on a CSS custom property that was only ever set on its children, never on itself).
 - Added Clear the Deck, a new online-rooms-only turn-based shedding card game for 3-10 players: `GameType::ClearTheDeck`, two new nullable `room_seats` columns (`table_face_up`/`table_face_down`), `pages::clear-the-deck.room`/`play` Livewire pages with the full turn engine (sets, wild Tens, pickups, multi-round scoring), `ClearTheDeckStatsService` + profile stats pages, and homepage/sidebar wiring.
 - Filled in `docs/specs/clear-the-deck.md`'s open design questions (round length, set eligibility, wild Ten behavior, name) per user decisions; spec is now ready to build from.
 - Fixed two pre-existing `match (GameType)` expressions (`profile.games.index`'s `showRoute()`, `<x-player-stats>`) that had no `AppleMatch` arm and would have thrown for any Best Match row.
