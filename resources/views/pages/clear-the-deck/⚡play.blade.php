@@ -809,11 +809,11 @@ new class extends Component
 };
 ?>
 
-<x-slot:title>Clear the Deck — Low Stim Play</x-slot>
+<x-slot:title>Clear the Deck (Tens) — Low Stim Play</x-slot>
 <x-slot:description>A shared center pile, private hands, and table cards hidden even from their own owner until played -- a turn-based shedding game for 3-10 players.</x-slot:description>
 <x-slot:bodyClass>clear-the-deck-play</x-slot:bodyClass>
 <x-slot:fullscreenToggle>1</x-slot:fullscreenToggle>
-<x-slot:rulesTitle>Clear the Deck Rules</x-slot:rulesTitle>
+<x-slot:rulesTitle>Clear the Deck (Tens) Rules</x-slot:rulesTitle>
 <x-slot:rules>
     <h3>How to Use This Page</h3>
     <ul>
@@ -844,7 +844,7 @@ new class extends Component
 
     @if ($room === null)
         <div class="setup" id="setup">
-            <div class="heading">Clear the Deck</div>
+            <div class="heading">Clear the Deck (Tens)</div>
 
             @if ($this->hostedRooms->isNotEmpty())
                 <div class="flex flex-col items-center gap-2 w-full">
@@ -859,7 +859,7 @@ new class extends Component
                 </div>
             @endif
 
-            <p class="status-line">Clear the Deck is online-only -- open <strong>Rooms</strong> in the top bar to create or join a room, then start Clear the Deck from there.</p>
+            <p class="status-line">Clear the Deck (Tens) is online-only -- open <strong>Rooms</strong> in the top bar to create or join a room, then start Clear the Deck (Tens) from there.</p>
         </div>
     @else
         @php

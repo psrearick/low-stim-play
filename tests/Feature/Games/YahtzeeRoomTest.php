@@ -5,12 +5,14 @@ use App\Enums\GameResult;
 use App\Enums\GameType;
 use App\Enums\RoomStatus;
 use App\Enums\YahtzeeCategory;
+use App\Events\RoomGameStateUpdated;
 use App\Models\GameParticipant;
 use App\Models\GameSession;
 use App\Models\Room;
 use App\Models\RoomSeat;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
 use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
@@ -80,6 +82,18 @@ test('a guest can view the yahtzee room page without an account, and is given a 
         ->and(auth()->id())->toBe($guest->id);
 });
 
+test('a guest_name cookie is picked up as the display name for a direct-link visitor (docs/concerns.md)', function () {
+    $room = Room::factory()->create();
+
+    $this->withCookie('guest_name', 'Riley')
+        ->get("/yahtzee/room/{$room->code}")
+        ->assertOk();
+
+    $guest = User::where('is_guest', true)->sole();
+
+    expect($guest->name)->toBe('Riley');
+});
+
 test('starting the room seat-assigns every ready player and persists an initial state blob', function () {
     $host = User::factory()->create();
     $guest = User::factory()->create();
@@ -105,6 +119,82 @@ test('starting the room seat-assigns every ready player and persists an initial 
     expect(RoomSeat::count())->toBe(2)
         ->and(RoomSeat::where('room_id', $room->id)->where('user_id', $host->id)->sole()->seat_index)->toBe(0)
         ->and(RoomSeat::where('room_id', $room->id)->where('user_id', $guest->id)->sole()->seat_index)->toBe(1);
+});
+
+test('the host-only undo toggle defaults off and is baked into the GameSession settings when starting (docs/concerns.md)', function () {
+    $host = User::factory()->create();
+    $guest = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    $players = readyUpAndStart($room, $host, $guest);
+
+    Livewire::actingAs($host)
+        ->test('pages::yahtzee.room', ['code' => $room->code])
+        ->assertSet('undoEnabled', false)
+        ->set('undoEnabled', true)
+        ->call('onRoomStarting', $players);
+
+    expect(GameSession::sole()->settings['undo_enabled'])->toBeTrue();
+});
+
+test('undo stays off for an online game when the host never enables it', function () {
+    $host = User::factory()->create();
+    $guest = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    $players = readyUpAndStart($room, $host, $guest);
+    Livewire::actingAs($host)->test('pages::yahtzee.room', ['code' => $room->code])->call('onRoomStarting', $players);
+
+    Livewire::actingAs($host)
+        ->test('pages::yahtzee.play', ['room' => $room->code])
+        ->assertSet('undoEnabled', false);
+});
+
+test('undo works online for the current seat when the host enabled it, and broadcasts the rewind', function () {
+    Event::fake([RoomGameStateUpdated::class]);
+
+    $host = User::factory()->create();
+    $guest = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    $players = readyUpAndStart($room, $host, $guest);
+    Livewire::actingAs($host)
+        ->test('pages::yahtzee.room', ['code' => $room->code])
+        ->set('undoEnabled', true)
+        ->call('onRoomStarting', $players);
+
+    $tv = Livewire::actingAs($host)
+        ->test('pages::yahtzee.play', ['room' => $room->code])
+        ->assertSet('undoEnabled', true)
+        ->call('roll')
+        ->assertCount('dice', 5)
+        ->call('undo')
+        ->assertSet('dice', [])
+        ->assertSet('rollsLeft', 3);
+
+    Event::assertDispatched(RoomGameStateUpdated::class);
+});
+
+test('a non-current seat cannot undo online, even when the host enabled it', function () {
+    $host = User::factory()->create();
+    $guest = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    $players = readyUpAndStart($room, $host, $guest);
+    Livewire::actingAs($host)
+        ->test('pages::yahtzee.room', ['code' => $room->code])
+        ->set('undoEnabled', true)
+        ->call('onRoomStarting', $players);
+
+    Livewire::actingAs($host)->test('pages::yahtzee.play', ['room' => $room->code])->call('roll');
+
+    // Seat 1 (guest) isn't the current seat (host, seat 0) -- forbidden
+    // regardless of the room-wide undo setting, same authorization shape
+    // as roll()/toggleKeep()/scoreCategory().
+    Livewire::actingAs($guest)
+        ->test('pages::yahtzee.play', ['room' => $room->code])
+        ->call('undo')
+        ->assertStatus(403);
 });
 
 test('starting the room twice does not create a second game session or duplicate seats', function () {
@@ -269,13 +359,21 @@ test('a seated player can switch this device to spectator view and back without 
     $tv->set('spectate', false)->assertSet('isSpectator', false);
 });
 
-test('watch-only mode never shows a live possible score for an open category, even for the active seat', function () {
-    // Regression test: isPickable() (which categoryScore() also relied on)
-    // checks isMyTurn, which is deliberately independent of $spectate --
-    // so switching this device to "Watch only" mid-turn used to keep
-    // showing the live computed possible score for every open category in
-    // the active player's own column instead of leaving it blank like any
-    // other unfilled, unwatched category.
+test('watch-only mode still shows the live possible score for the active seat (docs/concerns.md)', function () {
+    // docs/concerns.md: "during other players' turns, show the options
+    // they can choose and the possible scores for each option, as you
+    // would on your own turn" -- this intentionally reverses an earlier
+    // fix (see docs/DEVLOG.md's "watch-only leaked live possible scores"
+    // entry) that hid this same number from a non-acting viewer. That was
+    // the right call before this request existed; the request is now for
+    // the opposite behavior, so a watch-only device sees the same live
+    // preview as the active seat itself, just without being able to tap
+    // it -- the scorecard table's own `!$readOnly` gate (readOnly is
+    // `$this->isSpectator`) is what actually keeps the cell non-
+    // clickable, independent of isPickable()'s own return value, which
+    // deliberately never varies with $spectate (isMyTurn, which it also
+    // checks, has to stay accurate for roll()/toggleKeep()'s own server-
+    // side authorization regardless of what this device merely displays).
     $host = User::factory()->create();
     $guest = User::factory()->create();
     $room = Room::factory()->create(['host_user_id' => $host->id]);
@@ -292,12 +390,44 @@ test('watch-only mode never shows a live possible score for an open category, ev
 
     $tv->set('spectate', true);
 
-    expect($tv->instance()->categoryScore(0, 'sixes'))->toBeNull();
-    $tv->assertDontSee('30');
+    expect($tv->instance()->categoryScore(0, 'sixes'))->toBe(30);
+    $tv->assertSee('30');
+    // Still not clickable while watch-only, even though the number shows.
+    expect($tv->instance()->isSpectator)->toBeTrue();
+    $tv->assertDontSeeHtml('wire:click="scoreCategory(\'sixes\')"');
 
     $tv->set('spectate', false);
 
     expect($tv->instance()->categoryScore(0, 'sixes'))->toBe(30);
+});
+
+test('a spectator (no seat at all) also sees the current player\'s live possible scores', function () {
+    // Same reversal as the watch-only test above, but for a connection
+    // that never had a seat in the first place (mySeatIndex === null),
+    // not just a seated player who toggled $spectate.
+    $host = User::factory()->create();
+    $guest = User::factory()->create();
+    $onlooker = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    $players = readyUpAndStart($room, $host, $guest);
+    Livewire::actingAs($host)->test('pages::yahtzee.room', ['code' => $room->code])->call('onRoomStarting', $players);
+
+    // toggleKeep() (not just set('dice', ...)) is the real action call
+    // that actually persists this forced dice roll to the shared
+    // GameSession.state -- set() alone only mutates this one in-memory
+    // test instance, which a fresh mount() elsewhere (the spectator's own
+    // instance below) would never see.
+    Livewire::actingAs($host)->test('pages::yahtzee.play', ['room' => $room->code])
+        ->call('roll')
+        ->set('dice', [6, 6, 6, 6, 6])
+        ->call('toggleKeep', 0);
+
+    $spectatorView = Livewire::actingAs($onlooker)->test('pages::yahtzee.play', ['room' => $room->code]);
+
+    expect($spectatorView->instance()->isSpectator)->toBeTrue()
+        ->and($spectatorView->instance()->categoryScore(0, 'sixes'))->toBe(30)
+        ->and($spectatorView->instance()->isPickable(0, 'sixes'))->toBeFalse();
 });
 
 test('a non-current seat sees no pickable cell at all, even in the current player\'s own column', function () {
@@ -325,7 +455,13 @@ test('a non-current seat sees no pickable cell at all, even in the current playe
         ->toBeFalse();
 });
 
-test('a seated player\'s main scorecard marks every other seat not-mine, for CSS to hide on mobile', function () {
+test('a seated player\'s main scorecard shows every seat\'s column, not just their own (docs/concerns.md)', function () {
+    // Used to narrow to just this seat's own column on mobile (a
+    // `single-seat-mobile`/`not-mine` CSS marker), with a separate
+    // "Scores" drawer elsewhere on the page covering everyone else -- see
+    // docs/DEVLOG.md's Yahtzee section. Removed: every column always
+    // renders now, relying on horizontal scroll instead of hiding
+    // columns, so both players' names should always be present.
     $host = User::factory()->create();
     $guest = User::factory()->create();
     $room = Room::factory()->create(['host_user_id' => $host->id]);
@@ -335,23 +471,10 @@ test('a seated player\'s main scorecard marks every other seat not-mine, for CSS
 
     Livewire::actingAs($host)
         ->test('pages::yahtzee.play', ['room' => $room->code])
-        ->assertSeeHtml('single-seat-mobile')
-        ->assertSeeHtml('not-mine');
-});
-
-test('a spectator\'s scorecard shows every seat, with no not-mine marking at all', function () {
-    $host = User::factory()->create();
-    $guest = User::factory()->create();
-    $spectator = User::factory()->create();
-    $room = Room::factory()->create(['host_user_id' => $host->id]);
-
-    $players = readyUpAndStart($room, $host, $guest);
-    Livewire::actingAs($host)->test('pages::yahtzee.room', ['code' => $room->code])->call('onRoomStarting', $players);
-
-    Livewire::actingAs($spectator)
-        ->test('pages::yahtzee.play', ['room' => $room->code])
         ->assertDontSeeHtml('single-seat-mobile')
-        ->assertDontSeeHtml('not-mine');
+        ->assertDontSeeHtml('not-mine')
+        ->assertSee($host->name)
+        ->assertSee($guest->name);
 });
 
 test('a full online game writes one distinct GameParticipant per logged-in account', function () {

@@ -210,8 +210,20 @@ test('starting a new game returns to the setup screen', function () {
         ->assertSet('players', []);
 });
 
-test('undo reverts the most recent roll', function () {
+test('undo is off by default and does nothing until enabled (docs/concerns.md)', function () {
     Livewire::test('pages::yahtzee.play')
+        ->assertSet('undoEnabled', false)
+        ->call('startGame')
+        ->call('roll')
+        ->assertCount('dice', 5)
+        ->call('undo')
+        ->assertCount('dice', 5)
+        ->assertSet('rollsLeft', 2);
+});
+
+test('undo reverts the most recent roll when enabled', function () {
+    Livewire::test('pages::yahtzee.play')
+        ->set('undoEnabled', true)
         ->call('startGame')
         ->call('roll')
         ->assertCount('dice', 5)
@@ -222,8 +234,16 @@ test('undo reverts the most recent roll', function () {
         ->assertSet('history', []);
 });
 
-test('undo reverts the most recent scored category', function () {
+test('undo can never revert a scored category, even enabled -- it is roll-only now (docs/concerns.md)', function () {
+    // The old undo() used to be able to step back across a turn boundary
+    // and effectively undo a score, since scoreCategory() pushed its own
+    // history snapshot too. That's no longer possible: scoreCategory()
+    // never calls pushHistory(), and startTurn() clears $history at every
+    // turn boundary, so there is nothing left to pop once a turn has
+    // advanced -- undo() becomes a no-op instead of reaching backwards
+    // into the previous player's turn.
     Livewire::test('pages::yahtzee.play')
+        ->set('undoEnabled', true)
         ->call('setPlayerCount', 2)
         ->call('startGame')
         ->call('roll')
@@ -231,15 +251,15 @@ test('undo reverts the most recent scored category', function () {
         ->call('scoreCategory', 'fours')
         ->assertSet('players.0.scores.fours', 12)
         ->assertSet('currentPlayer', 1)
+        ->assertSet('history', [])
         ->call('undo')
-        ->assertSet('players.0.scores.fours', null)
-        ->assertSet('currentPlayer', 0)
-        ->assertSet('dice', [4, 4, 4, 2, 1])
-        ->assertSet('rollsLeft', 2);
+        ->assertSet('players.0.scores.fours', 12)
+        ->assertSet('currentPlayer', 1);
 });
 
-test('undo does nothing when there is no history', function () {
+test('undo does nothing when there is no history, even enabled', function () {
     Livewire::test('pages::yahtzee.play')
+        ->set('undoEnabled', true)
         ->call('startGame')
         ->call('undo')
         ->assertSet('history', [])
@@ -247,8 +267,9 @@ test('undo does nothing when there is no history', function () {
         ->assertSet('rollsLeft', 3);
 });
 
-test('undo does nothing once the game is over', function () {
+test('undo does nothing once the game is over, even enabled', function () {
     Livewire::test('pages::yahtzee.play')
+        ->set('undoEnabled', true)
         ->call('setPlayerCount', 1)
         ->call('startGame')
         ->call('roll')
@@ -257,6 +278,60 @@ test('undo does nothing once the game is over', function () {
         ->set('gameOver', true)
         ->call('undo')
         ->assertSet('players.0.scores.chance', 5);
+});
+
+test('a roll cannot be undone into the previous turn, only within the current one', function () {
+    Livewire::test('pages::yahtzee.play')
+        ->set('undoEnabled', true)
+        ->call('setPlayerCount', 2)
+        ->call('startGame')
+        ->call('roll')
+        ->set('dice', [4, 4, 4, 2, 1])
+        ->call('scoreCategory', 'fours')
+        ->assertSet('currentPlayer', 1)
+        ->assertSet('history', [])
+        ->call('roll')
+        ->assertCount('history', 1)
+        ->call('undo')
+        ->assertSet('currentPlayer', 1)
+        ->assertSet('dice', []);
+});
+
+test('tapping a scorecard cell requests confirmation instead of scoring immediately (docs/concerns.md)', function () {
+    Livewire::test('pages::yahtzee.play')
+        ->call('setPlayerCount', 1)
+        ->call('startGame')
+        ->call('roll')
+        ->set('dice', [4, 4, 4, 2, 1])
+        ->call('requestScore', 'fours')
+        ->assertSet('pendingCategory', 'fours')
+        ->assertSet('players.0.scores.fours', null)
+        ->assertSee('Score this roll as Fours for 12 points?')
+        ->call('scoreCategory', 'fours')
+        ->assertSet('pendingCategory', null)
+        ->assertSet('players.0.scores.fours', 12);
+});
+
+test('cancelScore clears the pending category without scoring', function () {
+    Livewire::test('pages::yahtzee.play')
+        ->call('setPlayerCount', 1)
+        ->call('startGame')
+        ->call('roll')
+        ->set('dice', [4, 4, 4, 2, 1])
+        ->call('requestScore', 'fours')
+        ->assertSet('pendingCategory', 'fours')
+        ->call('cancelScore')
+        ->assertSet('pendingCategory', null)
+        ->assertSet('players.0.scores.fours', null);
+});
+
+test('requestScore is a no-op for a category that is not actually pickable', function () {
+    Livewire::test('pages::yahtzee.play')
+        ->call('setPlayerCount', 1)
+        ->call('startGame')
+        // No roll yet -- nothing is pickable.
+        ->call('requestScore', 'fours')
+        ->assertSet('pendingCategory', null);
 });
 
 test('changing player count clears an out-of-range "which player is you" selection', function () {

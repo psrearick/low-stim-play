@@ -120,7 +120,12 @@ test('the current seat can roll and score a category from a real browser', funct
         ->click('#rollBtn')
         ->wait(0.3);
 
+    // docs/concerns.md: tapping a pickable cell opens a confirm dialog
+    // instead of scoring immediately -- see YahtzeeLocalPlayTest.php's
+    // own identical comment.
     $page->click('.score-cell.pickable >> nth=0')->wait(0.3);
+    $page->assertVisible('#score-confirm-dialog');
+    $page->click('#score-confirm-btn')->wait(0.3);
 
     $page->assertPresent('.score-cell.filled');
 });
@@ -137,60 +142,42 @@ test('an unseated visitor gets the read-only spectator view, not turn controls',
         ->assertSourceMissing('not-mine');
 });
 
-test('the mobile scores drawer opens for a seated player and stays open across a state update', function () {
-    [$room, $session, $users] = startedYahtzeeRoom();
+test('every seat\'s column is visible in the main scorecard on a narrow phone, no separate drawer (docs/concerns.md)', function () {
+    // The mobile-only single-seat narrowing + separate "Scores" drawer
+    // this used to have (see docs/DEVLOG.md's Yahtzee section) was
+    // removed -- the main view always shows every column now, on every
+    // viewport, relying on horizontal scroll instead.
+    [$room, , $users] = startedYahtzeeRoom(4);
 
     $page = loginAsAndVisit($users->first(), "/yahtzee?room={$room->code}");
     $page->resize(390, 844);
 
-    $page->assertVisible('#scores-btn')
-        ->click('#scores-btn')
-        ->assertVisible('#scoreboard-drawer');
+    $page->assertMissing('#scores-btn')
+        ->assertMissing('#scoreboard-drawer');
 
-    // Simulates a broadcast from the other seat arriving while the drawer
-    // is open -- any Livewire re-render used to silently close this
-    // dialog (its `open` attribute isn't server-rendered state, so
-    // morphing reset it) until wire:ignore.self was added. See
-    // docs/DEVLOG.md's Yahtzee section. Calling onStateUpdated() directly
-    // via window.Livewire stands in for the real broadcast, which
-    // BROADCAST_CONNECTION=null suppresses entirely in the test env.
-    $session->refresh();
-    $state = $session->state;
-    $state['seats'][1]['scores']['chance'] = 20;
-    $json = json_encode($state);
-
-    // Looked up by wire:name, not the first [wire\:id] in the DOM --
-    // <livewire:rooms-menu/> now renders earlier in the layout on every
-    // page, so a bare "first wire:id element" query silently grabbed it
-    // instead of this page's own component. Calling onStateUpdated() on
-    // rooms-menu (which has no such method) errored server-side without
-    // failing this assertion (the drawer just stayed in whatever state
-    // it was already in), making this a false-positive pass rather than
-    // an outright failure -- fixed the same way as
-    // tests/Browser/FarkleMobileLayoutTest.php and
-    // tests/Browser/FamilyFeudRoomBrowserTest.php's own identical bugs.
-    $page->script(<<<JS
-        (() => {
-            const el = document.querySelector('[wire\\\\:name="pages::yahtzee.play"]');
-            const component = window.Livewire.find(el.getAttribute("wire:id"));
-            component.call("onStateUpdated", {state: {$json}});
-            return true;
-        })()
-        JS);
-
-    $page->assertVisible('#scoreboard-drawer');
+    foreach ($users as $user) {
+        $page->assertSee($user->name);
+    }
 });
 
-test('the mobile scores drawer shows the current roll status and dice, not just the scorecard', function () {
-    [$room, , $users] = startedYahtzeeRoom();
+test('the scorecard actually scrolls horizontally on a narrow phone when there are too many players to fit', function () {
+    [$room, , $users] = startedYahtzeeRoom(6);
 
     $page = loginAsAndVisit($users->first(), "/yahtzee?room={$room->code}");
     $page->resize(390, 844);
 
-    $page->click('#rollBtn')->wait(0.3);
+    $page->assertSee($users->first()->name);
 
-    $page->click('#scores-btn')
-        ->assertVisible('#scoreboard-drawer')
-        ->assertSee('Roll 1 of 3')
-        ->assertVisible('#scoreboard-drawer .dice-area');
+    $before = $page->script(
+        "(() => { const el = document.querySelector('.card-wrap'); return { scrollWidth: el.scrollWidth, clientWidth: el.clientWidth, scrollLeft: el.scrollLeft }; })()"
+    );
+
+    expect($before['scrollWidth'])->toBeGreaterThan($before['clientWidth']);
+    expect($before['scrollLeft'])->toBe(0);
+
+    $page->script("document.querySelector('.card-wrap').scrollLeft = 9999");
+
+    $after = $page->script("document.querySelector('.card-wrap').scrollLeft");
+
+    expect($after)->toBeGreaterThan(0);
 });

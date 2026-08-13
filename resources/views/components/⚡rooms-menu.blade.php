@@ -4,6 +4,7 @@ use App\Models\Room;
 use App\Models\RoomMember;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cookie;
 use Livewire\Component;
 
 /**
@@ -18,6 +19,18 @@ new class extends Component
     public string $joinCode = '';
 
     public ?string $joinError = null;
+
+    /**
+     * Optional display name for a not-yet-logged-in visitor (docs/
+     * concerns.md) -- shown only @guest, above the Join/Create controls.
+     * Threaded into User::createGuest() by both actions below instead of
+     * the "Guest" default. Also remembered in a long-lived cookie (see
+     * rememberGuestName()) so a repeat guest who typed a name once here
+     * gets it picked up automatically on a later direct room-URL visit
+     * too, where there's no dialog to ask again -- see each game's own
+     * {game}.room mount(), which reads that cookie.
+     */
+    public string $guestName = '';
 
     /**
      * @return \Illuminate\Support\Collection<int, RoomMember>
@@ -46,7 +59,8 @@ new class extends Component
         }
 
         if (Auth::guest()) {
-            Auth::login(User::createGuest());
+            Auth::login(User::createGuest($this->guestName));
+            $this->rememberGuestName();
 
             if (request()->hasSession()) {
                 request()->session()->regenerate();
@@ -61,7 +75,8 @@ new class extends Component
     public function createRoom(): void
     {
         if (Auth::guest()) {
-            Auth::login(User::createGuest());
+            Auth::login(User::createGuest($this->guestName));
+            $this->rememberGuestName();
 
             if (request()->hasSession()) {
                 request()->session()->regenerate();
@@ -71,6 +86,23 @@ new class extends Component
         $room = Room::create(['host_user_id' => Auth::id()]);
 
         $this->redirect(route('room.show', ['code' => $room->code]));
+    }
+
+    /**
+     * Queues a long-lived cookie so a repeat guest who typed a name here
+     * once gets it picked up automatically next time, including on a
+     * direct room-URL visit that never goes through this dialog at all --
+     * see each game's own {game}.room mount(). Only queued when a name was
+     * actually given, so an empty field never overwrites a previously
+     * remembered one with blank.
+     */
+    private function rememberGuestName(): void
+    {
+        $name = trim($this->guestName);
+
+        if ($name !== '') {
+            Cookie::queue('guest_name', $name, 60 * 24 * 365);
+        }
     }
 };
 ?>
@@ -99,6 +131,17 @@ new class extends Component
         </ul>
 
         <div class="border-t border-surface-border my-1"></div>
+
+        @guest
+            {{--
+                Optional -- an empty value falls through to
+                User::createGuest()'s own "Guest" default exactly as
+                before. Shared by both Join and Create below rather than
+                two separate fields in two separate dialogs, since it's
+                the same "who am I" question either way.
+            --}}
+            <input type="text" id="rooms-menu-guest-name" wire:model="guestName" placeholder="Your name (optional)" maxlength="30" class="text-sm">
+        @endguest
 
         <button type="button" id="rooms-menu-join-trigger" data-dialog-open="join-room-dialog"
             class="text-left px-2 py-2 rounded text-sm text-text hover:bg-bg/60">

@@ -19,9 +19,16 @@ it('plays a full solo game from setup through game over', function () {
     // the real click -> Livewire round trip -> re-render loop 13 times
     // and reaches the real end-of-game state, not just the individual
     // Livewire component methods a Feature test already covers.
+    // docs/concerns.md: tapping a pickable cell now opens a confirm
+    // dialog instead of scoring immediately (see #score-confirm-dialog's
+    // own "Confirm" button in ⚡play.blade.php) -- undo can no longer
+    // correct a bad score pick, so every selection requires confirming
+    // first.
     for ($round = 0; $round < 13; $round++) {
         $page->click('#rollBtn')->wait(0.3);
         $page->click('.score-cell.pickable >> nth=0')->wait(0.3);
+        $page->assertVisible('#score-confirm-dialog');
+        $page->click('#score-confirm-btn')->wait(0.3);
     }
 
     $page->assertSee('Game Over');

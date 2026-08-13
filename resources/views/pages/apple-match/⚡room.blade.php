@@ -48,7 +48,7 @@ new class extends Component
         // first-time visitor always needs a guest account provisioned here,
         // same reasoning as every other {game}.room page.
         if (Auth::guest()) {
-            Auth::login(User::createGuest());
+            Auth::login(User::createGuest(request()->cookie('guest_name')));
 
             // Guarded rather than unconditional -- Livewire::test() drives
             // this component directly, without the full HTTP kernel/session

@@ -32,7 +32,11 @@ new class extends Component
         // No auth middleware on this route -- see routes/web.php. Same
         // provisioning every other room entry point already uses.
         if (Auth::guest()) {
-            Auth::login(User::createGuest());
+            // guest_name: an optional display name a repeat guest may have
+            // typed once into <livewire:rooms-menu>'s own Join/Create
+            // dialog (docs/concerns.md) -- null falls through to
+            // createGuest()'s own "Guest" default exactly as before.
+            Auth::login(User::createGuest(request()->cookie('guest_name')));
 
             if (request()->hasSession()) {
                 request()->session()->regenerate();

@@ -27,14 +27,14 @@ new class extends Component
 };
 ?>
 
-<x-slot:title>Clear the Deck Game — Low Stim Play</x-slot>
+<x-slot:title>Clear the Deck (Tens) Game — Low Stim Play</x-slot>
 <x-slot:sidebar>1</x-slot:sidebar>
 
 <div class="flex flex-col items-center gap-6 w-full max-w-2xl">
-    <a href="{{ route('profile.clear-the-deck') }}" class="self-start text-sm text-text/65 hover:text-text">&larr; Clear the Deck Stats</a>
+    <a href="{{ route('profile.clear-the-deck') }}" class="self-start text-sm text-text/65 hover:text-text">&larr; Clear the Deck (Tens) Stats</a>
 
     <div class="flex flex-col items-center gap-1">
-        <h1 class="text-bar font-bold tracking-wide text-2xl text-center">Clear the Deck Game</h1>
+        <h1 class="text-bar font-bold tracking-wide text-2xl text-center">Clear the Deck (Tens) Game</h1>
         <p class="text-sm text-text/65">
             {{ $participant->created_at->format('M j, Y g:ia') }} &middot; {{ $participant->gameSession->mode->label() }}
         </p>

@@ -75,7 +75,7 @@ new class extends Component
         // auth middleware of its own (see routes/web.php), so a first-time
         // direct visitor still needs one.
         if (Auth::guest()) {
-            Auth::login(User::createGuest());
+            Auth::login(User::createGuest(request()->cookie('guest_name')));
 
             // Guarded rather than unconditional -- Livewire::test() drives
             // this component directly, without the full HTTP kernel/session

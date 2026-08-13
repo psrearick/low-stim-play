@@ -123,6 +123,14 @@ test('starting the room deals a 12-card hand and 4+4 table cards to every seat',
     expect($session->state['currentRound'])->toBe(1);
 });
 
+test('the room page shows the "(Tens)" clarifier in its heading', function () {
+    $host = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    Livewire::actingAs($host)->test('pages::clear-the-deck.room', ['code' => $room->code])
+        ->assertSee('Clear the Deck (Tens) Room');
+});
+
 test('the host landing on the room page marks the room as pending Clear the Deck, so a late-joining member can find it', function () {
     $host = User::factory()->create();
     $room = Room::factory()->create(['host_user_id' => $host->id]);
@@ -138,7 +146,7 @@ test('starting the room with fewer than 3 players shows the host a real error in
     $room = Room::factory()->create(['host_user_id' => $host->id]);
 
     startClearTheDeckRoom($room, [$host, $guest])
-        ->assertSet('startError', 'Clear the Deck needs between 3 and 10 players to start — 2 here right now.');
+        ->assertSet('startError', 'Clear the Deck (Tens) needs between 3 and 10 players to start — 2 here right now.');
 
     $room->refresh();
     expect($room->game_session_id)->toBeNull();
@@ -151,7 +159,7 @@ test('starting the room with more than 10 players shows the host a real error', 
     $users = [$host, ...User::factory()->count(10)->create()];
 
     startClearTheDeckRoom($room, $users)
-        ->assertSet('startError', 'Clear the Deck needs between 3 and 10 players to start — 11 here right now.');
+        ->assertSet('startError', 'Clear the Deck (Tens) needs between 3 and 10 players to start — 11 here right now.');
 
     $room->refresh();
     expect($room->game_session_id)->toBeNull();

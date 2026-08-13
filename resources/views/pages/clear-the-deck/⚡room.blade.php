@@ -45,7 +45,7 @@ new class extends Component
         // (see docs/specs/clear-the-deck.md section 1), same reasoning as
         // pages::apple-match.room.
         if (Auth::guest()) {
-            Auth::login(User::createGuest());
+            Auth::login(User::createGuest(request()->cookie('guest_name')));
 
             if (request()->hasSession()) {
                 request()->session()->regenerate();
@@ -106,7 +106,7 @@ new class extends Component
         $seatCount = count($seats);
 
         if ($seatCount < self::MIN_PLAYERS || $seatCount > self::MAX_PLAYERS) {
-            $this->startError = 'Clear the Deck needs between '.self::MIN_PLAYERS.' and '.self::MAX_PLAYERS
+            $this->startError = 'Clear the Deck (Tens) needs between '.self::MIN_PLAYERS.' and '.self::MAX_PLAYERS
                 ." players to start \u{2014} ".$seatCount.' here right now.';
 
             return;
@@ -230,10 +230,10 @@ new class extends Component
 };
 ?>
 
-<x-slot:title>Clear the Deck Room — Low Stim Play</x-slot>
+<x-slot:title>Clear the Deck (Tens) Room — Low Stim Play</x-slot>
 
 <div class="flex flex-col items-center" style="gap: inherit;">
-    <div class="heading">Clear the Deck Room</div>
+    <div class="heading">Clear the Deck (Tens) Room</div>
 
     @if ($this->isHost)
         <div class="setup">

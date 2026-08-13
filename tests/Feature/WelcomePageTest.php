@@ -35,6 +35,11 @@ test('the Family Feud game card actually describes the game, not just the app\'s
         ->assertDontSee('AI judges guesses server-side');
 });
 
+test('the Clear the Deck game card shows the "(Tens)" clarifier', function () {
+    $this->get('/')
+        ->assertSee('Clear the Deck (Tens)');
+});
+
 test('logging out from the homepage redirects back to a guest view', function () {
     $user = User::factory()->create();
 

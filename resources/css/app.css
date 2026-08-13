@@ -239,9 +239,17 @@ body.scrollable {
    /Scores/Watch only/End Game/fullscreen-toggle wrapped below) at both
    375px and 320px wide, confirmed live via getBoundingClientRect() --
    125px leaves a real margin above that without reserving so much it
-   visibly gaps on pages with fewer buttons. */
+   visibly gaps on pages with fewer buttons.
+
+   Triggered structurally (.right actually having a 2nd child -- the
+   always-present <livewire:rooms-menu/> plus at least one teleported game
+   button), not by the .many-buttons class -- .right's own flex-wrap above
+   is unconditional now, so any game with 2+ right-side buttons can wrap
+   onto a second line regardless of whether it happens to add
+   .many-buttons, and this reservation needs to cover all of them, not
+   just the two games that opt into that class. */
 @media (max-width: 480px) {
-    body.scrollable:has(.button-bar.many-buttons) {
+    body.scrollable:has(.button-bar .right > :nth-child(2)) {
         padding-top: clamp(125px, 26vmin, 150px);
     }
 }
@@ -250,6 +258,24 @@ body.scrollable {
 .button-bar .right {
     display: flex;
     gap: 10px;
+    /* Unconditional, not just under .many-buttons below -- docs/concerns.md:
+       Clear the Deck's own "Back to room" link (only the Rooms-menu button
+       plus one teleported game-action button, never enough to trigger any
+       game's own opt-in .many-buttons JS toggle) still overflowed .right
+       off the right edge of the viewport entirely on a narrow phone,
+       confirmed live via getBoundingClientRect() (right edge 63px past
+       window.innerWidth). Only Farkle and Yahtzee ever add .many-buttons
+       themselves -- Boggle, Family Feud, Apple Match, and Clear the Deck
+       never did, so all four were equally exposed to this any time their
+       own online-room .right grew past one line's worth of width. Wrapping
+       here unconditionally costs nothing when everything already fits (it
+       only engages once content doesn't), so it closes the whole bug class
+       without every game needing to remember its own JS opt-in. */
+    flex-wrap: wrap;
+}
+
+.button-bar .right {
+    justify-content: flex-end;
 }
 
 .status,
@@ -482,17 +508,6 @@ body.scrollable.chrome-hidden {
     padding-bottom: calc(0.85rem + env(safe-area-inset-bottom, 0px)) !important;
 }
 
-/* #scores-btn is the one button that stays visible/opaque through
-   fullscreen/chrome-hidden mode (see its own dedicated rule below) --
-   every other page this padding shrink applies to has nothing left
-   showing in the bar at all once chrome-hidden, so content safely
-   scrolls up underneath it. Yahtzee's online room is the exception, and
-   without this override its own status text ends up visually colliding
-   with the still-visible Scores button occupying that same space. */
-body.scrollable.chrome-hidden:has(#scores-btn) {
-    padding-top: clamp(80px, 10vmin, 96px) !important;
-}
-
 .button-bar,
 .site-footer {
     transition: background-color 0.4s ease, border-color 0.4s ease !important;
@@ -552,26 +567,6 @@ body.chrome-hidden .button-bar .right button:not(#chrome-toggle-btn) {
     padding-right: 0;
     border-left-width: 0;
     border-right-width: 0;
-}
-
-/* Yahtzee online rooms: the "Scores" button (#scores-btn) stays usable in
-   fullscreen/chrome-hidden mode, same exception as .fullscreen-toggle
-   above -- a TV/cast device is exactly the case fullscreen mode is for,
-   and that's also exactly when checking the shared scoreboard without
-   leaving fullscreen matters most. Shares its selector's specificity with
-   the dimming rule just above (both have exactly one ID), so this only
-   wins because it comes later in the stylesheet -- and needs concrete
-   values here, not a bare `revert`, since @layer base's own `button`
-   rule (where these values normally come from) is a *layered* rule that
-   never wins over this unlayered one regardless of source order. */
-body.chrome-hidden .button-bar .right button#scores-btn {
-    opacity: 1;
-    pointer-events: auto;
-    max-width: 240px;
-    padding-left: clamp(18px, 2.8vmin, 34px);
-    padding-right: clamp(18px, 2.8vmin, 34px);
-    border-left-width: 2px;
-    border-right-width: 2px;
 }
 
 .fullscreen-toggle {
@@ -1800,9 +1795,7 @@ table.scorecard {
        than a short one's, despite every <col> (see the colgroup in
        yahtzee-scorecard-table.blade.php) declaring the identical width.
        --player-count (set inline by that same component) is what makes
-       this concrete; single-seat-mobile below overrides it back down to
-       exactly 1 for the one case where fewer columns are actually
-       visible than were rendered. */
+       this concrete. */
     width: calc(var(--scorecard-category-width) + var(--player-count) * var(--scorecard-player-width));
     /* table-layout: fixed is what actually makes <col>'s widths binding
        -- under the default `auto` algorithm, they're only a hint the
@@ -1900,11 +1893,21 @@ table.scorecard td.score-cell.filled {
     font-weight: bold;
 }
 
-table.scorecard td.score-cell.pickable {
-    cursor: pointer;
+/* .available (an open category, in the current player's own column, with
+   a full roll on the board -- see isAvailable()) carries the color/
+   background that used to live on .pickable alone. docs/concerns.md:
+   every viewer now sees this, not just whoever's actually allowed to tap
+   it -- .pickable itself (a strict subset of .available, see isPickable())
+   is narrowed to just the interactive affordances (cursor, hover) layered
+   on top. */
+table.scorecard td.score-cell.available {
     color: var(--accent);
     opacity: 0.75;
     background: var(--die-kept);
+}
+
+table.scorecard td.score-cell.pickable {
+    cursor: pointer;
 }
 
 table.scorecard td.score-cell.pickable:hover {
@@ -1915,12 +1918,12 @@ table.scorecard tbody tr:nth-child(even):not(.subtotal):not(.total) td.category 
     background: oklch(from var(--die) calc(l + 0.025) c h);
 }
 
-table.scorecard tbody tr:nth-child(even):not(.subtotal):not(.total) td.score-cell:not(.pickable),
+table.scorecard tbody tr:nth-child(even):not(.subtotal):not(.total) td.score-cell:not(.available),
 table.scorecard tbody tr:nth-child(even):not(.subtotal):not(.total) td[data-role] {
     background: oklch(from var(--bg) calc(l + 0.025) c h);
 }
 
-table.scorecard tbody tr:nth-child(even):not(.subtotal):not(.total) td.score-cell.pickable {
+table.scorecard tbody tr:nth-child(even):not(.subtotal):not(.total) td.score-cell.available {
     background: oklch(from var(--die-kept) calc(l + 0.025) c h);
 }
 
@@ -1930,131 +1933,13 @@ table.scorecard tr.total td {
     font-weight: bold;
 }
 
-/* ---- Yahtzee online rooms: mobile-only single-seat scorecard, the
-   "Scores" drawer, and the fullscreen-aware button-bar actions that
-   trigger them. See docs/CHANGELOG.md. 900px matches this app's existing
-   mobile/desktop cutoff (see the Boggle word-list-panel rules above). ---- */
-@media (max-width: 899px) {
-    /* A seated player's own phone shows just their column -- every other
-       player's is already fully covered by the "Scores" drawer below, and
-       a multi-column table this narrow left every column too cramped to
-       read regardless of the width fix above. Only applies when the
-       table's actually marked single-seat-mobile (see
-       yahtzee-scorecard-table.blade.php's own mySeatIndex prop) -- never
-       true for the drawer's own copy of this table (which exists
-       specifically to show everyone) or for a spectator (nothing is
-       "mine" to narrow down to).
-
-       Collapsing the <col> to zero width (not display: none on the th/td
-       themselves, which was the very first thing tried here) is what
-       actually hides the column -- confirmed live, the two combined is
-       actively broken: with both applied, table-layout: fixed rendered
-       the *next* (visible, "mine") column's th/td at zero width too, even
-       though its own <col> correctly still specified 10ch, seemingly
-       misassigning that col's width once a preceding cell in the same
-       row was display:none rather than merely zero-width. The collapsed
-       column's own th/td stay in normal flow at 0 width -- with
-       overflow: hidden already set on every non-category cell (see
-       above), a zero-width cell simply shows nothing, so no separate
-       hiding is needed or safe to add. --player-count (see
-       table.scorecard's own docblock) still reflects every player, since
-       it's set once at render time with no way to know viewport width,
-       so the table's own width is overridden too, down to exactly one
-       column's worth -- without it, the table kept reserving space for
-       every hidden column, a dead gap where they used to be. */
-    table.scorecard.single-seat-mobile col.not-mine {
-        width: 0;
-    }
-
-    table.scorecard.single-seat-mobile {
-        width: calc(var(--scorecard-category-width) + 1 * var(--scorecard-player-width));
-    }
-
-    /* The row-label column was getting squeezed hard enough on a real
-       phone width to visibly cut labels off, competing with the (fixed-
-       width, see above) data column for whatever room the narrow
-       viewport actually has. Smaller and regular (not bold) weight frees
-       up horizontal room without needing to shrink the data column or
-       truncate labels instead. */
-    table.scorecard th.category,
-    table.scorecard td.category {
-        font-size: clamp(9px, 3.2cqh, 20px);
-        font-weight: normal;
-    }
-}
-
-@media (min-width: 900px) {
-    /* Every column already fits on a desktop-width screen's main
-       scorecard (no single-seat narrowing above), so the drawer that
-       shows the same information again is redundant there. */
-    #scores-btn {
-        display: none;
-    }
-}
-
-/* A full-screen sheet, not a small centered modal, unlike .rules-dialog --
-   #scores-btn (and so this dialog) is desktop-hidden above, meaning it's
-   only ever opened at a width narrow enough that a small centered box
-   would just be a second, smaller version of the cramped table it exists
-   to replace.
-
-   [open] matters here, badly -- native <dialog> is only hidden via the UA
-   stylesheet's `dialog:not([open]) { display: none }`, which an author
-   rule setting `display` unconditionally silently overrides (author
-   styles always beat UA styles, regardless of specificity). Without
-   [open], this became a permanent full-viewport `position: absolute;
-   inset: 0` overlay covering the entire page -- invisibly, since nothing
-   here painted anything opaque over the game beneath it, but very much
-   still THERE, intercepting layout and (given a stray click) input --
-   even while "closed". .rules-dialog never had this bug only because it
-   happens to not set `display` at all, leaving the UA default intact. */
-dialog.scoreboard-dialog[open] {
-    margin: 0;
-    inset: 0;
-    width: 100vw;
-    height: 100dvh;
-    max-width: 100vw;
-    max-height: 100dvh;
-    display: flex;
-    flex-direction: column;
-    gap: clamp(6px, 1vh, 14px);
-    background: var(--die);
-    color: var(--ink);
-    border: none;
-    border-radius: 0;
-    padding: clamp(18px, 3vmin, 30px);
-    padding-top: calc(clamp(18px, 3vmin, 30px) + env(safe-area-inset-top, 0px));
-    padding-bottom: calc(clamp(18px, 3vmin, 30px) + env(safe-area-inset-bottom, 0px));
-}
-
-dialog.scoreboard-dialog[open]:focus-visible {
-    outline: none;
-}
-
-dialog.scoreboard-dialog::backdrop {
-    background: oklch(from var(--bg) calc(l - 0.2) c h / 0.6);
-    animation: none !important;
-    transition: none !important;
-}
-
-/* The drawer's own copy of the dice, shown alongside the status text so a
-   seated player can check "whose turn / what's rolled" without leaving the
-   drawer -- deliberately smaller than the main view's .dice-area (see its
-   own docblock in the Blade template): the drawer already spends height on
-   a header + status line the main view doesn't have, and the scorecard
-   below it (not the dice) is what the drawer exists to show. */
-.drawer-dice-area {
-    flex: 0 0 auto;
-}
-
-.drawer-dice-area .row {
-    width: min(48vw, 24vh, 320px);
-    gap: clamp(3px, 0.6vh, 10px);
-}
-
-.drawer-dice-area .number {
-    font-size: clamp(12px, 3.2vmin, 36px);
-}
+/* Yahtzee's scorecard used to narrow to a single seat's own column on
+   mobile, with a separate "Scores" drawer/#scores-btn elsewhere on the
+   page covering everyone else (docs/DEVLOG.md's Yahtzee section) --
+   removed per docs/concerns.md: every column is always visible now, on
+   every viewport, relying on .card-wrap's own overflow: auto (see its own
+   docblock above) instead of hiding columns. That drawer's own dialog/
+   dice-area rules were removed along with it. */
 
 /* =====================================================================
    Family Feud, ported from legacy/family-feud.html's own <style> block.

@@ -40,7 +40,7 @@ new class extends Component
         // that form already provisions a guest before redirecting here,
         // but this route has no auth middleware of its own.
         if (Auth::guest()) {
-            Auth::login(User::createGuest());
+            Auth::login(User::createGuest(request()->cookie('guest_name')));
 
             if (request()->hasSession()) {
                 request()->session()->regenerate();

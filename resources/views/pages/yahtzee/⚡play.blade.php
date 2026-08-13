@@ -37,6 +37,18 @@ new class extends Component
     public bool $gameOver = false;
 
     /**
+     * Opt-in, chosen by the host on the setup/room-settings screen
+     * (docs/concerns.md) -- defaults off. When on, undo() can rewind a
+     * roll within the current turn only (see startTurn()'s own reset of
+     * $history and scoreCategory() no longer pushing to it): never a
+     * score, never into a previous turn. For an online room, read once in
+     * mount() from the GameSession's own settings (see pages::
+     * yahtzee.room's own onRoomStarting()) rather than being player-
+     * togglable mid-game.
+     */
+    public bool $undoEnabled = false;
+
+    /**
      * @var list<array{name: string, scores: array<string, int|null>, yahtzeeBonusCount: int}>
      */
     public array $players = [];
@@ -56,6 +68,15 @@ new class extends Component
     public int $rollsLeft = 3;
 
     public ?string $message = null;
+
+    /**
+     * The category a player just tapped, awaiting confirmation -- set by
+     * requestScore(), cleared by scoreCategory() once actually committed
+     * or by cancelling (docs/concerns.md: undo can no longer correct a
+     * bad score pick, since it's roll-only now, so every score selection
+     * gets a confirm step instead). Null means no confirm dialog is open.
+     */
+    public ?string $pendingCategory = null;
 
     /**
      * Which local player, if any, is the authenticated account holder --
@@ -136,6 +157,7 @@ new class extends Component
         $session = $roomModel->gameSession;
 
         $this->gameSessionId = $session->id;
+        $this->undoEnabled = $session->settings['undo_enabled'] ?? false;
         $this->hydrateFromState($session->state);
 
         $this->mySeatIndex = RoomSeat::where('room_id', $roomModel->id)
@@ -318,6 +340,41 @@ new class extends Component
         $this->syncOnlineStateIfNeeded();
     }
 
+    /**
+     * The first step of tapping a scorecard cell (docs/concerns.md) --
+     * validates exactly like scoreCategory() used to before committing
+     * anything, but only records which category is pending confirmation.
+     * The confirm dialog's own "Confirm" button is what actually calls
+     * scoreCategory() below.
+     */
+    public function requestScore(string $categoryValue): void
+    {
+        abort_unless($this->room === null || $this->mySeatIndex === $this->currentPlayer, 403);
+
+        if (! $this->isPickable($this->currentPlayer, $categoryValue)) {
+            return;
+        }
+
+        $this->pendingCategory = $categoryValue;
+    }
+
+    public function cancelScore(): void
+    {
+        $this->pendingCategory = null;
+    }
+
+    public function pendingScoreMessage(): ?string
+    {
+        if ($this->pendingCategory === null) {
+            return null;
+        }
+
+        $label = YahtzeeCategory::from($this->pendingCategory)->label();
+        $score = $this->categoryScore($this->currentPlayer, $this->pendingCategory);
+
+        return "Score this roll as {$label} for {$score} points?";
+    }
+
     public function scoreCategory(string $categoryValue): void
     {
         abort_unless($this->room === null || $this->mySeatIndex === $this->currentPlayer, 403);
@@ -326,8 +383,11 @@ new class extends Component
             return;
         }
 
-        $this->pushHistory();
-
+        // No pushHistory() here (unlike roll()) -- undo is roll-only now
+        // (docs/concerns.md: "You cannot undo an incorrect score
+        // selection"), enforced by never snapshotting a score mutation in
+        // the first place, not just by convention. requestScore()'s
+        // confirm step above is what guards against a bad pick instead.
         $player = $this->players[$this->currentPlayer];
         $category = YahtzeeCategory::from($categoryValue);
         $result = $this->engine->scoreCategory($category, $this->dice, $player['scores']);
@@ -339,6 +399,7 @@ new class extends Component
         }
 
         $this->players[$this->currentPlayer] = $player;
+        $this->pendingCategory = null;
 
         $this->advanceTurn();
 
@@ -378,6 +439,13 @@ new class extends Component
         $this->dice = [];
         $this->kept = [];
         $this->rollsLeft = 3;
+
+        // Cleared at every turn boundary, not just left to accumulate --
+        // this is what actually makes "undo only works on your own turn"
+        // true (docs/concerns.md), rather than just a UI convention: a
+        // stale snapshot from the previous player's turn can never be
+        // popped into this one.
+        $this->history = [];
     }
 
     private function pushHistory(): void
@@ -393,13 +461,15 @@ new class extends Component
 
     public function undo(): void
     {
-        // Not supported online -- rewinding shared state that other seats
-        // may have already seen broadcast is a real design problem (whose
-        // view wins?) with no user request driving it, so it's cut here
-        // rather than half-solved. The button is hidden in Blade for the
-        // same reason; this guard is defense in depth against a stale
-        // client still showing it.
-        if ($this->room !== null || $this->gameOver || $this->history === []) {
+        // Same authorization shape as roll()/toggleKeep()/scoreCategory()
+        // -- online undo (docs/concerns.md) is only safe because it's
+        // gated to whoever's turn it actually is, same as any other
+        // mutation; rewinding another seat's own turn out from under them
+        // was the real design problem the old "not supported online" cut
+        // avoided, not undo itself.
+        abort_unless($this->room === null || $this->mySeatIndex === $this->currentPlayer, 403);
+
+        if (! $this->undoEnabled || $this->gameOver || $this->history === []) {
             return;
         }
 
@@ -411,6 +481,8 @@ new class extends Component
         $this->players = $snapshot['players'];
         $this->currentPlayer = $snapshot['currentPlayer'];
         $this->message = null;
+
+        $this->syncOnlineStateIfNeeded();
     }
 
     private function endGame(): void
@@ -527,12 +599,19 @@ new class extends Component
             return $scored;
         }
 
-        // A watch-only device (see isSpectator's own docblock) never shows
-        // a live possible score for an open category, even for the seat
-        // whose turn it actually is -- isPickable() alone isn't enough to
-        // catch this, since isMyTurn (which it checks) is deliberately
-        // independent of $spectate.
-        if ($this->isSpectator || ! $this->isPickable($playerIndex, $categoryValue)) {
+        // docs/concerns.md: during another player's turn, every viewer
+        // (a waiting seat, a spectator, a watch-only casting device) now
+        // sees the same live "what would this score right now" preview
+        // the acting player themselves sees, not just a blank cell --
+        // deliberately not gated on isPickable()/isMyTurn (whether *this*
+        // viewer could actually click it), only on isAvailable() (whether
+        // the category is open, for the current player's column, with a
+        // full roll on the board). This intentionally reverses an earlier
+        // fix (see the "watch-only leaked live possible scores" DEVLOG
+        // entry) that hid this same number from a non-acting viewer --
+        // that was the right call before this request existed, but the
+        // request is now for the opposite behavior.
+        if (! $this->isAvailable($playerIndex, $categoryValue)) {
             return null;
         }
 
@@ -541,20 +620,32 @@ new class extends Component
         return $this->engine->scoreCategory($category, $this->dice, $player['scores'])['score'];
     }
 
-    public function isPickable(int $playerIndex, string $categoryValue): bool
+    /**
+     * Whether categoryValue is an open category, in the *current* player's
+     * own column, with a full roll on the board -- i.e. whether a live
+     * preview score exists for it at all, regardless of who's looking.
+     * Drives categoryScore()'s visibility and the scorecard's own
+     * `.available` (colored, non-interactive-by-default) styling for
+     * every viewer. See isPickable() below for the stricter,
+     * viewer-specific "can I actually click this" gate.
+     */
+    public function isAvailable(int $playerIndex, string $categoryValue): bool
     {
         return ! $this->gameOver
             && $playerIndex === $this->currentPlayer
-            // Online: $playerIndex === $this->currentPlayer alone only
-            // checks whose *column* this is, not who's actually looking at
-            // it -- without isMyTurn too, any other seat viewing the
-            // current player's column got a clickable cell wired up
-            // (wire:click="scoreCategory(...)"), which then 403'd on the
-            // server the moment they tapped it instead of just not being
-            // clickable in the first place.
-            && $this->isMyTurn
             && count($this->dice) === self::DICE_COUNT
             && $this->players[$playerIndex]['scores'][$categoryValue] === null;
+    }
+
+    public function isPickable(int $playerIndex, string $categoryValue): bool
+    {
+        // Online: isAvailable() alone only checks whose *column* this is,
+        // not who's actually looking at it -- without isMyTurn too, any
+        // other seat viewing the current player's column got a clickable
+        // cell wired up (wire:click="scoreCategory(...)"), which then
+        // 403'd on the server the moment they tapped it instead of just
+        // not being clickable in the first place.
+        return $this->isAvailable($playerIndex, $categoryValue) && $this->isMyTurn;
     }
 
     public function upperSubtotalFor(int $playerIndex): int
@@ -663,23 +754,11 @@ new class extends Component
         @teleport('#game-actions')
             <div style="display: contents;">
                 {{--
-                    #scores-btn: hidden entirely on desktop-width screens
-                    (see app.css) -- every player is already visible on
-                    the main scorecard there, so the drawer is redundant.
-                    It's the mobile-only single-seat scorecard (see
-                    single-seat-mobile in app.css) that makes this button
-                    relevant at all.
-                --}}
-                @if ($room !== null && ! $this->isSpectator)
-                    <button type="button" id="scores-btn" onclick="document.getElementById('scoreboard-drawer').showModal()">Scores</button>
-                @endif
-
-                {{--
-                    No id/CSS exception for this one (unlike #scores-btn
-                    above) -- it's meant to just disappear like any other
-                    button-bar action once fullscreen/chrome-hidden mode
-                    is on, the default behavior for everything but the
-                    fullscreen toggle itself and the Scores button.
+                    No id/CSS exception for this one -- it's meant to just
+                    disappear like any other button-bar action once
+                    fullscreen/chrome-hidden mode is on, the default
+                    behavior for everything but the fullscreen toggle
+                    itself.
                 --}}
                 @if ($room !== null && $mySeatIndex !== null)
                     <button type="button" wire:click="$set('spectate', {{ $this->isSpectator ? 'false' : 'true' }})">
@@ -744,6 +823,14 @@ new class extends Component
                 </div>
             @endauth
 
+            <div class="setup-row">
+                <div class="label">Undo</div>
+                <div class="option-group">
+                    <button type="button" class="option {{ ! $undoEnabled ? 'active' : '' }}" wire:click="$set('undoEnabled', false)">Off</button>
+                    <button type="button" class="option {{ $undoEnabled ? 'active' : '' }}" wire:click="$set('undoEnabled', true)">On</button>
+                </div>
+            </div>
+
             <button type="button" wire:click="startGame">Start Game</button>
         </div>
     @else
@@ -774,19 +861,25 @@ new class extends Component
                     @if ($this->isMyTurn && ! $this->isSpectator)
                         <button type="button" id="rollBtn" wire:click="roll" @disabled($gameOver || $rollsLeft <= 0)>Roll</button>
                     @endif
-                    {{-- Undo isn't supported online at all (see undo()'s own note) --}}
-                    @if ($room === null)
+                    {{--
+                        docs/concerns.md: opt-in (set on the setup/room-
+                        settings screen), and -- like Roll above -- only
+                        ever shown to the seat whose turn it actually is,
+                        never to a spectator.
+                    --}}
+                    @if ($undoEnabled && $this->isMyTurn && ! $this->isSpectator)
                         <button type="button" id="undoBtn" wire:click="undo" @disabled($gameOver || $history === [])>Undo</button>
                     @endif
                 </div>
             </div>
 
             {{--
-                mySeatIndex, not null -- on mobile (see app.css), this
-                narrows the table to just this seat's own column, since
-                the "Scores" drawer below already exists specifically to
-                show everyone. Desktop-width screens ignore this marker
-                entirely and keep showing every column here regardless.
+                docs/concerns.md: always shows every player's column, on
+                every viewport -- the mobile single-seat narrowing plus a
+                separate "Scores" drawer this used to have (see
+                docs/DEVLOG.md's Yahtzee section) was replaced by relying
+                on .card-wrap's own horizontal scroll (already built for
+                this, see app.css) instead of hiding columns.
             --}}
             <x-yahtzee-scorecard-table
                 :livewire="$this"
@@ -794,85 +887,36 @@ new class extends Component
                 :currentPlayer="$currentPlayer"
                 :gameOver="$gameOver"
                 :readOnly="$this->isSpectator"
-                :mySeatIndex="$mySeatIndex"
             />
         </div>
 
         {{--
-            The scoreboard drawer -- lets a seated player check everyone's
-            scores on demand, since their own phone's main view (above)
-            only ever shows their own column. A full-screen sheet rather
-            than a small centered modal, since it's only ever opened on
-            mobile in the first place (#scores-btn is desktop-hidden, see
-            app.css) -- deliberately always shows every column (no
-            mySeatIndex passed), unlike the main view above.
+            docs/concerns.md: every score selection now requires
+            confirming first, since undo can no longer correct a bad pick
+            (it's roll-only now -- see undo()'s own docblock). Tapping a
+            pickable cell (see yahtzee-scorecard-table.blade.php) calls
+            requestScore() instead of scoreCategory() directly, which only
+            sets $pendingCategory; the script block at the end of this
+            file opens this dialog in response to that property changing,
+            the same way the mobile scoreboard drawer used to open
+            imperatively.
 
-            wire:ignore.self -- <dialog>'s open/closed state lives only in
-            the browser's native DOM (toggled imperatively by
-            showModal()/close() below, never a tracked Livewire property),
-            so it isn't part of what the server renders at all. Without
-            this, another seat's action (roll/keep/score) broadcasts a
-            state update, Livewire re-renders and morphs this component's
-            whole tree to match, and morphing resets this element's own
-            attributes back to that server-rendered baseline -- which
-            never has `open` on it -- silently closing the dialog out
-            from under whoever had it open. `.self`, not a bare
-            wire:ignore, so the scorecard *inside* still updates live
-            while it's open; only the dialog's own open/closed state is
-            left alone.
+            wire:ignore.self -- same reasoning as every other dialog in
+            this app whose open/closed state isn't itself a tracked
+            property (see docs/DEVLOG.md's scoreboard-drawer entry): a
+            broadcast-triggered re-render from another seat's own action
+            would otherwise morph this element's `open` attribute back to
+            its server-rendered (absent) baseline and silently close it.
         --}}
-        @if ($room !== null && ! $this->isSpectator)
-            <dialog wire:ignore.self class="scoreboard-dialog" id="scoreboard-drawer" aria-labelledby="scoreboard-drawer-title" tabindex="-1">
-                <div class="rules-dialog-header">
-                    <div class="rules-dialog-title" id="scoreboard-drawer-title">Scores</div>
-                    <button type="button" class="rules-dialog-close" aria-label="Close" onclick="document.getElementById('scoreboard-drawer').close()">&times;</button>
-                </div>
-
-                {{--
-                    Status text + the current dice roll, same live values as
-                    the main view above -- a seated player checking the
-                    drawer wants to know whose turn it is and what's been
-                    rolled without closing it first. No wire:click on the
-                    dice and no Roll/Undo controls here, since this is a
-                    view-only copy (drawer-dice-area below shrinks it to
-                    leave more room for the scorecard, per docs/TODO.md).
-                --}}
-                <div class="status">{{ $this->statusText }}</div>
-
-                <div class="dice-area drawer-dice-area">
-                    <div class="row">
-                        @for ($i = 0; $i < self::DICE_COUNT; $i++)
-                            <div class="die {{ ($kept[$i] ?? false) ? 'kept' : '' }}">
-                                <span class="number">{{ $dice[$i] ?? '' }}</span>
-                            </div>
-                        @endfor
-                    </div>
-                </div>
-
-                {{--
-                    .card-wrap (inside the scorecard-table component) only
-                    sizes its cqh-based row heights correctly when *it*
-                    has a definite height to measure against -- on the
-                    live game view that comes from the surrounding
-                    #yahtzee-game flex column (itself bounded by
-                    100dvh), which doesn't exist inside a <dialog>. This
-                    wrapper (flex-1/min-h-0, matching #yahtzee-game's own
-                    structure) fills whatever's left of the full-screen
-                    dialog after the header instead, so the table renders
-                    at a normal, legible size rather than collapsing to
-                    ~0.
-                --}}
-                <div class="flex flex-col flex-1 min-h-0">
-                    <x-yahtzee-scorecard-table
-                        :livewire="$this"
-                        :players="$players"
-                        :currentPlayer="$currentPlayer"
-                        :gameOver="$gameOver"
-                        :readOnly="true"
-                    />
-                </div>
-            </dialog>
-        @endif
+        <x-confirm-dialog id="score-confirm-dialog" wire:ignore.self title="Confirm Score"
+            :message="$this->pendingScoreMessage()" cancelLabel="Cancel">
+            <x-slot:confirm>
+                <button type="button" id="score-confirm-btn" data-dialog-close wire:click="scoreCategory('{{ $pendingCategory }}')"
+                    class="flex-1 rounded px-6 py-2 font-bold tracking-wide bg-surface border-2 border-accent text-accent">
+                    Confirm
+                </button>
+            </x-slot:confirm>
+        </x-confirm-dialog>
     @endunless
 </div>
 
@@ -890,9 +934,9 @@ new class extends Component
         document.body.classList.toggle('in-game', started);
     });
 
-    // Online rooms can show up to 3 right-side buttons at once (Scores,
-    // Watch only/Player view, New Game/Back to room) on top of Home/Rules
-    // on the left -- .many-buttons' existing compact padding/gap (see
+    // Online rooms can show up to 2 right-side buttons at once (Watch
+    // only/Player view, New Game/Back to room) on top of Home/Rules on
+    // the left -- .many-buttons' existing compact padding/gap (see
     // app.css, already used by welcome.blade.php for its own 3-button
     // case) is what keeps that from crowding the fullscreen toggle off a
     // narrow phone screen. $wire.room never changes after mount, so
@@ -903,6 +947,54 @@ new class extends Component
     if ($wire.room !== null) {
         document.querySelector('.button-bar')?.classList.add('many-buttons');
     }
+
+    // Opens/closes the score-confirm dialog in step with $pendingCategory
+    // (set by requestScore(), cleared by scoreCategory() or cancelScore())
+    // -- native <dialog> open/closed state lives only in the browser's own
+    // DOM, so it has to be toggled imperatively here rather than via a
+    // server-rendered attribute, same reasoning as $wire.started above.
+    //
+    // The dialog element itself doesn't exist yet the first time this
+    // script block runs (it's only rendered once $started is true, and
+    // this whole block runs exactly once, at initial mount, well before
+    // that -- see the setup screen this page starts on). Confirmed live:
+    // an `if (document.getElementById('score-confirm-dialog'))` guard
+    // here evaluated false at mount and never got the chance to run
+    // again, so the watcher below was silently never registered at all.
+    // Looking the element up fresh inside the watcher instead sidesteps
+    // that -- by the time $pendingCategory is ever non-null, $started
+    // must already be true, so the dialog is guaranteed to exist in the
+    // DOM by then.
+    $wire.$watch('pendingCategory', (pendingCategory) => {
+        const dialog = document.getElementById('score-confirm-dialog');
+
+        if (! dialog) {
+            return;
+        }
+
+        if (pendingCategory !== null && ! dialog.open) {
+            dialog.showModal();
+        } else if (pendingCategory === null && dialog.open) {
+            dialog.close();
+        }
+    });
+
+    // Covers every way the dialog can close that isn't the Confirm button
+    // itself (Cancel, Escape, clicking the backdrop -- see the base
+    // dialog component's own .js-dialog handling in app.js) with one
+    // listener instead of wiring cancelScore() into each path
+    // individually. Harmless (a no-op) when it fires right after a
+    // successful Confirm too, since scoreCategory() already cleared
+    // $pendingCategory itself by then. Delegated on `document` in the
+    // capture phase (native <dialog> `close` events don't bubble, but
+    // capture-phase listeners still see them on the way down) rather than
+    // bound directly to the dialog element, for the same "doesn't exist
+    // yet at mount time" reason as the watcher above.
+    document.addEventListener('close', (event) => {
+        if (event.target?.id === 'score-confirm-dialog') {
+            $wire.cancelScore();
+        }
+    }, true);
 </script>
 @endscript
 

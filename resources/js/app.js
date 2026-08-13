@@ -2,6 +2,34 @@ import { Passkeys } from '@laravel/passkeys';
 
 import './echo';
 
+// ---- Global Livewire error handling (docs/concerns.md) -----------------
+// Without this, any failed Livewire request (e.g. a room action that
+// outlived the room itself -- see Room::pages::room.show's endRoom(),
+// which deletes the Room row while other players may still be mid-game on
+// a page that queries it) falls through to Livewire's own default
+// showHtmlModal() behavior: it dumps the raw, unstyled HTML error response
+// into an <iframe> overlay right on top of whatever the player was
+// looking at -- exactly the "500 error briefly flashed on the screen"
+// report. preventDefault() suppresses that modal; redirecting home is the
+// same recovery pages::room.show's own onRoomEnded() already uses for the
+// one case it *does* know how to detect. Deliberately excludes 422 --
+// that's Livewire's own validation-error status (e.g. the Rooms menu's
+// join-by-code form), which must keep re-rendering inline via $errors
+// rather than bouncing the user away from a form they're actively filling
+// in.
+document.addEventListener('livewire:init', () => {
+    window.Livewire.interceptRequest(({ onError }) => {
+        onError(({ response, preventDefault }) => {
+            if (response.status === 422) {
+                return;
+            }
+
+            preventDefault();
+            window.location.href = '/';
+        });
+    });
+});
+
 document.addEventListener('DOMContentLoaded', () => {
     const themeToggle = document.querySelector('[data-theme-toggle]');
 

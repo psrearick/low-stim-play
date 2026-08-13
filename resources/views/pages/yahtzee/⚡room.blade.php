@@ -16,6 +16,16 @@ new class extends Component
 {
     public Room $room;
 
+    /**
+     * Host-only, chosen on this lobby before starting (docs/concerns.md)
+     * -- baked into the GameSession's own settings in onRoomStarting()
+     * below, the same way Boggle's own $size/$minutes are. Only the
+     * host's own request ever creates the session, so only their choice
+     * matters; other members never see this toggle at all (see the Blade
+     * below).
+     */
+    public bool $undoEnabled = false;
+
     public function mount(string $code): void
     {
         $this->room = Room::notExpired()->where('code', strtoupper($code))->firstOrFail();
@@ -26,7 +36,7 @@ new class extends Component
         // auth middleware of its own (see routes/web.php), so a first-time
         // direct visitor still needs one.
         if (Auth::guest()) {
-            Auth::login(User::createGuest());
+            Auth::login(User::createGuest(request()->cookie('guest_name')));
 
             // Guarded rather than unconditional -- Livewire::test() drives
             // this component directly, without the full HTTP kernel/session
@@ -59,6 +69,11 @@ new class extends Component
         // anyone -- seated or not -- who visits this room URL once the
         // game has started is sent straight into it.
         $this->redirectIfAlreadyStarted();
+    }
+
+    public function getIsHostProperty(): bool
+    {
+        return Auth::id() === $this->room->host_user_id;
     }
 
     private function redirectIfAlreadyStarted(): void
@@ -122,7 +137,7 @@ new class extends Component
             $session = GameSession::create([
                 'type' => GameType::Yahtzee,
                 'mode' => GameMode::Online,
-                'settings' => ['player_count' => count($seats)],
+                'settings' => ['player_count' => count($seats), 'undo_enabled' => $this->undoEnabled],
                 'state' => $state,
                 'started_at' => now(),
             ]);
@@ -179,10 +194,21 @@ new class extends Component
     <div class="heading">Yacht Room</div>
 
     {{--
-        No pre-start setup here, unlike Boggle's room page (board
-        size/time actually shape the generated board) -- Yahtzee's seat
-        count is simply however many players are present and ready when
-        the host starts, nothing to configure ahead of that.
+        Host-only (docs/concerns.md) -- same "settings step before
+        <livewire:game-lobby>" pattern Boggle's own room page uses for its
+        board size/time limit, the first time Yahtzee has needed one.
     --}}
+    @if ($this->isHost)
+        <div class="setup">
+            <div class="setup-row">
+                <div class="label">Undo</div>
+                <div class="option-group">
+                    <button type="button" class="option {{ ! $undoEnabled ? 'active' : '' }}" wire:click="$set('undoEnabled', false)">Off</button>
+                    <button type="button" class="option {{ $undoEnabled ? 'active' : '' }}" wire:click="$set('undoEnabled', true)">On</button>
+                </div>
+            </div>
+        </div>
+    @endif
+
     <livewire:game-lobby :room="$room" :current-game="GameType::Yahtzee" />
 </div>

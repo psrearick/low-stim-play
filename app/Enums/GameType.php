@@ -28,7 +28,7 @@ enum GameType: string
             self::FamilyFeud => 'Survey Says',
             self::Farkle => '10,000',
             self::AppleMatch => 'Best Match',
-            self::ClearTheDeck => 'Clear the Deck',
+            self::ClearTheDeck => 'Clear the Deck (Tens)',
         };
     }
 
