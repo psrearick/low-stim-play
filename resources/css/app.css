@@ -2553,6 +2553,10 @@ body.scrollable.family-feud-play {
     cursor: pointer;
 }
 
+.clear-the-deck-play .ctd-card-disabled {
+    opacity: 0.35;
+}
+
 .clear-the-deck-play .ctd-card-value {
     font-weight: bold;
     line-height: 1;

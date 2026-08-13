@@ -124,6 +124,17 @@ new class extends Component
      */
     public array $selectedFaceDownColumns = [];
 
+    /**
+     * Set once a submitted play includes a face-down flip that turned out
+     * to be a real, playable value -- "once revealed, that card must be
+     * played" (appendix), but what else joins it is the player's own
+     * choice, made *after* seeing the value. Only ever set when there's
+     * at least one other matching card available to offer; otherwise the
+     * play just finishes immediately, same as one with no face-down cards
+     * in it at all. See playCards() for the full flow.
+     */
+    public ?int $pendingFlipValue = null;
+
     public ?string $playError = null;
 
     public function mount(): void
@@ -299,13 +310,27 @@ new class extends Component
         return max(0, $tableFaceDownCount - count($this->myTableFaceUp));
     }
 
+    /**
+     * While a flip is pending (its value already revealed to this
+     * connection), only cards matching that revealed value can be added --
+     * anything else is a no-op, the server-side half of the "grayed out"
+     * cards the template renders as unclickable.
+     */
     public function toggleHandCard(int $index): void
     {
+        if ($this->pendingFlipValue !== null && ($this->myHand[$index] ?? null) !== $this->pendingFlipValue) {
+            return;
+        }
+
         $this->toggleSelection('selectedHandIndices', $index);
     }
 
     public function toggleFaceUpCard(int $index): void
     {
+        if ($this->pendingFlipValue !== null && ($this->myTableFaceUp[$index] ?? null) !== $this->pendingFlipValue) {
+            return;
+        }
+
         $this->toggleSelection('selectedFaceUpIndices', $index);
     }
 
@@ -325,10 +350,22 @@ new class extends Component
      * specific tile tapped only drives this connection's own highlight
      * state; the cards themselves are still interchangeable server-side
      * (see playCards()), so all that actually reaches the server is how
-     * many are selected.
+     * many are selected. Once a flip is pending, the only thing left to do
+     * with a face-down tile is back out of it entirely (untoggling it
+     * clears the pending reveal) -- swapping in a *different* blind flip
+     * mid-reveal isn't offered.
      */
     public function toggleFaceDownSelection(int $displayIndex): void
     {
+        if ($this->pendingFlipValue !== null) {
+            if (in_array($displayIndex, $this->selectedFaceDownColumns, true)) {
+                $this->selectedFaceDownColumns = array_values(array_diff($this->selectedFaceDownColumns, [$displayIndex]));
+                $this->pendingFlipValue = null;
+            }
+
+            return;
+        }
+
         $this->toggleSelection('selectedFaceDownColumns', $displayIndex);
     }
 
@@ -402,21 +439,29 @@ new class extends Component
         $this->selectedHandIndices = [];
         $this->selectedFaceUpIndices = [];
         $this->selectedFaceDownColumns = [];
+        $this->pendingFlipValue = null;
         $this->playError = null;
     }
 
     /**
-     * Attempts the currently-selected play. A face-down selection is a
-     * count, not a specific card, and is validated atomically along with
+     * Attempts the currently-selected play. A face-down selection is a set
+     * of tiles, not specific cards, and is validated atomically along with
      * everything else -- if the combined values (including whatever the
      * face-down cards turn out to be) don't all match, the whole attempt is
      * rejected with no state change and nothing about the face-down cards'
      * values ever reaching this response. table_face_down is read fresh
      * from the database right here and never assigned to any public
-     * property beforehand -- the same "resolve secret state fresh from the
-     * DB inside the one action that needs it" rule Best Match's round
-     * attribution established (docs/DEVLOG.md's Best Match section), for
-     * this app's first "secret from its own owner" state. See
+     * property that gets broadcast -- the same "resolve secret state fresh
+     * from the DB inside the one action that needs it" rule Best Match's
+     * round attribution established (docs/DEVLOG.md's Best Match section),
+     * for this app's first "secret from its own owner" state.
+     *
+     * If the combination *is* valid and includes a face-down flip, this
+     * only reveals the value to the acting player and pauses (via
+     * $pendingFlipValue) rather than committing immediately, as long as
+     * there's at least one other matching card available to optionally
+     * add -- calling this a second time, with $pendingFlipValue already
+     * set, finalizes the play with whatever's selected at that point. See
      * docs/specs/clear-the-deck.md section 3/4.
      */
     public function playCards(): void
@@ -471,6 +516,27 @@ new class extends Component
             $this->playError = "That combination doesn't share the same value.";
 
             return;
+        }
+
+        // Valid so far. If this includes a not-yet-revealed face-down flip,
+        // offer to add more before committing -- but only once, and only
+        // when there's actually something left to offer. A second call
+        // (with $pendingFlipValue already set) always falls through to
+        // commit, whatever's currently selected.
+        if ($faceDownCount > 0 && $this->pendingFlipValue === null) {
+            $remainingHandMatches = collect($hand)->filter(
+                fn (int $v, int $i) => $v === $value && ! in_array($i, $handIndices, true)
+            )->count();
+            $remainingFaceUpMatches = collect($faceUp)->filter(
+                fn (int $v, int $i) => $v === $value && ! in_array($i, $faceUpIndices, true)
+            )->count();
+
+            if ($remainingHandMatches + $remainingFaceUpMatches > 0) {
+                $this->pendingFlipValue = $value;
+                $this->playError = null;
+
+                return;
+            }
         }
 
         $seat->hand = array_values(array_diff_key($hand, array_flip($handIndices)));
@@ -854,7 +920,7 @@ new class extends Component
                         @endif
                     </div>
                     @if ($this->isMyTurn)
-                        <button type="button" id="play-cards" wire:click="playCards">Submit</button>
+                        <button type="button" id="play-cards" wire:click="playCards">{{ $pendingFlipValue !== null ? 'Confirm' : 'Submit' }}</button>
                     @endif
                 </div>
 
@@ -863,26 +929,34 @@ new class extends Component
                         <p class="ctd-section-label">Your columns</p>
                         <div class="ctd-tableau" style="--ctd-card-w: {{ $mainSize }};">
                             @foreach ($this->myColumns as $col)
+                                @php
+                                    $isSelectedFaceDown = $col['type'] === 'faceDown' && in_array($col['index'], $selectedFaceDownColumns, true);
+                                    $faceDownInteractive = $this->isMyTurn && ($pendingFlipValue === null || $isSelectedFaceDown);
+                                    $faceUpInteractive = $this->isMyTurn && ($pendingFlipValue === null || $col['value'] === $pendingFlipValue);
+                                @endphp
                                 <div class="ctd-column" wire:key="my-col-{{ $col['type'] }}-{{ $col['index'] }}">
                                     @if ($col['hasFaceDown'])
-                                        @if ($col['type'] === 'faceDown' && $this->isMyTurn)
+                                        @if ($col['type'] === 'faceDown' && $faceDownInteractive)
                                             <x-clear-the-deck-card face-down clickable
                                                 :size="$mainSize"
-                                                :selected="in_array($col['index'], $selectedFaceDownColumns, true)"
+                                                :selected="$isSelectedFaceDown"
                                                 wire:click="toggleFaceDownSelection({{ $col['index'] }})" />
                                         @else
-                                            <x-clear-the-deck-card face-down :size="$mainSize" />
+                                            <x-clear-the-deck-card face-down :size="$mainSize"
+                                                :disabled="$col['type'] === 'faceDown' && $pendingFlipValue !== null" />
                                         @endif
                                     @endif
                                     @if ($col['value'] !== null)
-                                        @if ($this->isMyTurn)
+                                        @if ($faceUpInteractive)
                                             <x-clear-the-deck-card :value="$col['value']" clickable
                                                 :size="$mainSize"
                                                 :selected="in_array($col['index'], $selectedFaceUpIndices, true)"
                                                 :class="$col['hasFaceDown'] ? '' : 'ctd-column-no-peek'"
                                                 wire:click="toggleFaceUpCard({{ $col['index'] }})" />
                                         @else
-                                            <x-clear-the-deck-card :value="$col['value']" :size="$mainSize" :class="$col['hasFaceDown'] ? '' : 'ctd-column-no-peek'" />
+                                            <x-clear-the-deck-card :value="$col['value']" :size="$mainSize"
+                                                :class="$col['hasFaceDown'] ? '' : 'ctd-column-no-peek'"
+                                                :disabled="$this->isMyTurn && $pendingFlipValue !== null" />
                                         @endif
                                     @endif
                                 </div>
@@ -894,6 +968,10 @@ new class extends Component
 
             @if ($phase === ClearTheDeckPhase::Playing)
                 @if ($this->isMyTurn)
+                    @if ($pendingFlipValue !== null)
+                        <p class="status-line">You flipped a {{ self::cardLabel($pendingFlipValue) }}! Tap any more {{ self::cardLabel($pendingFlipValue) }}s to add them &mdash; optional &mdash; then Confirm.</p>
+                    @endif
+
                     @if ($playError)
                         <p class="status-line" style="color: var(--warn);">{{ $playError }}</p>
                     @endif
@@ -902,11 +980,18 @@ new class extends Component
                         <p class="ctd-section-label">Your hand</p>
                         <div class="ctd-hand-grid" style="--ctd-card-w: {{ $mainSize }};">
                             @foreach ($myHand as $index => $value)
-                                <x-clear-the-deck-card :value="$value" clickable
-                                    :size="$mainSize"
-                                    :selected="in_array($index, $selectedHandIndices, true)"
-                                    wire:key="hand-{{ $index }}"
-                                    wire:click="toggleHandCard({{ $index }})" />
+                                @php $handCardInteractive = $pendingFlipValue === null || $value === $pendingFlipValue @endphp
+                                @if ($handCardInteractive)
+                                    <x-clear-the-deck-card :value="$value" clickable
+                                        :size="$mainSize"
+                                        :selected="in_array($index, $selectedHandIndices, true)"
+                                        wire:key="hand-{{ $index }}"
+                                        wire:click="toggleHandCard({{ $index }})" />
+                                @else
+                                    <x-clear-the-deck-card :value="$value" disabled
+                                        :size="$mainSize"
+                                        wire:key="hand-{{ $index }}" />
+                                @endif
                             @endforeach
                         </div>
                     </div>

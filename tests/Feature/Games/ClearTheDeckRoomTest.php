@@ -62,6 +62,12 @@ function startClearTheDeckRoom(Room $room, array $users, ?int $roundTarget = nul
 }
 
 /**
+ * Also keeps GameSession.state.seatTables in sync for this seat -- real
+ * gameplay always does, via syncOnlineState()'s own refreshSeatTables(),
+ * so a fixture that skipped it would let a test rely on a public property
+ * (getMyTableFaceUpProperty(), used by toggleFaceUpCard()'s own guard,
+ * for one) that's realistically never actually stale.
+ *
  * @param  list<int>  $hand
  * @param  list<int>  $faceUp
  * @param  list<int>  $faceDown
@@ -73,6 +79,20 @@ function setSeatCards(Room $room, int $seatIndex, array $hand, array $faceUp, ar
         'table_face_up' => $faceUp,
         'table_face_down' => $faceDown,
     ]);
+
+    $session = GameSession::find($room->fresh()->game_session_id);
+
+    if ($session === null) {
+        return;
+    }
+
+    $state = $session->state;
+    $state['seatTables'][$seatIndex] = [
+        'handCount' => count($hand),
+        'tableFaceUp' => $faceUp,
+        'tableFaceDownCount' => count($faceDown),
+    ];
+    $session->update(['state' => $state]);
 }
 
 test('starting the room deals a 12-card hand and 4+4 table cards to every seat', function () {
@@ -299,6 +319,112 @@ test('toggling one face-down tile selects only that tile, not every uncovered on
         ->assertSet('selectedFaceDownColumns', [0, 2])
         ->call('toggleFaceDownSelection', 0)
         ->assertSet('selectedFaceDownColumns', [2]);
+});
+
+test('flipping a face-down card with other matches available pauses instead of committing immediately', function () {
+    $host = User::factory()->create();
+    $p1 = User::factory()->create();
+    $p2 = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    startClearTheDeckRoom($room, [$host, $p1, $p2]);
+    setSeatCards($room, 1, hand: [6, 1], faceUp: [6], faceDown: [6, 9]);
+
+    Livewire::actingAs($p1)->test('pages::clear-the-deck.play', ['room' => $room->code])
+        ->call('toggleFaceDownSelection', 0)
+        ->call('playCards')
+        ->assertSet('pendingFlipValue', 6)
+        ->assertSet('playError', null)
+        ->assertSet('centerStack', []);
+
+    // Nothing committed yet -- the flipped card stays right where it was.
+    $seat1 = RoomSeat::where('room_id', $room->id)->where('seat_index', 1)->first();
+    expect($seat1->table_face_down)->toBe([6, 9]);
+    expect($seat1->hand)->toBe([6, 1]);
+});
+
+test('while a flip is pending, tapping a non-matching card does nothing', function () {
+    $host = User::factory()->create();
+    $p1 = User::factory()->create();
+    $p2 = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    startClearTheDeckRoom($room, [$host, $p1, $p2]);
+    setSeatCards($room, 1, hand: [6, 1], faceUp: [6], faceDown: [6, 9]);
+
+    Livewire::actingAs($p1)->test('pages::clear-the-deck.play', ['room' => $room->code])
+        ->call('toggleFaceDownSelection', 0)
+        ->call('playCards')
+        ->assertSet('pendingFlipValue', 6)
+        ->call('toggleHandCard', 1)
+        ->assertSet('selectedHandIndices', []);
+});
+
+test('while a flip is pending, adding a matching card and confirming finalizes the combined play', function () {
+    $host = User::factory()->create();
+    $p1 = User::factory()->create();
+    $p2 = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    startClearTheDeckRoom($room, [$host, $p1, $p2]);
+    setSeatCards($room, 1, hand: [6, 1], faceUp: [6], faceDown: [6, 9]);
+
+    Livewire::actingAs($p1)->test('pages::clear-the-deck.play', ['room' => $room->code])
+        ->call('toggleFaceDownSelection', 0)
+        ->call('playCards')
+        ->assertSet('pendingFlipValue', 6)
+        ->call('toggleHandCard', 0)
+        ->call('toggleFaceUpCard', 0)
+        ->call('playCards')
+        ->assertSet('pendingFlipValue', null)
+        ->assertSet('playError', null)
+        ->assertSet('centerStack', [6, 6, 6]);
+
+    $seat1 = RoomSeat::where('room_id', $room->id)->where('seat_index', 1)->first();
+    expect($seat1->hand)->toBe([1]);
+    expect($seat1->table_face_up)->toBe([]);
+    expect($seat1->table_face_down)->toBe([9]);
+});
+
+test('backing out of a pending flip by untoggling its face-down tile clears it', function () {
+    $host = User::factory()->create();
+    $p1 = User::factory()->create();
+    $p2 = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    startClearTheDeckRoom($room, [$host, $p1, $p2]);
+    setSeatCards($room, 1, hand: [6, 1], faceUp: [6], faceDown: [6, 9]);
+
+    Livewire::actingAs($p1)->test('pages::clear-the-deck.play', ['room' => $room->code])
+        ->call('toggleFaceDownSelection', 0)
+        ->call('playCards')
+        ->assertSet('pendingFlipValue', 6)
+        ->call('toggleFaceDownSelection', 0)
+        ->assertSet('pendingFlipValue', null)
+        ->assertSet('selectedFaceDownColumns', []);
+});
+
+test('confirming a pending flip with nothing added plays just the flipped card alone', function () {
+    $host = User::factory()->create();
+    $p1 = User::factory()->create();
+    $p2 = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    startClearTheDeckRoom($room, [$host, $p1, $p2]);
+    setSeatCards($room, 1, hand: [6, 1], faceUp: [6], faceDown: [6, 9]);
+
+    Livewire::actingAs($p1)->test('pages::clear-the-deck.play', ['room' => $room->code])
+        ->call('toggleFaceDownSelection', 0)
+        ->call('playCards')
+        ->assertSet('pendingFlipValue', 6)
+        ->call('playCards')
+        ->assertSet('pendingFlipValue', null)
+        ->assertSet('centerStack', [6]);
+
+    $seat1 = RoomSeat::where('room_id', $room->id)->where('seat_index', 1)->first();
+    expect($seat1->hand)->toBe([6, 1]);
+    expect($seat1->table_face_up)->toBe([6]);
+    expect($seat1->table_face_down)->toBe([9]);
 });
 
 test('a play can combine hand, face-up, and face-down cards together in one submission', function () {

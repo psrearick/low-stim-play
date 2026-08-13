@@ -78,22 +78,33 @@ physical constraint into the data model.
   used to self-assess as lower risk than Boggle/Yahtzee/Family Feud/Apples-to-Apples
   ever were.
 
-Two further implementation-level details, decided independently (not re-confirmed with
+One further implementation-level detail, decided independently (not re-confirmed with
 the user — narrow enough to be a judgment call under section 2's "pick the simplest
 faithful digital equivalent" guidance rather than a design decision worth a second round
 of questions):
 
-- **A face-down flip is validated atomically, not revealed-then-decided.** The physical
-  rule ("once revealed, that card must be played") implies a real-time flip-then-choose
-  interaction. The digital equivalent here is simpler and strictly safer for the
-  "secret from its own owner" property: a play names how many of the acting seat's own
-  uncovered face-down cards to include (a count, not a specific card — see "Face-up/
-  face-down as unordered bags" below), the server resolves and checks their values
-  server-side as part of validating the whole attempted play, and if the combined
-  values don't match, the entire play is rejected with **no state change and nothing
-  revealed to the client** — the same as if the flip never happened. This keeps the
-  underlying gamble intact (you can still legally attempt — and fail — a play using
-  only unknown face-down cards) without a stateful multi-step reveal flow.
+- **A face-down flip is validated as part of the whole attempted play**, whatever else
+  is selected alongside it (hand cards, face-up cards, or nothing else at all): the
+  server resolves the selected face-down cards' real values and checks the *entire*
+  combined selection matches. If it doesn't, the whole play is rejected with **no state
+  change and nothing revealed to the client** — the same as if the flip never happened
+  — keeping the "you can legally attempt, and fail, a play using only unknown face-down
+  cards" gamble intact.
+
+  **Revised after real play** (superseding an earlier version of this spec, which had a
+  fully blind/atomic flow with no reveal step at all — see `docs/DEVLOG.md`'s Clear the
+  Deck section for why): once a selection *does* turn out valid and includes a
+  not-yet-revealed face-down flip, the game doesn't commit it immediately. It reveals
+  the value to the acting player only and pauses — via `$pendingFlipValue` on
+  `pages::clear-the-deck.play` — offering to add any other still-unselected hand/face-up
+  cards of that same value, with non-matching cards visibly disabled rather than merely
+  undocumented; a "Confirm" button (replacing "Submit" for this one step) commits
+  whatever's selected at that point. This only triggers when there's actually another
+  matching card available to offer — a flip with nothing else to add still resolves in
+  one step, same as a play with no face-down cards in it at all. This matches the
+  physical rule's own literal sequencing ("once revealed, that card must be played...
+  additional matching cards... can be played along with it") more closely than the
+  original all-at-once design did.
 - **Ten's 25-point penalty applies wherever it remains at round end** (hand, face-up, or
   face-down), not hand-only. The rules' own Wild section only calls out "any Tens held
   in a player's hand," but the Scoring section's actual scoring rule is phrased as "the

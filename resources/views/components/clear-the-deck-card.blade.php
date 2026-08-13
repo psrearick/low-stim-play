@@ -3,6 +3,7 @@
     'faceDown' => false,
     'selected' => false,
     'clickable' => false,
+    'disabled' => false,
     'size' => 'clamp(46px, 9vw, 68px)',
     'sub' => null,
 ])
@@ -16,8 +17,11 @@
     if ($selected) {
         $classes[] = 'ctd-card-selected';
     }
-    if ($clickable) {
+    if ($clickable && ! $disabled) {
         $classes[] = 'ctd-card-clickable';
+    }
+    if ($disabled) {
+        $classes[] = 'ctd-card-disabled';
     }
 @endphp
 
