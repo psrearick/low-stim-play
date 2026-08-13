@@ -120,3 +120,52 @@ test('an unseated spectator sees a watching message and no play controls', funct
     $page->assertSee('Watching')
         ->assertDontSee('Your hand');
 });
+
+test('a spectator sees every seat\'s tableau at once, with the current turn outlined (docs/concerns.md)', function () {
+    [$room, , $users] = startedClearTheDeckRoom();
+    $spectator = User::factory()->create(['password' => bcrypt('password')]);
+
+    $page = loginAsAndVisitClearTheDeck($spectator, "/clear-the-deck?room={$room->code}");
+
+    // Every seat, not just "opponents" -- a real spectator has no seat of
+    // their own to exclude anyone for.
+    foreach ($users as $user) {
+        $page->assertSee($user->name);
+    }
+
+    $page->assertMissing('#play-cards')
+        ->assertMissing('.ctd-hand-grid');
+
+    // seat 1 (guest1) holds the turn in startedClearTheDeckRoom() -- only
+    // that seat's wrapper should carry the active-turn outline.
+    $info = $page->script(
+        "(() => { const seats = [...document.querySelectorAll('.ctd-spectator-seat')]; return seats.map(el => ({ active: el.classList.contains('ctd-spectator-seat-active'), name: el.querySelector('.ctd-opponent-name').textContent.trim() })); })()"
+    );
+
+    $activeNames = collect($info)->where('active', true)->pluck('name')->all();
+
+    expect($activeNames)->toBe([$users[1]->name]);
+});
+
+test('a seated player can toggle Watch only mid-turn to view read-only, and switch back', function () {
+    [$room, , $users] = startedClearTheDeckRoom();
+
+    // seat 1 (guest1) holds the turn -- log in as them so this exercises
+    // toggling away from an active hand/Submit view, not just an already
+    // read-only waiting one.
+    $page = loginAsAndVisitClearTheDeck($users[1], "/clear-the-deck?room={$room->code}");
+
+    $page->assertVisible('#play-cards')
+        ->assertSee('Your hand')
+        ->click('Watch only')
+        ->wait(0.3);
+
+    $page->assertMissing('#play-cards')
+        ->assertDontSee('Your hand')
+        ->assertSee('Watching');
+
+    $page->click('Player view')->wait(0.3);
+
+    $page->assertVisible('#play-cards')
+        ->assertSee('Your hand');
+});

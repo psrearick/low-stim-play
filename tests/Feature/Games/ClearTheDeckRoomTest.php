@@ -500,6 +500,47 @@ test('a seat cannot play on another seat\'s turn', function () {
         ->assertForbidden();
 });
 
+test('an unseated visitor is always a spectator, with no seat to toggle', function () {
+    $host = User::factory()->create();
+    $p1 = User::factory()->create();
+    $p2 = User::factory()->create();
+    $onlooker = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    startClearTheDeckRoom($room, [$host, $p1, $p2]);
+
+    Livewire::actingAs($onlooker)->test('pages::clear-the-deck.play', ['room' => $room->code])
+        ->assertSet('mySeatIndex', null)
+        ->assertSet('isSpectator', true);
+});
+
+test('a seated player can toggle Watch only to view read-only, even mid-turn, and back (docs/concerns.md)', function () {
+    // Mirrors pages::yahtzee.play's own $spectate toggle exactly -- for
+    // casting to a TV or screen-sharing. isMyTurn (the authorization gate
+    // playCards() actually relies on) stays independent of $spectate; only
+    // isSpectator (a display concern) changes.
+    $host = User::factory()->create();
+    $p1 = User::factory()->create();
+    $p2 = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    startClearTheDeckRoom($room, [$host, $p1, $p2]);
+
+    // onRoomStarting() always seats the turn at index 1 (the appendix's
+    // "player to the left of the dealer begins," dealer = seat 0) -- $p1,
+    // not $host.
+    $tv = Livewire::actingAs($p1)->test('pages::clear-the-deck.play', ['room' => $room->code])
+        ->assertSet('isSpectator', false)
+        ->assertSet('isMyTurn', true);
+
+    $tv->set('spectate', true)
+        ->assertSet('isSpectator', true)
+        ->assertSet('isMyTurn', true);
+
+    $tv->set('spectate', false)
+        ->assertSet('isSpectator', false);
+});
+
 test('going out ends the round immediately, scoring everyone else\'s remaining cards with Ten worth 25', function () {
     $host = User::factory()->create();
     $p1 = User::factory()->create();

@@ -2546,6 +2546,35 @@ body.scrollable.family-feud-play {
     font-family: var(--font-sans);
 }
 
+/* Spectator/TV-cast view (docs/concerns.md) -- every seat's tableau at
+   once, so flex-wrap onto multiple rows rather than the playing view's
+   own single-row horizontal scroll (.ctd-opponents-row above): a TV or
+   screen-share can't scroll, but has plenty of room to wrap into. */
+.clear-the-deck-play .ctd-spectator-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: clamp(20px, 4vw, 48px);
+    justify-content: center;
+}
+
+.clear-the-deck-play .ctd-spectator-seat {
+    padding: 10px;
+    border-radius: var(--radius-md);
+    border: 2px solid transparent;
+}
+
+/* Outlines the seat whose turn it currently is, so it reads at a glance
+   from across a room -- the same border/background pairing a selected
+   card already uses (.ctd-card-selected above) for visual consistency. */
+.clear-the-deck-play .ctd-spectator-seat-active {
+    border-color: var(--accent);
+    background: var(--die-kept);
+}
+
+.clear-the-deck-play .ctd-opponent-name-active {
+    color: var(--accent);
+}
+
 /* Section headings ("On the table", "Your columns", "Your hand") --
    the same bold/bar-colored/letter-spaced treatment a panel heading
    gets elsewhere in this app, not plain body text. */

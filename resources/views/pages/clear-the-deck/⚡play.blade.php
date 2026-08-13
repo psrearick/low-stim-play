@@ -23,6 +23,16 @@ new class extends Component
     #[Url]
     public ?string $room = null;
 
+    /**
+     * A seated player's own explicit choice to view this device read-only
+     * anyway -- for casting to a TV or screen-sharing, mirrors pages::
+     * yahtzee.play's own $spectate exactly (see its docblock for the full
+     * two-devices-same-account reasoning). Purely a per-device URL flag,
+     * not account-wide state.
+     */
+    #[Url]
+    public bool $spectate = false;
+
     public bool $started = false;
 
     public ?int $gameSessionId = null;
@@ -274,6 +284,14 @@ new class extends Component
         return Room::where('host_user_id', Auth::id())->notExpired()->get();
     }
 
+    /**
+     * Deliberately independent of $spectate -- this still has to say
+     * "yes" for playCards()'s own abort_unless() to keep working from a
+     * casting device, same reasoning as pages::yahtzee.play's own
+     * isMyTurn. $spectate only ever affects what this device *shows* (see
+     * isSpectator below and the Blade's own !$this->isSpectator display
+     * guards), never who's actually allowed to act.
+     */
     private function isMyTurnValue(): bool
     {
         return $this->mySeatIndex !== null
@@ -286,9 +304,15 @@ new class extends Component
         return $this->isMyTurnValue();
     }
 
+    /**
+     * True for a genuinely unseated connection, or for a seated player
+     * who's explicitly opted into read-only viewing anyway ($spectate --
+     * see its own docblock). Drives the read-only "every seat's tableau,
+     * larger, no hand/submit" view in the Blade below.
+     */
     public function getIsSpectatorProperty(): bool
     {
-        return $this->room !== null && $this->mySeatIndex === null;
+        return $this->room !== null && ($this->mySeatIndex === null || $this->spectate);
     }
 
     /**
@@ -835,6 +859,20 @@ new class extends Component
     @if ($started)
         @teleport('#game-actions')
             <div style="display: contents;">
+                {{--
+                    For casting to a TV or screen-sharing (docs/concerns.md,
+                    the request that added Clear the Deck's spectator view)
+                    -- mirrors pages::yahtzee.play's own "Watch only"/"Player
+                    view" toggle exactly. Only shown to a seated player;
+                    someone with no seat at all is already always spectating,
+                    nothing to toggle.
+                --}}
+                @if ($mySeatIndex !== null)
+                    <button type="button" wire:click="$set('spectate', {{ $this->isSpectator ? 'false' : 'true' }})">
+                        {{ $this->isSpectator ? 'Player view' : 'Watch only' }}
+                    </button>
+                @endif
+
                 @if ($phase === ClearTheDeckPhase::GameEnd)
                     <a href="{{ route('clear-the-deck.room', ['code' => $room]) }}"><button type="button">Back to room</button></a>
                 @endif
@@ -865,31 +903,73 @@ new class extends Component
         @php
             $mainSize = 'clamp(58px, 9vw, 68px)';
             $oppSize = 'clamp(26px, 5vw, 40px)';
+            // Spectator view (docs/concerns.md) has no hand or "your
+            // columns" section competing for room below, so every seat's
+            // tableau can afford to render noticeably larger than the
+            // opponents-row size a playing seat's own screen uses.
+            $spectatorSize = 'clamp(50px, 9vw, 110px)';
         @endphp
         <div id="clear-the-deck-game" class="flex flex-col items-center w-full" style="gap: inherit;">
             @unless ($phase === ClearTheDeckPhase::GameEnd)
-                @php $opponents = collect($seats)->reject(fn (array $seat) => $seat['seatIndex'] === $mySeatIndex)->values() @endphp
-                <div class="ctd-opponents-row w-full">
-                    @foreach ($opponents as $seat)
-                        @php $table = $seatTables[$seat['seatIndex']] ?? ['handCount' => 0, 'tableFaceUp' => [], 'tableFaceDownCount' => 0] @endphp
-                        <div wire:key="seat-{{ $seat['seatIndex'] }}" class="flex flex-col items-center gap-1">
-                            <span class="ctd-opponent-name">{{ $seat['name'] }}</span>
-                            <div class="ctd-tableau" style="--ctd-card-w: {{ $oppSize }};">
-                                @foreach ($this->columnsForSeat($seat['seatIndex']) as $col)
-                                    <div class="ctd-column" wire:key="opp-{{ $seat['seatIndex'] }}-col-{{ $col['type'] }}-{{ $col['index'] }}">
-                                        @if ($col['hasFaceDown'])
-                                            <x-clear-the-deck-card face-down :size="$oppSize" />
-                                        @endif
-                                        @if ($col['value'] !== null)
-                                            <x-clear-the-deck-card :value="$col['value']" :size="$oppSize" :class="$col['hasFaceDown'] ? '' : 'ctd-column-no-peek'" />
-                                        @endif
-                                    </div>
-                                @endforeach
+                @if ($this->isSpectator)
+                    {{--
+                        docs/concerns.md: a TV/screen-share-friendly view --
+                        every seat's tableau (not just "opponents", since a
+                        watch-only seated player's own columns are part of
+                        this too), larger cards than the playing view's own
+                        opponents row (nothing else below competes for
+                        vertical room here), and the current turn's seat
+                        visually outlined so it reads at a glance from
+                        across a room.
+                    --}}
+                    <div class="ctd-spectator-grid w-full">
+                        @foreach ($seats as $seat)
+                            @php
+                                $table = $seatTables[$seat['seatIndex']] ?? ['handCount' => 0, 'tableFaceUp' => [], 'tableFaceDownCount' => 0];
+                                $isCurrentTurn = $seat['seatIndex'] === $turnSeatIndex;
+                            @endphp
+                            <div wire:key="spectator-seat-{{ $seat['seatIndex'] }}" class="flex flex-col items-center gap-1 ctd-spectator-seat {{ $isCurrentTurn ? 'ctd-spectator-seat-active' : '' }}">
+                                <span class="ctd-opponent-name {{ $isCurrentTurn ? 'ctd-opponent-name-active' : '' }}">{{ $seat['name'] }}</span>
+                                <div class="ctd-tableau" style="--ctd-card-w: {{ $spectatorSize }};">
+                                    @foreach ($this->columnsForSeat($seat['seatIndex']) as $col)
+                                        <div class="ctd-column" wire:key="spectator-{{ $seat['seatIndex'] }}-col-{{ $col['type'] }}-{{ $col['index'] }}">
+                                            @if ($col['hasFaceDown'])
+                                                <x-clear-the-deck-card face-down :size="$spectatorSize" />
+                                            @endif
+                                            @if ($col['value'] !== null)
+                                                <x-clear-the-deck-card :value="$col['value']" :size="$spectatorSize" :class="$col['hasFaceDown'] ? '' : 'ctd-column-no-peek'" />
+                                            @endif
+                                        </div>
+                                    @endforeach
+                                </div>
+                                <span class="text-xs text-text/65">Hand: {{ $table['handCount'] }}</span>
                             </div>
-                            <span class="text-xs text-text/65">Hand: {{ $table['handCount'] }}</span>
-                        </div>
-                    @endforeach
-                </div>
+                        @endforeach
+                    </div>
+                @else
+                    @php $opponents = collect($seats)->reject(fn (array $seat) => $seat['seatIndex'] === $mySeatIndex)->values() @endphp
+                    <div class="ctd-opponents-row w-full">
+                        @foreach ($opponents as $seat)
+                            @php $table = $seatTables[$seat['seatIndex']] ?? ['handCount' => 0, 'tableFaceUp' => [], 'tableFaceDownCount' => 0] @endphp
+                            <div wire:key="seat-{{ $seat['seatIndex'] }}" class="flex flex-col items-center gap-1">
+                                <span class="ctd-opponent-name">{{ $seat['name'] }}</span>
+                                <div class="ctd-tableau" style="--ctd-card-w: {{ $oppSize }};">
+                                    @foreach ($this->columnsForSeat($seat['seatIndex']) as $col)
+                                        <div class="ctd-column" wire:key="opp-{{ $seat['seatIndex'] }}-col-{{ $col['type'] }}-{{ $col['index'] }}">
+                                            @if ($col['hasFaceDown'])
+                                                <x-clear-the-deck-card face-down :size="$oppSize" />
+                                            @endif
+                                            @if ($col['value'] !== null)
+                                                <x-clear-the-deck-card :value="$col['value']" :size="$oppSize" :class="$col['hasFaceDown'] ? '' : 'ctd-column-no-peek'" />
+                                            @endif
+                                        </div>
+                                    @endforeach
+                                </div>
+                                <span class="text-xs text-text/65">Hand: {{ $table['handCount'] }}</span>
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
 
                 @php
                     $topValue = $centerStack === [] ? null : end($centerStack);
@@ -919,12 +999,12 @@ new class extends Component
                             </div>
                         @endif
                     </div>
-                    @if ($this->isMyTurn)
+                    @if ($this->isMyTurn && ! $this->isSpectator)
                         <button type="button" id="play-cards" wire:click="playCards">{{ $pendingFlipValue !== null ? 'Confirm' : 'Submit' }}</button>
                     @endif
                 </div>
 
-                @if ($mySeatIndex !== null)
+                @if ($mySeatIndex !== null && ! $this->isSpectator)
                     <div class="flex flex-col items-center gap-2">
                         <p class="ctd-section-label">Your columns</p>
                         <div class="ctd-tableau" style="--ctd-card-w: {{ $mainSize }};">
@@ -967,7 +1047,7 @@ new class extends Component
             @endunless
 
             @if ($phase === ClearTheDeckPhase::Playing)
-                @if ($this->isMyTurn)
+                @if ($this->isMyTurn && ! $this->isSpectator)
                     @if ($pendingFlipValue !== null)
                         <p class="status-line">You flipped a {{ self::cardLabel($pendingFlipValue) }}! Tap any more {{ self::cardLabel($pendingFlipValue) }}s to add them &mdash; optional &mdash; then Confirm.</p>
                     @endif
