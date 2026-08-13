@@ -7,6 +7,7 @@
         ['id' => 'family-feud-stats', 'label' => \App\Enums\GameType::FamilyFeud->label().' Stats', 'routes' => ['profile.family-feud', 'profile.family-feud.show']],
         ['id' => 'farkle-stats', 'label' => \App\Enums\GameType::Farkle->label().' Stats', 'routes' => ['profile.farkle', 'profile.farkle.show']],
         ['id' => 'apple-match-stats', 'label' => \App\Enums\GameType::AppleMatch->label().' Stats', 'routes' => ['profile.apple-match', 'profile.apple-match.show']],
+        ['id' => 'clear-the-deck-stats', 'label' => \App\Enums\GameType::ClearTheDeck->label().' Stats', 'routes' => ['profile.clear-the-deck', 'profile.clear-the-deck.show']],
         ['id' => 'edit-profile', 'label' => 'Edit Profile', 'routes' => ['profile']],
     ];
 @endphp

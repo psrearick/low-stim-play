@@ -9,6 +9,7 @@ enum GameType: string
     case FamilyFeud = 'family_feud';
     case Farkle = 'farkle';
     case AppleMatch = 'apple_match';
+    case ClearTheDeck = 'clear_the_deck';
 
     /**
      * The user-visible display name -- deliberately not the same as the
@@ -27,6 +28,7 @@ enum GameType: string
             self::FamilyFeud => 'Survey Says',
             self::Farkle => '10,000',
             self::AppleMatch => 'Best Match',
+            self::ClearTheDeck => 'Clear the Deck',
         };
     }
 
@@ -46,6 +48,7 @@ enum GameType: string
             self::FamilyFeud => 'family-feud.room',
             self::Farkle => 'farkle.room',
             self::AppleMatch => 'apple-match.room',
+            self::ClearTheDeck => 'clear-the-deck.room',
         };
     }
 
@@ -64,6 +67,7 @@ enum GameType: string
             self::FamilyFeud => 'family-feud.play',
             self::Farkle => 'farkle.play',
             self::AppleMatch => 'apple-match.play',
+            self::ClearTheDeck => 'clear-the-deck.play',
         };
     }
 }

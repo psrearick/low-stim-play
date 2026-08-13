@@ -2,6 +2,14 @@
 
 A terse, commit-by-commit record of what changed, newest first. No rationale or decisions here — see `docs/DEVLOG.md` for the *why* behind anything listed here, organized by feature instead of by commit. See `docs/TODO.md` for what's still outstanding.
 
+## 2026-08-13
+
+- Added Clear the Deck, a new online-rooms-only turn-based shedding card game for 3-10 players: `GameType::ClearTheDeck`, two new nullable `room_seats` columns (`table_face_up`/`table_face_down`), `pages::clear-the-deck.room`/`play` Livewire pages with the full turn engine (sets, wild Tens, pickups, multi-round scoring), `ClearTheDeckStatsService` + profile stats pages, and homepage/sidebar wiring.
+- Filled in `docs/specs/clear-the-deck.md`'s open design questions (round length, set eligibility, wild Ten behavior, name) per user decisions; spec is now ready to build from.
+- Fixed two pre-existing `match (GameType)` expressions (`profile.games.index`'s `showRoute()`, `<x-player-stats>`) that had no `AppleMatch` arm and would have thrown for any Best Match row.
+- Restyled Best Match's non-judge round-reveal from plain text to card-styled boxes, matching the judge's own button-styled view.
+- Changed `docs/TODO.md`'s task numbers to be permanent IDs that never get renumbered on completion, separate from the Order of Work list's own position numbers; moved every `docs/concerns.md` item into `docs/TODO.md` as new tasks and emptied `concerns.md`.
+
 ## 2026-08-12
 
 - Fixed a room member having no way to discover a game the host is setting up but hasn't started yet (only reachable before by being on the room hub at the exact broadcast instant) -- added `Room::markPendingGame()`/`pendingGameType()` and a "host is setting up X" join link on the room hub, wired into all five games' own room pages.

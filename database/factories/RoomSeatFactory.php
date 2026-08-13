@@ -26,6 +26,8 @@ class RoomSeatFactory extends Factory
             'team_index' => null,
             'is_captain' => false,
             'hand' => null,
+            'table_face_up' => null,
+            'table_face_down' => null,
         ];
     }
 }

@@ -25,6 +25,8 @@ new class extends Component
             GameType::Yahtzee => 'profile.yahtzee.show',
             GameType::FamilyFeud => 'profile.family-feud.show',
             GameType::Farkle => 'profile.farkle.show',
+            GameType::AppleMatch => 'profile.apple-match.show',
+            GameType::ClearTheDeck => 'profile.clear-the-deck.show',
         };
 
         return route($routeName, $participant);

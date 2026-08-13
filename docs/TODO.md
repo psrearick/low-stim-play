@@ -8,22 +8,17 @@ The Order of Work list is a separate, ordinary numbered list reflecting current 
 
 ## Order of Work
 
-1. [Task 1: Add Clear the Deck](#1-add-clear-the-deck)
-2. [Task 8: Add Quartiles](#8-add-quartiles)
-3. [Task 2: Two-factor authentication toggle](#2-two-factor-authentication-toggle)
-4. [Task 3: Image avatars](#3-image-avatars)
-5. [Task 9: Rename trademark-adjacent game routes/URLs](#9-rename-trademark-adjacent-game-routesurls)
-6. [Task 4: Friends activity](#4-friends-activity)
-7. [Task 11: Shared puzzle-game infrastructure](#11-shared-puzzle-game-infrastructure)
-8. [Task 5: Rename "Home"/"Dashboard"](#5-rename-homedashboard)
-9. [Task 10: Spec and build NYT-style puzzle games](#10-spec-and-build-nyt-style-puzzle-games)
-10. [Task 7: Update README](#7-update-readme)
+1. [Task 8: Add Quartiles](#8-add-quartiles)
+2. [Task 2: Two-factor authentication toggle](#2-two-factor-authentication-toggle)
+3. [Task 3: Image avatars](#3-image-avatars)
+4. [Task 9: Rename trademark-adjacent game routes/URLs](#9-rename-trademark-adjacent-game-routesurls)
+5. [Task 4: Friends activity](#4-friends-activity)
+6. [Task 11: Shared puzzle-game infrastructure](#11-shared-puzzle-game-infrastructure)
+7. [Task 5: Rename "Home"/"Dashboard"](#5-rename-homedashboard)
+8. [Task 10: Spec and build NYT-style puzzle games](#10-spec-and-build-nyt-style-puzzle-games)
+9. [Task 7: Update README](#7-update-readme)
 
 ## Tasks
-
-### 1. Add Clear the Deck
-
-A new turn-based, multi-deck shedding card game. See [`docs/specs/clear-the-deck.md`](specs/clear-the-deck.md) for the build spec — currently a skeleton with open design questions, not yet ready to build from. Best Match (see `docs/DEVLOG.md`'s own section) already set the "private per-seat view" pattern for online rooms — never assign secret state to a rendered Livewire public property outside the one action that needs it, resolve it fresh from `GameSession.state`/the DB instead — that this game's own harder problem (face-down cards whose identity is hidden even from their own owner until played) should reuse.
 
 ### 2. Two-factor authentication toggle
 
@@ -47,7 +42,7 @@ The navigation redesign (see `docs/DEVLOG.md`'s "Navigation" section) deliberate
 
 ### 8. Add Quartiles
 
-A solo word-forming puzzle game — select 2-4 letter tiles from a 4x5 grid to build words, with a bonus for finding all 5 four-tile "Quartiles." [`docs/specs/quartiles.md`](specs/quartiles.md) currently only has the rules and scoring table, not a build spec — unlike [`docs/specs/clear-the-deck.md`](specs/clear-the-deck.md)'s skeleton-with-open-questions format, it doesn't yet address puzzle generation (letter groups, valid-word source), session/state design, or how a single puzzle instance is represented. Needs that same spec-first treatment before building starts.
+A solo word-forming puzzle game — select 2-4 letter tiles from a 4x5 grid to build words, with a bonus for finding all 5 four-tile "Quartiles." [`docs/specs/quartiles.md`](specs/quartiles.md) currently only has the rules and scoring table, not a build spec — it doesn't yet address puzzle generation (letter groups, valid-word source), session/state design, or how a single puzzle instance is represented. Needs the same spec-first treatment `docs/specs/clear-the-deck.md` got before that game was built (see `docs/DEVLOG.md`'s Clear the Deck section) before building starts here.
 
 ### 9. Rename trademark-adjacent game routes/URLs
 
@@ -55,7 +50,7 @@ Boggle, Yahtzee, and Family Feud's user-visible display names were already renam
 
 ### 10. Spec and build NYT-style puzzle games
 
-Add Wordle, Spelling Bee, Strands, and Connections. All four need daily/random puzzle content and, since there's no licensed puzzle source, that content will most likely need to be AI-generated rather than hand-authored (unlike Best Match's hand-written card set, this isn't a fixed pool — new puzzles are needed continuously). Each game needs its own build spec, written the same skeleton-first way as [`docs/specs/clear-the-deck.md`](specs/clear-the-deck.md), before any building starts. Once built, these are also candidates for Task 11's shared puzzle-code/daily-puzzle infrastructure.
+Add Wordle, Spelling Bee, Strands, and Connections. All four need daily/random puzzle content and, since there's no licensed puzzle source, that content will most likely need to be AI-generated rather than hand-authored (unlike Best Match's hand-written card set, this isn't a fixed pool — new puzzles are needed continuously). Each game needs its own build spec, written the same skeleton-first way `docs/specs/clear-the-deck.md` was (see `docs/DEVLOG.md`'s Clear the Deck section), before any building starts. Once built, these are also candidates for Task 11's shared puzzle-code/daily-puzzle infrastructure.
 
 ### 11. Shared puzzle-game infrastructure
 

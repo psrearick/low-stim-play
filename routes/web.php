@@ -68,6 +68,15 @@ Route::livewire('/profile/apple-match/{gameParticipant}', 'pages::profile.apple-
     ->name('profile.apple-match.show');
 
 // Same registration-order reasoning as /profile/boggle etc. above.
+Route::livewire('/profile/clear-the-deck', 'pages::profile.clear-the-deck.index')
+    ->middleware(['auth', 'verified'])
+    ->name('profile.clear-the-deck');
+
+Route::livewire('/profile/clear-the-deck/{gameParticipant}', 'pages::profile.clear-the-deck.show')
+    ->middleware(['auth', 'verified'])
+    ->name('profile.clear-the-deck.show');
+
+// Same registration-order reasoning as /profile/boggle etc. above.
 Route::livewire('/profile/games', 'pages::profile.games.index')
     ->middleware(['auth', 'verified'])
     ->name('profile.games');
@@ -160,6 +169,17 @@ Route::livewire('/apple-match', 'pages::apple-match.play')->name('apple-match.pl
 // anyone arriving without one.
 Route::livewire('/apple-match/room/{code}', 'pages::apple-match.room')
     ->name('apple-match.room');
+
+// Online rooms only, no pass-and-play (see docs/specs/clear-the-deck.md
+// section 1) -- same reasoning and bare-visit behavior as /apple-match
+// above.
+Route::livewire('/clear-the-deck', 'pages::clear-the-deck.play')->name('clear-the-deck.play');
+
+// No auth middleware -- same reasoning as boggle.room/yahtzee.room/etc.:
+// pages::clear-the-deck.room's mount() auto-provisions a guest account for
+// anyone arriving without one.
+Route::livewire('/clear-the-deck/room/{code}', 'pages::clear-the-deck.room')
+    ->name('clear-the-deck.room');
 
 // The room hub -- game-agnostic, unlike every /{game}/room/{code} above
 // (each of those is specifically the seat-assignment/start screen for

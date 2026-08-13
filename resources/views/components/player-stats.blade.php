@@ -9,6 +9,7 @@
                 \App\Enums\GameType::FamilyFeud => 'profile.family-feud',
                 \App\Enums\GameType::Farkle => 'profile.farkle',
                 \App\Enums\GameType::AppleMatch => 'profile.apple-match',
+                \App\Enums\GameType::ClearTheDeck => 'profile.clear-the-deck',
             };
             $tag = $linkable && $statsRoute ? 'a' : 'div';
         @endphp

@@ -64,6 +64,13 @@
                 <a href="{{ route('apple-match.play') }}"><button type="button">Best Match</button></a>
             </div>
         </div>
+        <div class="game-card">
+            <div class="game-card-title">Clear the Deck</div>
+            <p class="game-card-desc">A shared pile, a private hand, and table cards hidden even from you until you play them, for 3&ndash;10 players. Match or beat the pile, clear it with four of a kind, and try to be first to empty your hand. Online rooms only.</p>
+            <div class="game-card-actions">
+                <a href="{{ route('clear-the-deck.play') }}"><button type="button">Clear the Deck</button></a>
+            </div>
+        </div>
     </div>
 
 @endcomponent

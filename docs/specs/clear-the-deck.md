@@ -1,9 +1,7 @@
-# Clear the Deck — Build Spec (skeleton)
+# Clear the Deck — Build Spec
 
-Status: **not ready to build from.** This is a skeleton laying out the shape a spec
-needs, with the open design questions flagged inline. Fill in the open questions, then
-this status line can be removed. See `docs/TODO.md` #20. Rules as originally provided
-are kept verbatim in the [Appendix](#appendix-original-rules) below.
+Rules as originally provided are kept verbatim in the [Appendix](#appendix-original-rules)
+below. See `docs/TODO.md` #1.
 
 ---
 
@@ -50,45 +48,143 @@ of `20 × player count` cards (standard 13 values, repeating as many times as ne
 shuffled server-side, is equivalent. No open question here — just don't carry the
 physical constraint into the data model.
 
-## 3. Open questions (must be answered before implementation)
+## 3. Resolved design decisions
 
-- **Player count range.** The physical rules only cover 3–10 (below 3 the deck-scaling
-  table breaks down and isn't defined). Confirm the app enforces a 3–10 seat range.
-- **Round count / game length.** The rules say players "pre-designate" a number of
-  rounds or a target score. Confirm this app exposes that as a setting when a room is
-  created, and pick a sensible default.
-- **Face-down card identity storage.** Confirm the intended model explicitly: cards are
-  dealt (assigned) at deal time and stored server-side, invisible to every client
-  including the owner's, and revealed to that player (and only that player, and only at
-  that moment) the instant they choose to play one blind — not generated randomly at
-  flip-time. This is the app's first "secret from its own owner" state; get the
-  storage/reveal contract nailed down before writing any code around it.
-- **Set eligibility.** The rules don't explicitly say whether a "Clear the Deck" set
-  (four-of-a-kind) can be made entirely from cards already face-up on the table, or
-  must include at least one card newly played from the current player's hand. Confirm
-  the intended ruling before coding it either way.
-- **Wild Ten as a non-clearing play.** The rules only describe Tens clearing the deck
-  "at any time." Unclear whether a Ten can also be played as an ordinary
-  equal-or-lesser-value card (i.e., used as a low card without triggering a clear), or
-  whether every Ten play always clears. Confirm before implementing wild-card logic.
-- **AFK / turn-timer handling.** The physical game has no time limit; decide whether
-  this app needs one for online rooms (e.g. auto-skip after N seconds), consistent with
-  whatever pattern the other online-room games (or `docs/TODO.md` #14's decoupled room
-  system) settle on.
-- **Name/trademark check.** Lower risk than "Apples to Apples" (now "Best Match," see
-  `docs/specs/apple-match.md`) was, but not yet confirmed either way — worth a quick
-  check before shipping the name as-is, following `docs/DEVLOG.md`'s "Game renaming"
-  section's pattern if a change turns out to be needed.
+- **Player count range: 3–10**, enforced by the room page the same way Best Match
+  enforces its own 3-player minimum (`docs/specs/apple-match.md`) — a host-visible error
+  instead of a silently-inert Start Game button, both below 3 and above 10.
+- **Round count.** Host-configurable fixed round count at room setup, min 1 / max 10 /
+  default 1 (a stepper control, same shape as Best Match's target-score setting) —
+  lowest cumulative score across all rounds wins the game.
+- **Face-down card identity storage.** Dealt once at deal time and stored server-side in
+  a per-seat column, never touching any Livewire public property (own or broadcast)
+  until the instant it's actually played — see "Face-down card identity" under Data
+  model below for the concrete mechanism.
+- **Set eligibility.** A "Clear the Deck" set must include at least one card newly
+  played this turn (not something with no player action behind it at all), but that
+  newly-played contribution can come from *any combination* of the current player's own
+  hand, face-up cards, and face-down cards, with no minimum required from hand — a play
+  made entirely from a player's own face-up and/or newly-flipped face-down cards, using
+  nothing from their hand, is legal, including one that completes (or entirely forms) a
+  set by pure luck. Cards are never auto-selected; the player always chooses exactly
+  which of their own cards to attempt to play.
+- **Wild Ten: always clears.** Every Ten played (alone or with other Tens) clears the
+  deck immediately, bypassing the equal-or-lesser-value comparison entirely — there's no
+  "play a Ten as an ordinary low card" path.
+- **AFK / turn-timer handling: none for v1.** No other online-room game in this app has
+  one; this follows that existing precedent rather than introducing a new pattern.
+- **Name/trademark check: keep "Clear the Deck."** It's a generic description of the
+  mechanic, not a specific commercial product's name — same reasoning the game already
+  used to self-assess as lower risk than Boggle/Yahtzee/Family Feud/Apples-to-Apples
+  ever were.
 
-## 4. Data model (draft once section 3 is answered)
+Two further implementation-level details, decided independently (not re-confirmed with
+the user — narrow enough to be a judgment call under section 2's "pick the simplest
+faithful digital equivalent" guidance rather than a design decision worth a second round
+of questions):
 
-Likely needs: a `GameType::ClearTheDeck` (or renamed equivalent) enum case; a
-room/seat-backed session with, per seat, a private hand, a face-up table stack (public
-identities), and a face-down table stack (public existence/count only, private
-identity-on-reveal); a shared center pile; a turn-order/current-player pointer and
-"extra turn pending" flag (sets and wild-Ten clears both grant another turn); and a
-stats service following the `Stats/*Service` pattern in `app/Services/Stats/` (e.g.
-round wins, average round score, times gone out first).
+- **A face-down flip is validated atomically, not revealed-then-decided.** The physical
+  rule ("once revealed, that card must be played") implies a real-time flip-then-choose
+  interaction. The digital equivalent here is simpler and strictly safer for the
+  "secret from its own owner" property: a play names how many of the acting seat's own
+  uncovered face-down cards to include (a count, not a specific card — see "Face-up/
+  face-down as unordered bags" below), the server resolves and checks their values
+  server-side as part of validating the whole attempted play, and if the combined
+  values don't match, the entire play is rejected with **no state change and nothing
+  revealed to the client** — the same as if the flip never happened. This keeps the
+  underlying gamble intact (you can still legally attempt — and fail — a play using
+  only unknown face-down cards) without a stateful multi-step reveal flow.
+- **Ten's 25-point penalty applies wherever it remains at round end** (hand, face-up, or
+  face-down), not hand-only. The rules' own Wild section only calls out "any Tens held
+  in a player's hand," but the Scoring section's actual scoring rule is phrased as "the
+  values of the cards remaining in their hand (including those on the table, both face
+  up and face down)" immediately followed by "Tens held at the end are 25 points" with
+  no hand-only qualifier — treated as the operative, more general statement.
+
+## 4. Data model
+
+- `GameType::ClearTheDeck` (`clear_the_deck`) — kept alongside the existing cases in
+  `App\Enums\GameType`, same `label()`/`roomRoute()`/`playRoute()` shape as every other
+  case.
+- `App\Enums\ClearTheDeckPhase`: `Playing`, `RoundEnd`, `GameEnd` — simpler than Best
+  Match's `AppleMatchPhase` since this is a genuine single-active-player turn loop, not
+  a simultaneous-submission phase.
+- **Cards are plain integers 1–13** (Ace low = 1 … King high = 13) — "Suits are not used
+  in this game" (appendix) means there's no card-content table to seed or model the way
+  Best Match's `apple_match_cards` needed; a virtual deck for a room of *n* seats is
+  `ceil(20n / 13)` full 1–13 sets, shuffled, first `20n` taken (`docs/specs/apple-match.
+  md`-style "don't carry the physical shuffle-deal into the data model" reasoning from
+  section 2 above, applied the same way here).
+- **`room_seats` gets two new nullable JSON columns**, alongside the existing generic
+  `hand` column (reused here for the private 12-card hand, same as Best Match reused it
+  for card ids — this game just stores plain integers in it instead):
+  - `table_face_up` — the seat's remaining face-up table cards, an unordered bag of
+    integers (starts as 4 dealt values, shrinks as played). Public: every seat's own
+    `table_face_up` is broadcast in `$state`, since face-up table cards are visible to
+    everyone in the physical game.
+  - `table_face_down` — the seat's remaining face-down table cards, an unordered bag of
+    integers (starts as 4 dealt values, shrinks as played or flipped-and-rejected...
+    no — shrinks *only* on a successful flip-and-play, never on a rejected attempt, see
+    section 3). **Never broadcast, never loaded into any Livewire public property** —
+    read fresh from the database only inside the one action (`playCards()`) that needs
+    to resolve a flip, the same "resolve secret state fresh from the DB, never assign it
+    to a rendered property" rule Best Match's round-attribution cache established
+    (`docs/DEVLOG.md`'s Best Match section) and this spec's own section 1 flags as the
+    harder version of that same problem.
+- **Face-up/face-down as unordered bags, not per-slot pairs.** The physical dealing
+  description (4 face-down, then 4 face-up "on top of each down card") implies a
+  1:1 slot pairing that determines exactly which face-down card a given face-up card
+  covers. Since neither a face-up card's identity nor a face-down card's identity is
+  tied to anything else once dealt (there's no gameplay difference between "slot 1's
+  face-down" and "slot 3's"), the covering rule reduces to a pure count: the number of
+  currently-flippable (uncovered) face-down cards is `max(0, count(table_face_down) -
+  count(table_face_up))`. This is mathematically equivalent to strict per-slot covering
+  as long as specific pairing never matters — it doesn't here — and avoids ever storing
+  or reasoning about slot indices at all.
+- **`GameSession.state`** (broadcast, public): `roundTarget`, `currentRound`, `seats`
+  (`{seatIndex, name, handCount, tableFaceUp, tableFaceDownCount}` — note `handCount`/
+  `tableFaceDownCount` are counts only, never contents, matching "hand size must remain
+  visible" from the appendix without leaking hand identity), `scores` (cumulative,
+  lower-is-better), `dealerSeatIndex`, `turnSeatIndex`, `centerStack` (`list<int>`, full
+  contents — needed since picking up "the entire center stack" requires more than just
+  its top value), `phase`, `lastMessage` (human-readable description of the most recent
+  action, e.g. "Alice cleared the deck with four 7s!"), and (RoundEnd only)
+  `roundScores` (this round's per-seat point total, cleared on `nextRound()`).
+- **Turn resolution after a valid same-value play of card value `V`** (see section 3
+  for how a play's cards are chosen/validated):
+  1. `V === 10`: deck clears unconditionally (extra turn, same player).
+  2. Otherwise, `runLength` = however many trailing `centerStack` entries already equal
+     `V`, plus however many cards were just played. If `runLength >= 4`: deck clears
+     (extra turn, same player).
+  3. Otherwise, if `V` is greater than `centerStack`'s current top value (non-empty
+     stack only): the entire existing `centerStack`, plus the cards just played, all
+     move into the acting seat's own hand (persisted to `RoomSeat.hand`); extra turn,
+     same player.
+  4. Otherwise (a legal equal-or-lesser play that didn't complete a set): the played
+     cards join `centerStack`; turn passes to the next seat.
+  - "Going out" (hand and both table bags all empty) is checked after any of the above
+    — it can only actually happen after case 4, since 1–3 all keep cards with the
+    acting seat.
+- **Round end**: triggered the instant any seat goes out. Every other seat's remaining
+  cards (hand + `table_face_up` + `table_face_down`, revealing face-down values now that
+  the round is over) are scored (Ace=1, 2–9 face value, Jack=11, Queen=12, King=13,
+  Ten=25 wherever it remains — see section 3); the seat that went out scores 0. Added to
+  each seat's cumulative `scores`. If `currentRound >= roundTarget`: `GameEnd`, one
+  `GameParticipant` per seat (`score` = final cumulative total, `result` = `Win` for the
+  sole lowest total, `Draw` for a tied lowest, `Loss` otherwise — ties are possible here,
+  unlike this app's other "first to N" games, since this is cumulative scoring across a
+  fixed round count). Otherwise: `RoundEnd`, any seated player can trigger `nextRound()`
+  (shared "ready to continue" action, same convention as Best Match's own `nextRound()`)
+  which rotates the dealer, re-deals a fresh 20 cards/seat, resets `centerStack`, and
+  advances `currentRound`.
+- `App\Services\Stats\ClearTheDeckStatsService` follows the `statsFor()`/
+  `gamesForUser()`/`bestMetrics()` shape every other stats service uses, with one
+  deviation worth flagging: its headline "best" metric sorts **ascending** (lowest final
+  score), not descending like every other game's own best-score metric, since lower is
+  actually better here. Tracked stat: `rounds_won` (times this participant went out
+  first), surfaced as a second best-metric tile the same "omit rather than show a
+  misleading zero" way Best Match omits "Most rounds judged" for a player who's never
+  judged.
 
 ## 5. Accessibility
 
@@ -100,7 +196,24 @@ should stay easy to scan given the rule that any player can examine them at any 
 
 ## 6. Deliverables for v1
 
-TBD once section 3's open questions are settled.
+- `GameType::ClearTheDeck` + `App\Enums\ClearTheDeckPhase`.
+- Migration adding `table_face_up`/`table_face_down` (nullable JSON) to `room_seats`.
+- `pages::clear-the-deck.room` (round-target stepper, 3–10 player enforcement via a
+  host-visible `$startError`, deal-and-create-session on start) and `pages::clear-the-
+  deck.play` (the full turn engine from section 4: `playCards()`, pickup/set/wild
+  resolution, round-end scoring, `nextRound()`), both online-rooms-only like Best Match
+  (no pass-and-play mode — the hidden-per-seat state is the whole point here too).
+  Routes: `/clear-the-deck`, `/clear-the-deck/room/{code}`.
+- `pages::profile.clear-the-deck.index`/`.show` + `App\Services\Stats\
+  ClearTheDeckStatsService`, following the existing per-game profile pattern.
+- Homepage card, sidebar link, `<x-player-stats>` wiring — same as every prior game's.
+- Test coverage mirroring `tests/Feature/Games/AppleMatchRoomTest.php`'s shape: dealing,
+  the 3–10 player range, a full play → set-clear / pickup / normal-continue cycle,
+  round-end scoring and multi-round accumulation, going out ending a round immediately,
+  wild-Ten always clearing, an explicit assertion that `table_face_down` contents never
+  appear in broadcast `GameSession.state`, and a browser test for the phase-gated
+  visibility CSS/conditional-rendering bug class `CLAUDE.md`'s "Automated Browser
+  Testing" section warns a Livewire-only test can't catch.
 
 ---
 
