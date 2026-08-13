@@ -2649,3 +2649,51 @@ body.scrollable.family-feud-play {
 .clear-the-deck-play .ctd-opponents-row::-webkit-scrollbar {
     display: none;
 }
+
+.clear-the-deck-play .ctd-opponent-name {
+    color: var(--ink);
+    font-weight: bold;
+    font-size: var(--text-label);
+    font-family: var(--font-sans);
+}
+
+/* Section headings ("On the table", "Your columns", "Your hand") --
+   the same bold/bar-colored/letter-spaced treatment a panel heading
+   gets elsewhere in this app, not plain body text. */
+.clear-the-deck-play .ctd-section-label {
+    color: var(--bar);
+    font-weight: bold;
+    letter-spacing: var(--tracking-label);
+    font-size: var(--text-label);
+    text-align: center;
+    line-height: 1.3;
+}
+
+/* Pairs the center pile with the Submit button in one row (same width as
+   the 4-column tableau below it) instead of stacking them, and gives the
+   whole play area some vertical breathing room instead of packing every
+   section against the next. */
+.clear-the-deck-play .ctd-pile-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: clamp(16px, 4vw, 40px);
+    width: calc(var(--ctd-card-w) * 4.54);
+    max-width: 100%;
+    margin: clamp(24px, 6vh, 64px) auto;
+}
+
+.clear-the-deck-play .ctd-hand-grid {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+}
+
+@media (max-width: 899px) {
+    .clear-the-deck-play .ctd-hand-grid {
+        display: grid;
+        grid-template-columns: repeat(4, var(--ctd-card-w));
+        justify-content: center;
+    }
+}

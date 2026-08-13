@@ -114,7 +114,15 @@ new class extends Component
      */
     public array $selectedFaceUpIndices = [];
 
-    public int $selectedFaceDownCount = 0;
+    /**
+     * Display-indices (0-based among currently-uncovered face-down
+     * columns, see columnsFor() below) the player has individually
+     * toggled -- see toggleFaceDownSelection() for why this is a set, not
+     * a scalar count.
+     *
+     * @var list<int>
+     */
+    public array $selectedFaceDownColumns = [];
 
     public ?string $playError = null;
 
@@ -302,7 +310,7 @@ new class extends Component
     }
 
     /**
-     * @param  'selectedHandIndices'|'selectedFaceUpIndices'  $property
+     * @param  'selectedHandIndices'|'selectedFaceUpIndices'|'selectedFaceDownColumns'  $property
      */
     private function toggleSelection(string $property, int $index): void
     {
@@ -312,18 +320,16 @@ new class extends Component
     }
 
     /**
-     * $displayIndex counts only among currently-uncovered face-down
-     * columns, 0-based in render order (see columnsFor() below) -- the
-     * cards themselves are interchangeable (selection is just a count, see
-     * playCards()), so clicking tile K either extends the selection
-     * through tile K or truncates back to it, the same "range select"
-     * behavior as clicking a specific number on a fungible stepper.
+     * Each face-down tile toggles independently, exactly like a hand or
+     * face-up card -- tapping one does not select any of the others. The
+     * specific tile tapped only drives this connection's own highlight
+     * state; the cards themselves are still interchangeable server-side
+     * (see playCards()), so all that actually reaches the server is how
+     * many are selected.
      */
     public function toggleFaceDownSelection(int $displayIndex): void
     {
-        $this->selectedFaceDownCount = $displayIndex < $this->selectedFaceDownCount
-            ? $displayIndex
-            : min($this->myUncoveredFaceDownCount, $displayIndex + 1);
+        $this->toggleSelection('selectedFaceDownColumns', $displayIndex);
     }
 
     /**
@@ -356,6 +362,16 @@ new class extends Component
             $columns[] = ['type' => 'faceDown', 'index' => $i, 'value' => null, 'hasFaceDown' => true];
         }
 
+        // Always reserve 4 column slots (the number every seat starts a
+        // round with) so a seat's tableau stays the same width even once
+        // some of its columns are fully played out, keeping every player's
+        // tableau aligned the same way the design mockup's own
+        // TableauColumn does (it always renders a column wrapper, even an
+        // empty one).
+        while (count($columns) < 4) {
+            $columns[] = ['type' => 'empty', 'index' => count($columns), 'value' => null, 'hasFaceDown' => false];
+        }
+
         return $columns;
     }
 
@@ -385,7 +401,7 @@ new class extends Component
     {
         $this->selectedHandIndices = [];
         $this->selectedFaceUpIndices = [];
-        $this->selectedFaceDownCount = 0;
+        $this->selectedFaceDownColumns = [];
         $this->playError = null;
     }
 
@@ -417,7 +433,7 @@ new class extends Component
 
         $handIndices = array_values(array_unique($this->selectedHandIndices));
         $faceUpIndices = array_values(array_unique($this->selectedFaceUpIndices));
-        $faceDownCount = $this->selectedFaceDownCount;
+        $faceDownCount = count($this->selectedFaceDownColumns);
 
         $uncoveredFaceDown = max(0, count($faceDown) - count($faceUp));
 
@@ -780,39 +796,31 @@ new class extends Component
             <p class="status-line">Clear the Deck is online-only -- open <strong>Rooms</strong> in the top bar to create or join a room, then start Clear the Deck from there.</p>
         </div>
     @else
+        @php
+            $mainSize = 'clamp(58px, 9vw, 68px)';
+            $oppSize = 'clamp(26px, 5vw, 40px)';
+        @endphp
         <div id="clear-the-deck-game" class="flex flex-col items-center w-full" style="gap: inherit;">
-            <div class="status-line">
-                Round {{ $currentRound }} of {{ $roundTarget }} &middot; {{ $this->seatName($dealerSeatIndex) }} is dealing
-            </div>
-
-            @if ($lastMessage)
-                <p class="status-line">{{ $lastMessage }}</p>
-            @endif
-
             @unless ($phase === ClearTheDeckPhase::GameEnd)
                 @php $opponents = collect($seats)->reject(fn (array $seat) => $seat['seatIndex'] === $mySeatIndex)->values() @endphp
                 <div class="ctd-opponents-row w-full">
                     @foreach ($opponents as $seat)
                         @php $table = $seatTables[$seat['seatIndex']] ?? ['handCount' => 0, 'tableFaceUp' => [], 'tableFaceDownCount' => 0] @endphp
                         <div wire:key="seat-{{ $seat['seatIndex'] }}" class="flex flex-col items-center gap-1">
-                            <span class="text-sm text-text/80">
-                                {{ $seat['name'] }}
-                                {{ $seat['seatIndex'] === $turnSeatIndex && $phase === ClearTheDeckPhase::Playing ? ' (turn)' : '' }}
-                                {{ $seat['seatIndex'] === $dealerSeatIndex ? ' (dealer)' : '' }}
-                            </span>
-                            <span class="text-xs text-text/65">Hand: {{ $table['handCount'] }} &middot; Score: {{ $scores[$seat['seatIndex']] ?? 0 }}</span>
-                            <div class="ctd-tableau" style="--ctd-card-w: clamp(26px, 5vw, 40px);">
+                            <span class="ctd-opponent-name">{{ $seat['name'] }}</span>
+                            <div class="ctd-tableau" style="--ctd-card-w: {{ $oppSize }};">
                                 @foreach ($this->columnsForSeat($seat['seatIndex']) as $col)
                                     <div class="ctd-column" wire:key="opp-{{ $seat['seatIndex'] }}-col-{{ $col['type'] }}-{{ $col['index'] }}">
                                         @if ($col['hasFaceDown'])
-                                            <x-clear-the-deck-card face-down size="clamp(26px, 5vw, 40px)" />
+                                            <x-clear-the-deck-card face-down :size="$oppSize" />
                                         @endif
                                         @if ($col['value'] !== null)
-                                            <x-clear-the-deck-card :value="$col['value']" size="clamp(26px, 5vw, 40px)" :class="$col['hasFaceDown'] ? '' : 'ctd-column-no-peek'" />
+                                            <x-clear-the-deck-card :value="$col['value']" :size="$oppSize" :class="$col['hasFaceDown'] ? '' : 'ctd-column-no-peek'" />
                                         @endif
                                     </div>
                                 @endforeach
                             </div>
+                            <span class="text-xs text-text/65">Hand: {{ $table['handCount'] }}</span>
                         </div>
                     @endforeach
                 </div>
@@ -828,21 +836,23 @@ new class extends Component
                     }
                     $fanDepth = min(3, $runLength);
                 @endphp
-                <div class="flex flex-col items-center gap-2">
-                    <p class="status-line">On the table ({{ count($centerStack) }} card{{ count($centerStack) === 1 ? '' : 's' }})</p>
-                    @if ($centerStack === [])
-                        <p class="status-line">Empty &mdash; any value can be played.</p>
-                    @else
-                        <div class="ctd-pile-wrap" style="--ctd-card-w: clamp(46px, 9vw, 68px);">
-                            @for ($i = 0; $i < $fanDepth; $i++)
-                                <x-clear-the-deck-card
-                                    :value="$topValue"
-                                    size="clamp(46px, 9vw, 68px)"
-                                    class="ctd-card-offset-{{ $i }}"
-                                    :sub="$i === $fanDepth - 1 && $runLength > 1 ? '(x'.$runLength.')' : null" />
-                            @endfor
-                        </div>
-                    @endif
+                <div class="ctd-pile-row" style="--ctd-card-w: {{ $mainSize }};">
+                    <div class="flex flex-col items-center gap-2">
+                        <p class="ctd-section-label">On the table<br>({{ count($centerStack) }} card{{ count($centerStack) === 1 ? '' : 's' }})</p>
+                        @if ($centerStack === [])
+                            <p class="status-line">Empty &mdash; any value can be played.</p>
+                        @else
+                            <div class="ctd-pile-wrap">
+                                @for ($i = 0; $i < $fanDepth; $i++)
+                                    <x-clear-the-deck-card
+                                        :value="$topValue"
+                                        :size="$mainSize"
+                                        class="ctd-card-offset-{{ $i }}"
+                                        :sub="$i === $fanDepth - 1 && $runLength > 1 ? '(x'.$runLength.')' : null" />
+                                @endfor
+                            </div>
+                        @endif
+                    </div>
                     @if ($this->isMyTurn)
                         <button type="button" id="play-cards" wire:click="playCards">Submit</button>
                     @endif
@@ -850,29 +860,29 @@ new class extends Component
 
                 @if ($mySeatIndex !== null)
                     <div class="flex flex-col items-center gap-2">
-                        <p class="status-line">Your columns</p>
-                        <div class="ctd-tableau" style="--ctd-card-w: clamp(46px, 9vw, 68px);">
+                        <p class="ctd-section-label">Your columns</p>
+                        <div class="ctd-tableau" style="--ctd-card-w: {{ $mainSize }};">
                             @foreach ($this->myColumns as $col)
                                 <div class="ctd-column" wire:key="my-col-{{ $col['type'] }}-{{ $col['index'] }}">
                                     @if ($col['hasFaceDown'])
                                         @if ($col['type'] === 'faceDown' && $this->isMyTurn)
                                             <x-clear-the-deck-card face-down clickable
-                                                size="clamp(46px, 9vw, 68px)"
-                                                :selected="$col['index'] < $selectedFaceDownCount"
+                                                :size="$mainSize"
+                                                :selected="in_array($col['index'], $selectedFaceDownColumns, true)"
                                                 wire:click="toggleFaceDownSelection({{ $col['index'] }})" />
                                         @else
-                                            <x-clear-the-deck-card face-down size="clamp(46px, 9vw, 68px)" />
+                                            <x-clear-the-deck-card face-down :size="$mainSize" />
                                         @endif
                                     @endif
                                     @if ($col['value'] !== null)
                                         @if ($this->isMyTurn)
                                             <x-clear-the-deck-card :value="$col['value']" clickable
-                                                size="clamp(46px, 9vw, 68px)"
+                                                :size="$mainSize"
                                                 :selected="in_array($col['index'], $selectedFaceUpIndices, true)"
                                                 :class="$col['hasFaceDown'] ? '' : 'ctd-column-no-peek'"
                                                 wire:click="toggleFaceUpCard({{ $col['index'] }})" />
                                         @else
-                                            <x-clear-the-deck-card :value="$col['value']" size="clamp(46px, 9vw, 68px)" :class="$col['hasFaceDown'] ? '' : 'ctd-column-no-peek'" />
+                                            <x-clear-the-deck-card :value="$col['value']" :size="$mainSize" :class="$col['hasFaceDown'] ? '' : 'ctd-column-no-peek'" />
                                         @endif
                                     @endif
                                 </div>
@@ -889,11 +899,11 @@ new class extends Component
                     @endif
 
                     <div class="flex flex-col items-center gap-2 w-full">
-                        <p class="status-line">Your hand &mdash; tap cards of the same value, then Submit</p>
-                        <div class="flex flex-wrap justify-center gap-2">
+                        <p class="ctd-section-label">Your hand</p>
+                        <div class="ctd-hand-grid" style="--ctd-card-w: {{ $mainSize }};">
                             @foreach ($myHand as $index => $value)
                                 <x-clear-the-deck-card :value="$value" clickable
-                                    size="clamp(46px, 9vw, 68px)"
+                                    :size="$mainSize"
                                     :selected="in_array($index, $selectedHandIndices, true)"
                                     wire:key="hand-{{ $index }}"
                                     wire:click="toggleHandCard({{ $index }})" />

@@ -248,7 +248,7 @@ test('a face-down flip that matches is played and never reveals the value in the
     }
 
     Livewire::actingAs($p1)->test('pages::clear-the-deck.play', ['room' => $room->code])
-        ->set('selectedFaceDownCount', 2)
+        ->set('selectedFaceDownColumns', [0, 1])
         ->call('playCards')
         ->assertSet('playError', null)
         ->assertSet('centerStack', [9, 9]);
@@ -273,7 +273,7 @@ test('a mismatched face-down flip is rejected with no state change and no reveal
     setSeatCards($room, 1, hand: [], faceUp: [], faceDown: [9, 3, 2, 2]);
 
     Livewire::actingAs($p1)->test('pages::clear-the-deck.play', ['room' => $room->code])
-        ->set('selectedFaceDownCount', 2)
+        ->set('selectedFaceDownColumns', [0, 1])
         ->call('playCards')
         ->assertSet('playError', "That combination doesn't share the same value.")
         ->assertSet('turnSeatIndex', 1)
@@ -281,6 +281,74 @@ test('a mismatched face-down flip is rejected with no state change and no reveal
 
     $seat1 = RoomSeat::where('room_id', $room->id)->where('seat_index', 1)->first();
     expect($seat1->table_face_down)->toBe([9, 3, 2, 2]);
+});
+
+test('toggling one face-down tile selects only that tile, not every uncovered one', function () {
+    $host = User::factory()->create();
+    $p1 = User::factory()->create();
+    $p2 = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    startClearTheDeckRoom($room, [$host, $p1, $p2]);
+    setSeatCards($room, 1, hand: [], faceUp: [], faceDown: [9, 9, 9, 2]);
+
+    Livewire::actingAs($p1)->test('pages::clear-the-deck.play', ['room' => $room->code])
+        ->call('toggleFaceDownSelection', 0)
+        ->assertSet('selectedFaceDownColumns', [0])
+        ->call('toggleFaceDownSelection', 2)
+        ->assertSet('selectedFaceDownColumns', [0, 2])
+        ->call('toggleFaceDownSelection', 0)
+        ->assertSet('selectedFaceDownColumns', [2]);
+});
+
+test('a play can combine hand, face-up, and face-down cards together in one submission', function () {
+    $host = User::factory()->create();
+    $p1 = User::factory()->create();
+    $p2 = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    startClearTheDeckRoom($room, [$host, $p1, $p2]);
+    setSeatCards($room, 1, hand: [6, 1], faceUp: [6], faceDown: [6, 9]);
+
+    Livewire::actingAs($p1)->test('pages::clear-the-deck.play', ['room' => $room->code])
+        ->set('selectedHandIndices', [0])
+        ->call('toggleFaceUpCard', 0)
+        ->call('toggleFaceDownSelection', 0)
+        ->call('playCards')
+        ->assertSet('playError', null)
+        // Set of three 6s (hand + face-up + the matching face-down flip).
+        ->assertSet('centerStack', [6, 6, 6]);
+
+    $seat1 = RoomSeat::where('room_id', $room->id)->where('seat_index', 1)->first();
+    expect($seat1->hand)->toBe([1]);
+    expect($seat1->table_face_up)->toBe([]);
+    expect($seat1->table_face_down)->toBe([9]);
+});
+
+test('a seat\'s display columns always pad out to 4, even once some are fully played out', function () {
+    $host = User::factory()->create();
+    $p1 = User::factory()->create();
+    $p2 = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    startClearTheDeckRoom($room, [$host, $p1, $p2]);
+
+    // columnsForSeat() reads from the broadcast seatTables, not straight
+    // from RoomSeat, so the fixture has to go through GameSession.state
+    // directly -- same "set state directly" shortcut this file's other
+    // tests already use.
+    $room->refresh();
+    $session = GameSession::find($room->game_session_id);
+    $state = $session->state;
+    // Only 3 cards left on the table across face-up/face-down combined.
+    $state['seatTables'][1] = ['handCount' => 0, 'tableFaceUp' => [4, 9], 'tableFaceDownCount' => 1];
+    $session->update(['state' => $state]);
+
+    $columns = Livewire::actingAs($host)->test('pages::clear-the-deck.play', ['room' => $room->code])
+        ->instance()->columnsForSeat(1);
+
+    expect($columns)->toHaveCount(4);
+    expect(collect($columns)->where('type', 'empty'))->toHaveCount(2);
 });
 
 test('a seat cannot play on another seat\'s turn', function () {
