@@ -1,0 +1,7 @@
+- yahtzee, add undo, even to room version. The feature is not always available. On the setting up game page, the host can turn it on.
+- yahtzee, instead of separate scores panel, show scores for all players on main screen ensuring that the horizontal scrolling works for well
+- Yahtzee, during other players turns, view the options they have to choose from with the possible scores, similar to how you would see it for yourself, with the existing scores a different color than the options for that role
+- When joining a room, players not logged in need to be able to provide a user name
+- I ended a room with a game in progress and a 500 error briefly flashed on the screen before disappearing. I'm not sure what caused it, but errors should not flash on the screen, especially if they end up not impacting anything
+- Errors, including 404 pages, need to use the current color scheme and a link to return to the home page
+- clear the deck name should have "Tens" in parentheses on home page and room page, like "Clear the Deck (Tens)"
