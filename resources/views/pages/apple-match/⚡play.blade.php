@@ -645,9 +645,9 @@ new class extends Component
                     </div>
                 @else
                     <p class="status-line">Waiting for {{ $this->seatName($judgeSeatIndex) }} to pick a favorite...</p>
-                    <div class="flex flex-wrap justify-center gap-2">
+                    <div class="flex flex-col items-stretch gap-2 w-full max-w-sm">
                         @foreach ($anonymizedSubmissions as $submission)
-                            <span wire:key="submission-view-{{ $submission['cardId'] }}" class="status-line">{{ $submission['text'] }}</span>
+                            <div wire:key="submission-view-{{ $submission['cardId'] }}" class="bg-surface border-2 border-surface-border rounded-lg px-4 py-2 text-center text-text">{{ $submission['text'] }}</div>
                         @endforeach
                     </div>
                 @endif

@@ -8,17 +8,16 @@ The Order of Work list is a separate, ordinary numbered list reflecting current 
 
 ## Order of Work
 
-1. [Task 6: Best Match round-reveal UI polish](#6-best-match-round-reveal-ui-polish)
-2. [Task 1: Add Clear the Deck](#1-add-clear-the-deck)
-3. [Task 8: Add Quartiles](#8-add-quartiles)
-4. [Task 2: Two-factor authentication toggle](#2-two-factor-authentication-toggle)
-5. [Task 3: Image avatars](#3-image-avatars)
-6. [Task 9: Rename trademark-adjacent game routes/URLs](#9-rename-trademark-adjacent-game-routesurls)
-7. [Task 4: Friends activity](#4-friends-activity)
-8. [Task 11: Shared puzzle-game infrastructure](#11-shared-puzzle-game-infrastructure)
-9. [Task 5: Rename "Home"/"Dashboard"](#5-rename-homedashboard)
-10. [Task 10: Spec and build NYT-style puzzle games](#10-spec-and-build-nyt-style-puzzle-games)
-11. [Task 7: Update README](#7-update-readme)
+1. [Task 1: Add Clear the Deck](#1-add-clear-the-deck)
+2. [Task 8: Add Quartiles](#8-add-quartiles)
+3. [Task 2: Two-factor authentication toggle](#2-two-factor-authentication-toggle)
+4. [Task 3: Image avatars](#3-image-avatars)
+5. [Task 9: Rename trademark-adjacent game routes/URLs](#9-rename-trademark-adjacent-game-routesurls)
+6. [Task 4: Friends activity](#4-friends-activity)
+7. [Task 11: Shared puzzle-game infrastructure](#11-shared-puzzle-game-infrastructure)
+8. [Task 5: Rename "Home"/"Dashboard"](#5-rename-homedashboard)
+9. [Task 10: Spec and build NYT-style puzzle games](#10-spec-and-build-nyt-style-puzzle-games)
+10. [Task 7: Update README](#7-update-readme)
 
 ## Tasks
 
@@ -41,10 +40,6 @@ The original app plan mentioned a friends-activity feed on the dashboard once, b
 ### 5. Rename "Home"/"Dashboard"
 
 The navigation redesign (see `docs/DEVLOG.md`'s "Navigation" section) deliberately deferred this — it only makes sense once the new sidebar's structure clarifies each page's actual role, which it now does. "Home" (`/`, the public game-picker page) and "Dashboard" (`/dashboard`, the signed-in stats/nav hub) still read as near-synonyms. Needs actual new names, not just a decision that they should change.
-
-### 6. Best Match round-reveal UI polish
-
-Once every non-judge player has submitted a card, the judge's own view shows the submissions as tappable buttons, but the other (non-judge) players just watching are shown the same list as plain `<span class="status-line">` text (`resources/views/pages/apple-match/⚡play.blade.php`, the non-judge `@else` branch around lines 646-652, right below the judge's button-styled version at lines 640-644). It works, but reads as boring compared to the rest of the game's styling. Find a better presentation — e.g. a vertical list of card-styled boxes matching the judge's view — for `$anonymizedSubmissions` in that branch.
 
 ### 7. Update README
 
