@@ -112,7 +112,18 @@ body {
 body {
     background-color: var(--bg);
     color: var(--ink);
-    min-height: 100vh;
+    /* dvh, not vh -- vh resolves to the viewport's largest possible size
+       (toolbar hidden) even while a mobile browser's address-bar toolbar
+       is actually showing, so body's own box already extended past the
+       visible fold by one toolbar's height before any real content
+       overflow. Combined with .site-footer's `position: fixed; bottom:
+       0` (pinned to the *current* viewport bottom, which moves as the
+       toolbar shows/hides), that baseline mismatch is what let the
+       footer appear to "jump"/cover content while scrolling on tablet
+       landscape, where the viewport is short enough for the toolbar to
+       auto-hide (docs/concerns.md). dvh tracks the real, current
+       viewport instead. */
+    min-height: 100dvh;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -352,6 +363,14 @@ body.scrollable {
     left: 0;
     right: 0;
     bottom: 0;
+    /* Promotes the footer to its own compositor layer instead of the
+       main scroll-repaint path -- mitigates mobile Safari/Chrome
+       occasionally lagging a bottom-fixed element's repaint behind an
+       in-progress scroll gesture, which reads as it visibly rising up
+       over content mid-scroll before snapping back once scrolling
+       settles (docs/concerns.md: tablet landscape). Paired with body's
+       own dvh-based min-height above. */
+    transform: translateZ(0);
     display: flex;
     justify-content: space-between;
     gap: clamp(16px, 3vmin, 32px);
@@ -1756,8 +1775,25 @@ body.scrollable.farkle-play.in-game {
        making a 2-player game's columns absurdly wide. .card-wrap's own
        width is unaffected (still the outer bound + what makes
        container-type: size below valid); this only changes what its
-       child is allowed to shrink to. */
-    align-items: center;
+       child is allowed to shrink to.
+
+       `safe center`, not plain `center` (docs/concerns.md: on mobile,
+       with enough players that table.scorecard is wider than .card-wrap,
+       plain `center` let the table render with its left edge already
+       scrolled off-screen -- confirmed live via getBoundingClientRect()
+       at 8 players/390px wide: the table started at x: -221 while
+       scrollLeft was still 0, with no way to scroll further left to
+       reach it. That pushed the sticky category column (position:
+       sticky; left: 0, see table.scorecard th.category below) to visibly
+       overlap the first player's column instead of sitting beside it,
+       hiding whichever player's column happened to render underneath --
+       exactly "the current player... covered by the score labels...
+       won't scroll that way" when that's the low-index player. `safe`
+       falls back to start-alignment once content overflows, so the
+       table's own left edge -- and the sticky column pinned to it --
+       stays reachable at scrollLeft: 0 instead of clipped unreachably
+       off-screen. */
+    align-items: safe center;
     /* Sized entirely by the surrounding flex layout (the space left over
        after the dice area), not by its own content -- lets the scorecard's
        17 rows (see the row-count comment below) size themselves as a

@@ -2,8 +2,22 @@
 
 A terse, commit-by-commit record of what changed, newest first. No rationale or decisions here — see `docs/DEVLOG.md` for the *why* behind anything listed here, organized by feature instead of by commit. See `docs/TODO.md` for what's still outstanding.
 
+## 2026-08-15
+
+- Fixed the site footer appearing to rise over content mid-scroll on tablet landscape -- switched `body`'s `min-height` to `100dvh` and forced independent compositing on `.site-footer`.
+- Fixed Yahtzee's sticky category column overlapping the current-player column on mobile once the scorecard overflows `.card-wrap` -- `align-items: safe center` instead of plain `center`.
+
 ## 2026-08-13
 
+- Added a TV-cast/screen-share spectator view to Clear the Deck, mirroring Yahtzee's own "Watch only" toggle.
+- Added an optional guest display name when joining/hosting a room, remembered via a cookie for later direct-link visits.
+- Reworked Yahtzee's undo to be opt-in, room-capable, and roll-only, with a confirm-before-score dialog replacing its old ability to also revert a score.
+- Yahtzee's scorecard now always shows every player's column on every viewport, replacing the old mobile single-seat view and separate scores drawer.
+- Yahtzee now shows live possible scores to every viewer during the current player's turn, not just that player.
+- Renamed "Clear the Deck" to "Clear the Deck (Tens)" everywhere it appears.
+- Fixed the "Back to Room" button overflowing off-screen on mobile -- a shared button-bar CSS gap affecting every game, not just one.
+- Suppressed the raw error flash when a room ends mid-game via a global Livewire request interceptor.
+- Added on-brand 403/404/419/429/500/503 error pages using the app's real layout.
 - Reworked Clear the Deck's face-down flip from a single blind/atomic submission into a two-step "reveal to you, optionally add matching cards, then Confirm" flow, matching the physical rules more closely -- the previous all-at-once design read as broken once actually played.
 - Fixed Clear the Deck matching the mockup more closely: Submit now sits beside the pile instead of below it; opponent tableaus always show 4 column slots instead of shrinking as cards are played; "On the table"/"Your columns"/"Your hand" are now bold heading-styled labels; opponent names are bold; the mobile hand grid is a fixed 4-column grid instead of reflowing like desktop. Removed the "Round X of Y is dealing" status line and last-action message (no mockup counterpart); opponent line now shows hand count only, no score. Fixed a real bug where tapping one face-down card selected every uncovered face-down card at once, replacing the underlying "range select" with an independent per-tile toggle.
 - Restyled Clear the Deck's play page with real playing-card visuals (hand, table columns, fanned center pile), imported from a Claude Design mockup via the `claude_design` MCP tool: new `<x-clear-the-deck-card>` component, a `columnsFor()` display-only helper reconstructing table columns from the aggregate face-up/face-down counts, and tap-to-select face-down flipping in place of the old stepper. Fixed a real layout bug found along the way (a positioned wrapper whose own `calc()`-based size depended on a CSS custom property that was only ever set on its children, never on itself).
