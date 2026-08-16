@@ -135,12 +135,21 @@ new class extends Component
             return ['x' => round($i * $stepX, 1), 'label' => $label];
         })->all();
 
+        // Top-to-bottom (max down to 0) so it renders directly against a
+        // flex column paired with justify-between -- matches the evenly
+        // spaced gridlines drawn at the same fractions of $height.
+        $yTicks = collect([4, 3, 2, 1, 0])->map(fn (int $step) => [
+            'value' => number_format((int) round(($step / 4) * $maxValue)),
+            'y' => round($height - ($step / 4) * $height, 1),
+        ])->all();
+
         return [
             'width' => $width,
             'height' => $height,
             'pageviewPoints' => $points('pageviews'),
             'visitorPoints' => $points('visitors'),
             'labels' => $labels,
+            'yTicks' => $yTicks,
         ];
     }
 
@@ -264,12 +273,23 @@ new class extends Component
             <span class="flex items-center gap-1.5"><span class="inline-block w-3 h-0.5 bg-text/40" style="border-top: 2px dashed currentColor;" aria-hidden="true"></span> Visitors</span>
         </div>
 
-        <svg viewBox="0 0 {{ $this->chart['width'] }} {{ $this->chart['height'] }}" preserveAspectRatio="none" class="w-full h-56" role="img" aria-label="Pageviews and visitors over the selected range">
-            <polyline points="{{ $this->chart['pageviewPoints'] }}" fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke" />
-            <polyline points="{{ $this->chart['visitorPoints'] }}" fill="none" stroke="currentColor" class="text-text" stroke-opacity="0.4" stroke-width="2" stroke-dasharray="6 4" vector-effect="non-scaling-stroke" />
-        </svg>
+        <div class="flex gap-2">
+            <div class="flex flex-col justify-between text-xs text-text/50 h-56 text-right" style="font-variant-numeric: tabular-nums;" aria-hidden="true">
+                @foreach ($this->chart['yTicks'] as $tick)
+                    <span>{{ $tick['value'] }}</span>
+                @endforeach
+            </div>
 
-        <div class="flex justify-between text-xs text-text/50">
+            <svg viewBox="0 0 {{ $this->chart['width'] }} {{ $this->chart['height'] }}" preserveAspectRatio="none" class="w-full h-56 flex-1" role="img" aria-label="Pageviews and visitors over the selected range">
+                @foreach ($this->chart['yTicks'] as $tick)
+                    <line x1="0" x2="{{ $this->chart['width'] }}" y1="{{ $tick['y'] }}" y2="{{ $tick['y'] }}" stroke="currentColor" class="text-text" stroke-opacity="0.12" stroke-width="1" vector-effect="non-scaling-stroke" />
+                @endforeach
+                <polyline points="{{ $this->chart['pageviewPoints'] }}" fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke" />
+                <polyline points="{{ $this->chart['visitorPoints'] }}" fill="none" stroke="currentColor" class="text-text" stroke-opacity="0.4" stroke-width="2" stroke-dasharray="6 4" vector-effect="non-scaling-stroke" />
+            </svg>
+        </div>
+
+        <div class="flex justify-between text-xs text-text/50 ps-10">
             @foreach ($this->chart['labels'] as $tick)
                 <span>{{ $tick['label'] }}</span>
             @endforeach

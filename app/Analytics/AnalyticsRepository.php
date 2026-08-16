@@ -28,18 +28,34 @@ class AnalyticsRepository
 
     public function totals(CarbonPeriod $period): Totals
     {
-        return Cache::remember($this->cacheKey('totals', $period), self::TTL_SECONDS, function () use ($period) {
+        // Cache a plain array, not a Totals instance -- unlike the
+        // Collection/stdClass values every other cached method here
+        // returns (a framework class always loaded on every request, and
+        // a built-in PHP class needing no autoloading at all), Totals is
+        // an app-defined class only autoloaded the first time something
+        // actually calls this method. A worker/process whose autoloader
+        // hasn't hit that code path yet can serialize a Totals instance
+        // fine within its own request but can't reconstruct one back out
+        // of Redis, producing __PHP_Incomplete_Class on unserialize. An
+        // array has no such dependency.
+        $data = Cache::remember($this->cacheKey('totals', $period), self::TTL_SECONDS, function () use ($period) {
             $rows = $this->dailyTotals($period);
 
             $pageviews = (int) $rows->sum('pageviews');
             $visitors = (int) $rows->sum('visitors');
 
-            return new Totals(
-                pageviews: $pageviews,
-                visitors: $visitors,
-                viewsPerVisitor: $visitors > 0 ? round($pageviews / $visitors, 2) : 0.0,
-            );
+            return [
+                'pageviews' => $pageviews,
+                'visitors' => $visitors,
+                'viewsPerVisitor' => $visitors > 0 ? round($pageviews / $visitors, 2) : 0.0,
+            ];
         });
+
+        return new Totals(
+            pageviews: $data['pageviews'],
+            visitors: $data['visitors'],
+            viewsPerVisitor: $data['viewsPerVisitor'],
+        );
     }
 
     /**
