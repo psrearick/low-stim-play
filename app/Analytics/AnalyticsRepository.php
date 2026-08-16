@@ -61,18 +61,30 @@ class AnalyticsRepository
     /**
      * Daily buckets, or hourly buckets when the period is a single day.
      *
-     * @return Collection<int, array{pageviews: int, visitors: int}>|Collection<string, array{pageviews: int, visitors: int}>
+     * @return Collection<int|string, array{pageviews: int, visitors: int}>
      */
     public function timeseries(CarbonPeriod $period): Collection
     {
-        return Cache::remember($this->cacheKey('timeseries', $period), self::TTL_SECONDS, function () use ($period) {
+        // Cache the plain array (->all()), not the Collection itself --
+        // see totals()'s own comment above. Illuminate\Support\Collection
+        // is a framework class always loaded well before any app code
+        // runs, so this isn't the same "not yet autoloaded" story as
+        // Totals was; caching only plain arrays/scalars throughout this
+        // class removes object (de)serialization from the cache layer
+        // entirely, which is the safer default regardless of what's
+        // actually behind a given production Redis's unserialize failing
+        // on an object it should have no trouble with.
+        $data = Cache::remember($this->cacheKey('timeseries', $period), self::TTL_SECONDS, function () use ($period) {
             if ($this->isSingleDay($period)) {
-                return $this->hourlyTimeseries($this->periodStart($period)->toDateString());
+                return $this->hourlyTimeseries($this->periodStart($period)->toDateString())->all();
             }
 
             return $this->dailyTotals($period)
-                ->mapWithKeys(fn (array $row) => [$row['date'] => ['pageviews' => $row['pageviews'], 'visitors' => $row['visitors']]]);
+                ->mapWithKeys(fn (array $row) => [$row['date'] => ['pageviews' => $row['pageviews'], 'visitors' => $row['visitors']]])
+                ->all();
         });
+
+        return collect($data);
     }
 
     /**
@@ -184,7 +196,9 @@ class AnalyticsRepository
     {
         $cacheKey = $this->cacheKey("dimension:{$dimensionName}:{$limit}", $period);
 
-        return Cache::remember($cacheKey, self::TTL_SECONDS, function () use ($period, $dimensionName, $eventColumn, $limit) {
+        // Same reasoning as timeseries() above -- cache the plain array,
+        // not the Collection.
+        $data = Cache::remember($cacheKey, self::TTL_SECONDS, function () use ($period, $dimensionName, $eventColumn, $limit) {
             $dates = $this->datesInPeriod($period);
             $today = now()->toDateString();
             $rollupDates = $dates->reject(fn (string $date) => $date === $today)->values();
@@ -219,8 +233,11 @@ class AnalyticsRepository
                 ])
                 ->sortByDesc('pageviews')
                 ->take($limit)
-                ->values();
+                ->values()
+                ->all();
         });
+
+        return collect($data);
     }
 
     /**
