@@ -35,6 +35,11 @@ return [
         ],
     ],
 
+    'maxmind' => [
+        'account_id' => env('MAXMIND_ACCOUNT_ID'),
+        'license_key' => env('MAXMIND_LICENSE_KEY'),
+    ],
+
     'openrouter' => [
         'key' => env('OPENROUTER_API_KEY'),
         // The tilde is part of the slug -- it's an alias that always

@@ -1,5 +1,6 @@
 <?php
 
+use App\Analytics\Http\Controllers\DoctorController;
 use App\Enums\GameType;
 use App\Models\GameSession;
 use Illuminate\Support\Facades\Route;
@@ -7,6 +8,15 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', function () {
     return view('welcome');
 });
+
+// See App\Analytics\Console\Commands\AnalyticsDoctor's docblock -- the
+// `analytics:doctor` artisan command fetches this over a real HTTP
+// request rather than inspecting the CLI process's own environment.
+Route::get('/analytics/doctor', DoctorController::class)->name('analytics.doctor');
+
+Route::livewire('/analytics', 'pages::analytics')
+    ->middleware(config('analytics.dashboard.middleware'))
+    ->name('analytics.dashboard');
 
 Route::livewire('/about', 'pages::about')->name('about');
 

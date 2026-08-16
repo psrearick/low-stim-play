@@ -8,15 +8,17 @@ The Order of Work list is a separate, ordinary numbered list reflecting current 
 
 ## Order of Work
 
-1. [Task 8: Add Quartiles](#8-add-quartiles)
-2. [Task 2: Two-factor authentication toggle](#2-two-factor-authentication-toggle)
-3. [Task 3: Image avatars](#3-image-avatars)
-4. [Task 9: Rename trademark-adjacent game routes/URLs](#9-rename-trademark-adjacent-game-routesurls)
-5. [Task 4: Friends activity](#4-friends-activity)
-6. [Task 11: Shared puzzle-game infrastructure](#11-shared-puzzle-game-infrastructure)
-7. [Task 5: Rename "Home"/"Dashboard"](#5-rename-homedashboard)
-8. [Task 10: Spec and build NYT-style puzzle games](#10-spec-and-build-nyt-style-puzzle-games)
-9. [Task 7: Update README](#7-update-readme)
+1. [Task 12: Verify analytics on the deployed app](#12-verify-analytics-on-the-deployed-app)
+2. [Task 8: Add Quartiles](#8-add-quartiles)
+3. [Task 2: Two-factor authentication toggle](#2-two-factor-authentication-toggle)
+4. [Task 3: Image avatars](#3-image-avatars)
+5. [Task 9: Rename trademark-adjacent game routes/URLs](#9-rename-trademark-adjacent-game-routesurls)
+6. [Task 4: Friends activity](#4-friends-activity)
+7. [Task 11: Shared puzzle-game infrastructure](#11-shared-puzzle-game-infrastructure)
+8. [Task 5: Rename "Home"/"Dashboard"](#5-rename-homedashboard)
+9. [Task 10: Spec and build NYT-style puzzle games](#10-spec-and-build-nyt-style-puzzle-games)
+10. [Task 7: Update README](#7-update-readme)
+11. [Task 13: Privacy policy page](#13-privacy-policy-page)
 
 ## Tasks
 
@@ -55,3 +57,11 @@ Add Wordle, Spelling Bee, Strands, and Connections. All four need daily/random p
 ### 11. Shared puzzle-game infrastructure
 
 A cross-cutting set of features for the app's puzzle-style games (Boggle/Word Grid, Quartiles once built, and the NYT-style games in Task 10 once built): give each individual puzzle a unique code so it can be shared and replayed identically by someone else; once Friends activity (Task 4) exists, surface that code there too — e.g. a "Challenge a Friend" button at the end of a game, possibly emailing an invite; and add daily puzzles (one fixed puzzle per game per day, distinct from the existing random ones) with an archive of past days' puzzles. Depends on Task 4 for the friend-sharing piece, and on the relevant puzzle games actually existing.
+
+### 12. Verify analytics on the deployed app
+
+`docs/specs/analytics.md`'s own acceptance gate (section 6.1) hasn't actually been exercised outside local dev/tests: run `php artisan analytics:doctor <deployed-url>` against the real Laravel Cloud URL once deployed and confirm the resolved client IP is real (not the load balancer's own address — `bootstrap/app.php`'s `trustProxies(at: '*')` is in place but unverified live). Separately, `MAXMIND_ACCOUNT_ID`/`MAXMIND_LICENSE_KEY` are unset everywhere (the countries panel will read empty until they're set and `analytics:geoip-update` has run at least once), and Laravel Cloud's ephemeral filesystem means the weekly `analytics:geoip-update` schedule alone isn't enough to keep the `.mmdb` present after a fresh deploy — needs either a deploy-step run of that command or the file moved to durable storage (S3) and pulled on boot. `ANALYTICS_ADMIN_EMAILS` also needs setting as a real Laravel Cloud environment variable (only set in the local, gitignored `.env` so far) or the dashboard won't be reachable at all in production. See `docs/DEVLOG.md`'s "Analytics" section for the full context.
+
+### 13. Privacy policy page
+
+This app has no privacy policy page anywhere. `docs/specs/analytics.md` section 12 has drafted disclosure copy for the analytics system specifically (also reproduced in `docs/DEVLOG.md`'s "Analytics" section) that's ready to use once a real page exists — deliberately not built as part of the analytics work itself, since creating the app's first privacy-policy page is a bigger scope decision (where does it link from, what else does it need to cover) than implementing analytics.

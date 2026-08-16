@@ -52,6 +52,24 @@
         <env name="DB_URL" value=""/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
+        <!--
+            Not "after_response" (the app's own default): Laravel's
+            Application::terminate() never clears its own $terminatingCallbacks
+            list after running them (see vendor/laravel/framework/src/
+            Illuminate/Foundation/Application.php), so a job dispatched via
+            ->afterResponse() (which registers itself through that same
+            mechanism) re-fires on every later terminate() call within the
+            same process. Harmless in this app's real deployment (a fresh
+            PHP-FPM process per request on Laravel Cloud, no Octane), but a
+            single test method making two or more sequential HTTP calls
+            reuses one Application instance for its whole duration, so the
+            first request's analytics job would silently re-run and
+            duplicate its row on every subsequent request in that same test.
+            "queue" dispatches through Bus::dispatch() directly instead,
+            which QUEUE_CONNECTION=sync above still runs synchronously, just
+            without that accumulating-callback behavior.
+        -->
+        <env name="ANALYTICS_DISPATCH" value="queue"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
