@@ -1,6 +1,5 @@
 <?php
 
-use App\Analytics\Console\Commands\AnalyticsGeoipUpdate;
 use App\Analytics\Console\Commands\AnalyticsPrune;
 use App\Analytics\Console\Commands\AnalyticsRollup;
 use App\Analytics\Http\Middleware\RecordPageview;
@@ -45,6 +44,5 @@ return Application::configure(basePath: dirname(__DIR__))
         // dashboard.
         $schedule->command(AnalyticsRollup::class, ['--days=2'])->hourly();
         $schedule->command(AnalyticsPrune::class)->dailyAt('03:15');
-        $schedule->command(AnalyticsGeoipUpdate::class)->weeklyOn(1, '04:00');
     })
     ->create();

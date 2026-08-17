@@ -15,14 +15,19 @@ use Throwable;
  * App\Analytics\Geo\CountryResolver's maxmind driver. MaxMind's license
  * does not permit redistributing the .mmdb, so it is never committed --
  * see .gitignore's storage/app/geoip/ entry -- and this command is how
- * both local dev and any deployment obtain their own copy. Scheduled
- * weekly (bootstrap/app.php).
+ * both local dev and any deployment obtain their own copy.
  *
- * Laravel Cloud has an ephemeral filesystem, so relying on this schedule
- * alone means the .mmdb is missing after every fresh deploy until the
- * next weekly run -- run this as a deploy step too, or move the file to
- * durable storage (S3) and pull it on boot. Not built here; see
- * docs/DEVLOG.md's Analytics section.
+ * Deliberately not scheduled. Laravel Cloud's filesystem is ephemeral
+ * and per-replica -- a scheduled run only ever updates whichever single
+ * replica happens to catch it, never reaches any sibling replica, and
+ * is wiped on the next deploy regardless. Instead this runs as a Laravel
+ * Cloud Build Command (not a Deploy Command -- deploy-command filesystem
+ * writes are explicitly discarded before the app goes live), so the
+ * .mmdb is baked into the image and present on every replica from boot.
+ * That means the database only actually refreshes on deploy, not weekly
+ * -- acceptable here since GeoLite2 itself only updates roughly monthly
+ * and this app deploys at least that often; see docs/DEVLOG.md's
+ * Analytics section for the full reasoning.
  */
 #[Signature('analytics:geoip-update')]
 #[Description('Download the current GeoLite2-Country database for the maxmind geo driver')]

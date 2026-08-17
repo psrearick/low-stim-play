@@ -4,6 +4,7 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 
 ## 2026-08-17
 
+- Verified analytics on the deployed app (real client IP resolution, MaxMind/admin-email env vars) and removed the now-redundant weekly `analytics:geoip-update` schedule, since it's a Laravel Cloud Build Command now and the schedule couldn't reach any replica but the one it happened to run on anyway.
 - Rewrote `README.md` from scratch (standard structure: games, design principles, tech stack, project structure, local development, testing, deployment, docs) and deleted the `legacy/` static-site directory, confirmed fully ported and safely preserved in its own separate GitHub remote.
 - Fixed "Back to room" on every game linking into that game's own lobby instead of the game-agnostic room hub, which could strand a straggler on a stale page after the host switched games.
 - Replaced the room hub's and game lobby's forced redirect on a host game-switch with a dismissible "Join" prompt, so other viewers aren't yanked into a new game mid-thought.
