@@ -54,18 +54,18 @@ test('the setup screen shows no room UI at all for a user hosting no rooms', fun
     // own setup screen has anything room-related to show.
     $user = User::factory()->create();
 
-    $this->actingAs($user)->get('/yahtzee')
+    $this->actingAs($user)->get('/yacht')
         ->assertDontSee('Play in a room you host')
         ->assertDontSee('Host an Online Room');
 
-    $this->get('/yahtzee')->assertDontSee('Play in a room you host');
+    $this->get('/yacht')->assertDontSee('Play in a room you host');
 });
 
 test('the setup screen shows a dropdown of rooms the user hosts, linking into each one\'s lobby', function () {
     $host = User::factory()->create();
     $room = Room::factory()->create(['host_user_id' => $host->id]);
 
-    $this->actingAs($host)->get('/yahtzee')
+    $this->actingAs($host)->get('/yacht')
         ->assertSee('Play in a room you host')
         ->assertSee($room->code)
         ->assertSeeHtml(route('yahtzee.room', ['code' => $room->code]));
@@ -74,7 +74,7 @@ test('the setup screen shows a dropdown of rooms the user hosts, linking into ea
 test('a guest can view the yahtzee room page without an account, and is given a throwaway one', function () {
     $room = Room::factory()->create();
 
-    $this->get("/yahtzee/room/{$room->code}")->assertOk();
+    $this->get("/yacht/room/{$room->code}")->assertOk();
 
     $guest = User::where('is_guest', true)->sole();
 
@@ -86,7 +86,7 @@ test('a guest_name cookie is picked up as the display name for a direct-link vis
     $room = Room::factory()->create();
 
     $this->withCookie('guest_name', 'Riley')
-        ->get("/yahtzee/room/{$room->code}")
+        ->get("/yacht/room/{$room->code}")
         ->assertOk();
 
     $guest = User::where('is_guest', true)->sole();

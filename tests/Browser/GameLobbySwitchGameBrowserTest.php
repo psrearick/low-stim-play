@@ -35,22 +35,22 @@ test('clicking a "switch game" button in the Word Grid room takes the host to th
     $host = User::factory()->create(['password' => bcrypt('password')]);
     $room = Room::factory()->create(['host_user_id' => $host->id]);
 
-    $page = loginAsHostAndVisitRoom($host, "/boggle/room/{$room->code}");
+    $page = loginAsHostAndVisitRoom($host, "/word-grid/room/{$room->code}");
 
     $page->assertSee('Word Grid Room')
         ->click('#switch-game-yahtzee')
-        ->assertPathIs("/yahtzee/room/{$room->code}");
+        ->assertPathIs("/yacht/room/{$room->code}");
 });
 
 test('clicking a "switch game" button in the Yacht room takes the host to the Survey Says room, same code', function () {
     $host = User::factory()->create(['password' => bcrypt('password')]);
     $room = Room::factory()->create(['host_user_id' => $host->id]);
 
-    $page = loginAsHostAndVisitRoom($host, "/yahtzee/room/{$room->code}");
+    $page = loginAsHostAndVisitRoom($host, "/yacht/room/{$room->code}");
 
     $page->assertSee('Yacht Room')
         ->click('#switch-game-family_feud')
-        ->assertPathIs("/family-feud/room/{$room->code}");
+        ->assertPathIs("/survey-says/room/{$room->code}");
 });
 
 test('a non-host does not see any "switch game" buttons', function () {
@@ -58,7 +58,7 @@ test('a non-host does not see any "switch game" buttons', function () {
     $guest = User::factory()->create(['password' => bcrypt('password')]);
     $room = Room::factory()->create(['host_user_id' => $host->id]);
 
-    $page = loginAsHostAndVisitRoom($guest, "/boggle/room/{$room->code}");
+    $page = loginAsHostAndVisitRoom($guest, "/word-grid/room/{$room->code}");
 
     $page->assertSee('Word Grid Room')
         ->assertDontSee('play something else in this room');

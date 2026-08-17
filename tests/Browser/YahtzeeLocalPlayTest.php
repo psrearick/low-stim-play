@@ -5,7 +5,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 uses(RefreshDatabase::class);
 
 it('plays a full solo game from setup through game over', function () {
-    $page = visit('/yahtzee');
+    $page = visit('/yacht');
 
     $page->assertSee('Yacht')
         ->click('[aria-label="Fewer players"]')
@@ -35,7 +35,7 @@ it('plays a full solo game from setup through game over', function () {
 });
 
 it('keeps a die visually marked across a re-roll', function () {
-    $page = visit('/yahtzee');
+    $page = visit('/yacht');
 
     $page->click('[aria-label="Fewer players"]')->click('Start Game');
 

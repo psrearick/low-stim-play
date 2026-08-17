@@ -140,3 +140,76 @@ test('an unseated spectator sees no hand and no submit controls', function () {
     $page->assertDontSee('Pick your best match')
         ->assertSee('Watching');
 });
+
+/**
+ * docs/TODO.md's former #15: Best Match's per-seat score-chip row (`@foreach
+ * ($seats as $seat)` in ⚡play.blade.php) was only ever checked by reading
+ * the code -- it uses a plain wrapping flex row, not the fixed-height
+ * `overflow-y-auto` panel Clear the Deck/Farkle/Yahtzee's own spectator
+ * views had to fix, and the page has no `.in-game { height: 100dvh }`
+ * clip the way those three do, so it was suspected (not confirmed) to
+ * just grow taller and use the page's own normal scroll instead of
+ * trapping content off-screen. Verified live here at the room's max
+ * (`Room::factory()`'s own `max_players` default, 8) rather than assumed:
+ * every seat's score chip is actually visible with zero manual scrolling
+ * needed on a short, wide TV-cast-style viewport.
+ */
+test('every seat is visible with no scrolling needed on a short, wide TV-cast viewport at a full 8-seat room', function () {
+    $users = User::factory()->count(8)->create(['password' => bcrypt('password')]);
+
+    $deck = AppleMatchDeck::factory()->create(['owner_user_id' => null, 'source' => 'system']);
+    AppleMatchPrompt::factory()->count(5)->create(['deck_id' => $deck->id]);
+    $cards = AppleMatchCard::factory()->count(80)->create(['deck_id' => $deck->id]);
+    $cardIds = $cards->pluck('id')->all();
+
+    $room = Room::factory()->active()->create(['host_user_id' => $users->first()->id]);
+    $promptId = AppleMatchPrompt::where('deck_id', $deck->id)->first()->id;
+
+    $state = [
+        'deckId' => $deck->id,
+        'targetScore' => 4,
+        'seats' => $users->values()->map(fn (User $user, int $i) => ['seatIndex' => $i, 'name' => $user->name])->all(),
+        'scores' => array_fill(0, 8, 0),
+        'judgedCounts' => array_fill(0, 8, 0),
+        'judgeSeatIndex' => 0,
+        'round' => 1,
+        'phase' => AppleMatchPhase::Submitting->value,
+        'usedPromptIds' => [$promptId],
+        'currentPromptId' => $promptId,
+        'currentPromptText' => 'Disgusting',
+        'submittedSeats' => [],
+        'anonymizedSubmissions' => [],
+        'winningText' => null,
+        'winningSeatName' => null,
+    ];
+
+    $session = GameSession::factory()->create([
+        'type' => GameType::AppleMatch,
+        'mode' => GameMode::Online,
+        'settings' => ['target_score' => 4, 'deck_id' => $deck->id],
+        'state' => $state,
+    ]);
+
+    $room->update(['game_session_id' => $session->id]);
+
+    foreach ($users as $i => $user) {
+        RoomSeat::factory()->create([
+            'room_id' => $room->id,
+            'seat_index' => $i,
+            'user_id' => $user->id,
+            'hand' => array_slice($cardIds, $i * 7, 7),
+        ]);
+    }
+
+    $spectator = User::factory()->create(['password' => bcrypt('password')]);
+    $page = loginAsAndVisitAppleMatch($spectator, "/apple-match?room={$room->code}");
+    $page->resize(1920, 750);
+
+    $page->assertSee($users->last()->name);
+
+    $overflow = $page->script(
+        '(() => ({ scrollHeight: document.body.scrollHeight, innerHeight: window.innerHeight }))()'
+    );
+
+    expect($overflow['scrollHeight'])->toBeLessThanOrEqual($overflow['innerHeight']);
+});

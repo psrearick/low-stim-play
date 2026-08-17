@@ -137,14 +137,24 @@ test('a spectator sees every seat\'s tableau at once, with the current turn outl
         ->assertMissing('.ctd-hand-grid');
 
     // seat 1 (guest1) holds the turn in startedClearTheDeckRoom() -- only
-    // that seat's wrapper should carry the active-turn outline.
+    // that seat's wrapper should carry the active-turn outline, and its
+    // name should carry the "▸" marker (docs/TODO.md's former #16 -- a
+    // shape-based signal, not just --ctd-active's color, so whose turn it
+    // is still reads correctly on a poorly color-calibrated TV or for a
+    // colorblind viewer).
     $info = $page->script(
         "(() => { const seats = [...document.querySelectorAll('.ctd-spectator-seat')]; return seats.map(el => ({ active: el.classList.contains('ctd-spectator-seat-active'), name: el.querySelector('.ctd-spectator-name').textContent.trim() })); })()"
     );
 
     $activeNames = collect($info)->where('active', true)->pluck('name')->all();
 
-    expect($activeNames)->toBe([$users[1]->name]);
+    expect($activeNames)->toBe(['▸ '.$users[1]->name]);
+
+    $inactiveNames = collect($info)->where('active', false)->pluck('name')->all();
+
+    foreach ($inactiveNames as $name) {
+        expect($name)->not->toStartWith('▸');
+    }
 });
 
 test('a seated player can toggle Watch only mid-turn to view read-only, and switch back', function () {

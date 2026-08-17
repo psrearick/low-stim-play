@@ -98,18 +98,18 @@ test('the setup screen shows no room UI at all for a user hosting no rooms', fun
     // own setup screen has anything room-related to show.
     $user = User::factory()->create();
 
-    $this->actingAs($user)->get('/family-feud')
+    $this->actingAs($user)->get('/survey-says')
         ->assertDontSee('Play in a room you host')
         ->assertDontSee('Host an Online Room');
 
-    $this->get('/family-feud')->assertDontSee('Play in a room you host');
+    $this->get('/survey-says')->assertDontSee('Play in a room you host');
 });
 
 test('the setup screen shows a dropdown of rooms the user hosts, linking into each one\'s lobby', function () {
     $host = User::factory()->create();
     $room = Room::factory()->create(['host_user_id' => $host->id]);
 
-    $this->actingAs($host)->get('/family-feud')
+    $this->actingAs($host)->get('/survey-says')
         ->assertSee('Play in a room you host')
         ->assertSee($room->code)
         ->assertSeeHtml(route('family-feud.room', ['code' => $room->code]));
@@ -118,7 +118,7 @@ test('the setup screen shows a dropdown of rooms the user hosts, linking into ea
 test('a guest can view the family feud room page without an account, and is given a throwaway one', function () {
     $room = Room::factory()->create();
 
-    $this->get("/family-feud/room/{$room->code}")->assertOk();
+    $this->get("/survey-says/room/{$room->code}")->assertOk();
 
     $guest = User::where('is_guest', true)->sole();
 

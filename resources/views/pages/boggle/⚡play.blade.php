@@ -101,6 +101,17 @@ new class extends Component
     public bool $ended = false;
 
     /**
+     * Set by finishGame() when End Game was clicked to stop a *timed* solo
+     * game early, before its own clock actually reached zero (see
+     * finishGame()'s own docblock) -- distinct from $ended, which is true
+     * for every ended game, recorded or not. Drives the reveal screen's
+     * "not saved" message and hides the challenge-link share box, since
+     * neither a GameSession nor a GameParticipant was ever written for an
+     * early-ended game.
+     */
+    public bool $endedEarly = false;
+
+    /**
      * @var list<string>|null
      */
     public ?array $allValidWords = null;
@@ -329,6 +340,26 @@ new class extends Component
         $this->path = [];
         $this->allValidWords = $solver->solve($this->board);
 
+        // "End Game" clicked to stop a *timed* solo game early, before its
+        // own clock actually reached zero -- as opposed to either a timed
+        // game whose clock genuinely ran out (the JS countdown only ever
+        // calls this once $this->remainingSeconds has already reached 0,
+        // so the server sees the same 0 by the time this runs) or an
+        // untimed game, whose *only* real finish condition is clicking
+        // this same button (remainingSeconds is null there, never > 0).
+        // Neither of those two legitimate-finish cases should be treated
+        // as "not finished" just because the trigger was the same button
+        // click -- only a genuine early stop should skip recording.
+        // Deliberately solo-only: an online room's End Game ends the
+        // shared session for every seat at once, a materially bigger
+        // consequence than one player quitting their own local timer
+        // early, and out of scope for this specific fix.
+        if (! $this->isSharedSession && ($this->remainingSeconds ?? 0) > 0) {
+            $this->endedEarly = true;
+
+            return;
+        }
+
         if ($this->isSharedSession) {
             $session = GameSession::find($this->gameSessionId);
             $session->update(['ended_at' => now()]);
@@ -421,8 +452,16 @@ new class extends Component
         $this->startedAt = now()->timestamp;
         $this->endsAt = $this->minutes > 0 ? now()->addMinutes($this->minutes)->timestamp : null;
         $this->ended = false;
+        $this->endedEarly = false;
         $this->allValidWords = null;
         $this->message = null;
+        // Previously always overwritten by finishGame()'s own
+        // GameSession::create() before ever being read, so leaving it
+        // stale here was harmless -- no longer true now that finishGame()
+        // can set $ended without touching this (an early-ended game, see
+        // its own docblock), which would otherwise leak the *previous*
+        // game's share link onto this one's reveal screen.
+        $this->gameSessionId = null;
     }
 
     /**
@@ -637,7 +676,7 @@ new class extends Component
     --}}
     @teleport('#game-actions')
         @unless ($ended)
-            <button type="button" wire:click="endGame">End Game</button>
+            <button type="button" id="end-game-btn" wire:click="endGame">End Game</button>
         @else
             <button type="button" wire:click="resetGame" @if($isSharedSession) disabled @endif>New Game</button>
         @endunless
@@ -721,6 +760,10 @@ new class extends Component
 
     @if ($ended)
         <div class="flex flex-col items-center gap-4 w-full max-w-md" style="margin-top: clamp(12px, 2.2vmin, 26px);">
+            @if ($endedEarly)
+                <p class="status-line">Ended early with time still on the clock -- not saved to your stats.</p>
+            @endif
+
             @if ($isSharedSession)
                 <div class="flex flex-col items-center gap-1 w-full">
                     @foreach ($this->scoreboard as $entry)
@@ -741,7 +784,7 @@ new class extends Component
                 <a href="{{ route('room.show', ['code' => $room]) }}"><button type="button">Back to room</button></a>
             @elseif ($challenge !== null)
                 <a href="{{ route('boggle.lobby') }}"><button type="button">Back home</button></a>
-            @else
+            @elseif ($gameSessionId !== null)
                 <div class="flex gap-2 w-full">
                     <input type="text" readonly value="{{ route('boggle.share', ['gameSession' => $gameSessionId]) }}"
                         onclick="this.select()" style="flex: 1;">

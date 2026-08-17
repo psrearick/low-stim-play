@@ -35,7 +35,7 @@ function boggleCatsBoard(): array
 }
 
 test('the lobby renders the setup form', function () {
-    $this->get('/boggle')->assertSeeLivewire('boggle-setup');
+    $this->get('/word-grid')->assertSeeLivewire('boggle-setup');
 });
 
 test('the setup form redirects to the play page with the chosen options', function () {
@@ -143,7 +143,7 @@ test('ending the game reveals all valid words and records a solo game session', 
     $user = User::factory()->create();
 
     Livewire::actingAs($user)
-        ->test('pages::boggle.play', ['size' => 4, 'minutes' => 3])
+        ->test('pages::boggle.play', ['size' => 4, 'minutes' => 0])
         ->set('board', boggleCatsBoard())
         ->set('path', [0, 1, 2])
         ->call('submitWord')
@@ -169,7 +169,7 @@ test('ending the game reveals all valid words and records a solo game session', 
 });
 
 test('a guest playing solo is still recorded, without a user', function () {
-    Livewire::test('pages::boggle.play', ['size' => 4, 'minutes' => 3])
+    Livewire::test('pages::boggle.play', ['size' => 4, 'minutes' => 0])
         ->call('endGame');
 
     $participant = GameParticipant::sole();
@@ -182,6 +182,71 @@ test('an untimed game never polls or auto-ends', function () {
     Livewire::test('pages::boggle.play', ['size' => 4, 'minutes' => 0])
         ->assertSet('endsAt', null)
         ->assertDontSee('wire:poll', escape: false);
+});
+
+test('clicking End Game on a timed solo game with time still on the clock does not record it', function () {
+    $user = User::factory()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::boggle.play', ['size' => 4, 'minutes' => 3])
+        ->set('board', boggleCatsBoard())
+        ->set('path', [0, 1, 2])
+        ->call('submitWord')
+        ->call('endGame')
+        ->assertSet('ended', true)
+        ->assertSet('endedEarly', true)
+        // Still revealed for the player to see, just not persisted.
+        ->assertSet('allValidWords', ['act', 'acts', 'cast', 'cat', 'cats', 'sac', 'sat', 'scat'])
+        ->assertSet('gameSessionId', null);
+
+    expect(GameSession::count())->toBe(0)
+        ->and(GameParticipant::count())->toBe(0);
+});
+
+test('a timed solo game whose clock actually reaches zero is still recorded', function () {
+    $user = User::factory()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::boggle.play', ['size' => 4, 'minutes' => 3])
+        ->set('board', boggleCatsBoard())
+        ->set('path', [0, 1, 2])
+        ->call('submitWord')
+        // Same mechanism the client-side countdown relies on -- see
+        // getRemainingSecondsProperty() -- travel past endsAt instead of
+        // waiting 3 real minutes.
+        ->set('endsAt', now()->subSecond()->timestamp)
+        ->call('endGame')
+        ->assertSet('ended', true)
+        ->assertSet('endedEarly', false);
+
+    expect(GameSession::count())->toBe(1)
+        ->and(GameParticipant::where('user_id', $user->id)->exists())->toBeTrue();
+});
+
+test('starting a new game after ending early clears the stale endedEarly/gameSessionId state', function () {
+    $user = User::factory()->create();
+
+    $component = Livewire::actingAs($user)
+        ->test('pages::boggle.play', ['size' => 4, 'minutes' => 3])
+        ->set('board', boggleCatsBoard())
+        ->call('endGame')
+        ->assertSet('endedEarly', true)
+        ->call('resetGame')
+        ->assertSet('endedEarly', false)
+        ->assertSet('gameSessionId', null);
+
+    // A second, untimed game should record normally -- confirms resetGame()
+    // didn't leave anything from the first, unrecorded attempt behind.
+    $component->set('minutes', 0)
+        ->set('endsAt', null)
+        ->set('board', boggleCatsBoard())
+        ->set('path', [0, 1, 2])
+        ->call('submitWord')
+        ->call('endGame')
+        ->assertSet('endedEarly', false);
+
+    expect(GameSession::count())->toBe(1)
+        ->and(GameParticipant::where('user_id', $user->id)->sole()->score)->toBe(1);
 });
 
 test('starting a new game resets state but keeps the size and time limit', function () {

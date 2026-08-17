@@ -12,7 +12,7 @@ use Livewire\Livewire;
 uses(RefreshDatabase::class);
 
 test('a completed solo game gets a session id for building a challenge link', function () {
-    Livewire::test('pages::boggle.play', ['size' => 4, 'minutes' => 3])
+    Livewire::test('pages::boggle.play', ['size' => 4, 'minutes' => 0])
         ->call('endGame')
         ->assertSet('ended', true)
         ->tap(function ($component) {

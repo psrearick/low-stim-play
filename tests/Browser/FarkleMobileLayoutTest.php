@@ -195,6 +195,30 @@ it('shows the live scoreboard in a larger font on desktop', function () {
     expect((int) $fontSize)->toBeGreaterThan(18);
 });
 
+/**
+ * docs/TODO.md's former #17: this scoreboard's flat 22px ceiling (raised
+ * from the earlier bump, but never revisited after Farkle's own dedicated
+ * spectator scoreboard got a real cqh-scaled size reaching up to 36px)
+ * left a seated player's own actively-playing view -- e.g. their device
+ * screen-mirrored/cast to a TV without toggling "Watch only" -- stuck at
+ * the smaller size. Bumped to clamp(18px, 3.2vh, 32px), matched with
+ * .farkle-final-scores' own identical clamp so the two stay in sync as
+ * they always have. Confirmed live at a real TV resolution (1920x1080)
+ * that this actually reaches the new ceiling, not just "bigger than
+ * before" at an arbitrary desktop size.
+ */
+it('reaches its new, larger font ceiling at a real TV resolution', function () {
+    $page = visit('/10000')->resize(1920, 1080);
+
+    $page->click('Start Game')->assertSee('Roll');
+
+    $fontSize = $page->script(
+        "(() => { const el = document.querySelector('.farkle-scoreboard:not(.farkle-final-scores) .grid > span:nth-child(2)'); return getComputedStyle(el).fontSize; })()"
+    );
+
+    expect((int) $fontSize)->toBe(32);
+});
+
 it('does not let Roll Again/Bank overlap the dice in mobile landscape', function () {
     // docs/concerns.md: "In Mobile Landscape, the 'Roll Again' button
     // covers the last die on the right." A short landscape viewport puts

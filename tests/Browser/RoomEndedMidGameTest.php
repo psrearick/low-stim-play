@@ -63,7 +63,7 @@ it('redirects home instead of flashing an error when an action outlives its room
 
     $page = visit('/login');
     $page->fill('email', $host->email)->fill('password', 'password')->click('#login-submit');
-    $page->navigate('/yahtzee?room='.$room->code);
+    $page->navigate('/yacht?room='.$room->code);
     $page->assertSee('Roll');
 
     Room::where('id', $room->id)->delete();

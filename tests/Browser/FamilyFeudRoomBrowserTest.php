@@ -96,12 +96,12 @@ test('a host sees a dropdown of their own rooms on the setup screen and can jump
     $host = User::factory()->create(['password' => bcrypt('password')]);
     $room = Room::factory()->create(['host_user_id' => $host->id]);
 
-    $page = loginAsAndVisitFeud($host, '/family-feud');
+    $page = loginAsAndVisitFeud($host, '/survey-says');
 
     $page->assertSee('Play in a room you host')
         ->click('#hosted-room-'.$room->code);
 
-    $page->assertPathIs('/family-feud/room/'.$room->code)
+    $page->assertPathIs('/survey-says/room/'.$room->code)
         ->assertSee("I'm ready");
 });
 
@@ -109,7 +109,7 @@ test('the acting seat sees the guess form, not a waiting message', function () {
     [$room, , $users] = startedFeudRoom();
 
     // Team 0 (host, seat 0) controls round 1.
-    $page = loginAsAndVisitFeud($users->first(), "/family-feud?room={$room->code}");
+    $page = loginAsAndVisitFeud($users->first(), "/survey-says?room={$room->code}");
 
     $page->assertVisible('.guess-form')
         ->assertDontSee('Waiting for');
@@ -119,7 +119,7 @@ test('a non-acting seat sees a waiting message instead of the guess form', funct
     [$room, , $users] = startedFeudRoom();
 
     // Team 0 (host, seat 0) controls round 1 -- seat 1 (guest) must wait.
-    $page = loginAsAndVisitFeud($users->last(), "/family-feud?room={$room->code}");
+    $page = loginAsAndVisitFeud($users->last(), "/survey-says?room={$room->code}");
 
     $page->assertMissing('.guess-form')
         ->assertSee('Waiting for '.$users->first()->name);
@@ -129,11 +129,82 @@ test('an unseated spectator sees no guess form and no Reveal/End Game action but
     [$room] = startedFeudRoom();
     $spectator = User::factory()->create(['password' => bcrypt('password')]);
 
-    $page = loginAsAndVisitFeud($spectator, "/family-feud?room={$room->code}");
+    $page = loginAsAndVisitFeud($spectator, "/survey-says?room={$room->code}");
 
     $page->assertMissing('.guess-form')
         ->assertDontSee('Reveal')
         ->assertDontSee('End Game');
+});
+
+/**
+ * docs/TODO.md's former #15: unlike Clear the Deck/Farkle/Yahtzee's own
+ * spectator views, Family Feud's in-game scoreboard (⚡play.blade.php)
+ * only ever renders two fixed team-name/score cards, never a per-player
+ * list -- so team roster size (up to Room::factory()'s own max_players
+ * default, 8, split 4v4 here) has no way to make it grow at all, and the
+ * page has no `.in-game { height: 100dvh }` clip the way those three do.
+ * Verified live rather than assumed: still true with a full 4v4 room on a
+ * short, wide TV-cast-style viewport.
+ */
+test('the scoreboard stays a fixed size with no scrolling needed on a short TV-cast viewport at a full 4v4 room', function () {
+    $users = User::factory()->count(8)->create(['password' => bcrypt('password')]);
+    $room = Room::factory()->active()->create(['host_user_id' => $users->first()->id]);
+
+    $state = [
+        'teams' => [
+            ['name' => 'Team 1', 'score' => 12],
+            ['name' => 'Team 2', 'score' => 8],
+        ],
+        'teamSeats' => [
+            $users->slice(0, 4)->values()->map(fn (User $u, int $i) => ['seatIndex' => $i, 'name' => $u->name, 'isCaptain' => $i === 0])->all(),
+            $users->slice(4, 4)->values()->map(fn (User $u, int $i) => ['seatIndex' => $i + 4, 'name' => $u->name, 'isCaptain' => $i === 0])->all(),
+        ],
+        'teamTurnPointer' => [0, 0],
+        'questions' => [
+            ['id' => 1, 'prompt' => 'Name something round.', 'answerCount' => 4],
+        ],
+        'currentQuestionIndex' => 0,
+        'revealed' => [],
+        'strikes' => 0,
+        'pot' => 0,
+        'controllingTeam' => 0,
+        'phase' => 'play',
+        'roundHistory' => [[12, 8]],
+        'roundEndTitle' => '',
+        'message' => null,
+        'messageIsError' => false,
+    ];
+
+    $session = GameSession::factory()->create([
+        'type' => GameType::FamilyFeud,
+        'mode' => GameMode::Online,
+        'settings' => ['rounds' => 1],
+        'state' => $state,
+    ]);
+
+    $room->update(['game_session_id' => $session->id]);
+
+    foreach ($users as $i => $user) {
+        RoomSeat::factory()->create([
+            'room_id' => $room->id,
+            'seat_index' => $i,
+            'user_id' => $user->id,
+            'team_index' => (int) ($i >= 4),
+            'is_captain' => $i === 0 || $i === 4,
+        ]);
+    }
+
+    $spectator = User::factory()->create(['password' => bcrypt('password')]);
+    $page = loginAsAndVisitFeud($spectator, "/survey-says?room={$room->code}");
+    $page->resize(1920, 750);
+
+    $page->assertSee('Team 1')->assertSee('Team 2');
+
+    $overflow = $page->script(
+        '(() => ({ scrollHeight: document.body.scrollHeight, innerHeight: window.innerHeight }))()'
+    );
+
+    expect($overflow['scrollHeight'])->toBeLessThanOrEqual($overflow['innerHeight']);
 });
 
 /**
@@ -176,7 +247,7 @@ test('the team-assignment screen renders real players and blocks starting once a
     FamilyFeudQuestion::factory()->count(4)->create();
 
     $room = Room::factory()->create(['host_user_id' => $host->id]);
-    $page = loginAsAndVisitFeud($host, "/family-feud/room/{$room->code}");
+    $page = loginAsAndVisitFeud($host, "/survey-says/room/{$room->code}");
 
     triggerFeudRoomStarting($page, [
         ['id' => $host->id, 'name' => $host->name, 'is_host' => true, 'ready' => true],
@@ -203,7 +274,7 @@ test('the host can start the round from the team-assignment screen with a real c
     FamilyFeudQuestion::factory()->count(4)->create();
 
     $room = Room::factory()->create(['host_user_id' => $host->id]);
-    $page = loginAsAndVisitFeud($host, "/family-feud/room/{$room->code}");
+    $page = loginAsAndVisitFeud($host, "/survey-says/room/{$room->code}");
 
     triggerFeudRoomStarting($page, [
         ['id' => $host->id, 'name' => $host->name, 'is_host' => true, 'ready' => true],
@@ -217,7 +288,7 @@ test('the host can start the round from the team-assignment screen with a real c
     // otherwise generic ("Team 1"/"Team 2") -- so assert on markers that
     // are always present in the real game instead of either player's name
     // specifically.
-    $page->assertPathIs('/family-feud')
+    $page->assertPathIs('/survey-says')
         ->assertDontSee('Start Round')
         ->assertSee('Team 1')
         ->assertSee('Team 2')

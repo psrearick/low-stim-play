@@ -26,14 +26,14 @@ function yahtzeeParticipantFor(User $user, array $scores = ['ones' => 3], int $s
 }
 
 test('guests are redirected to login for the yahtzee stats index', function () {
-    $this->get('/profile/yahtzee')->assertRedirect('/login');
+    $this->get('/profile/yacht')->assertRedirect('/login');
 });
 
 test('guests are redirected to login for a yahtzee game detail page', function () {
     $user = User::factory()->create();
     $participant = yahtzeeParticipantFor($user);
 
-    $this->get("/profile/yahtzee/{$participant->id}")->assertRedirect('/login');
+    $this->get("/profile/yacht/{$participant->id}")->assertRedirect('/login');
 });
 
 test('the yahtzee stats index renders for an authenticated user', function () {
@@ -41,7 +41,7 @@ test('the yahtzee stats index renders for an authenticated user', function () {
     yahtzeeParticipantFor($user, ['sixes' => 24], 24);
 
     $this->actingAs($user)
-        ->get('/profile/yahtzee')
+        ->get('/profile/yacht')
         ->assertSeeLivewire('pages::profile.yahtzee.index')
         ->assertSee('24');
 });
@@ -71,7 +71,7 @@ test('the yahtzee stats index links each personal best to the game it came from'
     $best = yahtzeeParticipantFor($user, ['sixes' => 24], 24);
 
     $this->actingAs($user)
-        ->get('/profile/yahtzee')
+        ->get('/profile/yacht')
         ->assertSee(route('profile.yahtzee.show', $best), escape: false);
 });
 
@@ -83,7 +83,7 @@ test('a yahtzee game detail page shows its scorecard and headline stats', functi
     ], score: 148, yahtzeeBonusCount: 1);
 
     $this->actingAs($user)
-        ->get("/profile/yahtzee/{$participant->id}")
+        ->get("/profile/yacht/{$participant->id}")
         ->assertSeeLivewire('pages::profile.yahtzee.show')
         ->assertSee('148')
         ->assertSee('Yes'); // upper bonus achieved (63 exactly)
@@ -95,7 +95,7 @@ test('a user cannot view another user\'s yahtzee game detail page', function () 
     $participant = yahtzeeParticipantFor($otherUser);
 
     $this->actingAs($user)
-        ->get("/profile/yahtzee/{$participant->id}")
+        ->get("/profile/yacht/{$participant->id}")
         ->assertNotFound();
 });
 
@@ -105,7 +105,7 @@ test('a yahtzee game detail page 404s for a non-Yahtzee participant', function (
     $participant = GameParticipant::factory()->create(['game_session_id' => $session->id, 'user_id' => $user->id]);
 
     $this->actingAs($user)
-        ->get("/profile/yahtzee/{$participant->id}")
+        ->get("/profile/yacht/{$participant->id}")
         ->assertNotFound();
 });
 

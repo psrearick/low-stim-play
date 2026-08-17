@@ -23,17 +23,17 @@ test('the lobby shows no room UI at all for a user hosting no rooms', function (
     // whether *this* lobby has anything room-related of its own to show.
     $user = User::factory()->create();
 
-    $this->actingAs($user)->get('/boggle')
+    $this->actingAs($user)->get('/word-grid')
         ->assertDontSee('Play in a room you host');
 
-    $this->get('/boggle')->assertDontSee('Play in a room you host');
+    $this->get('/word-grid')->assertDontSee('Play in a room you host');
 });
 
 test('the lobby shows a dropdown of rooms the user hosts, linking into each one\'s room page', function () {
     $host = User::factory()->create();
     $room = Room::factory()->create(['host_user_id' => $host->id]);
 
-    $this->actingAs($host)->get('/boggle')
+    $this->actingAs($host)->get('/word-grid')
         ->assertSee('Play in a room you host')
         ->assertSee($room->code)
         ->assertSeeHtml(route('boggle.room', ['code' => $room->code]));
@@ -42,7 +42,7 @@ test('the lobby shows a dropdown of rooms the user hosts, linking into each one\
 test('a guest can view a room page without an account, and is given a throwaway one', function () {
     $room = Room::factory()->create();
 
-    $this->get("/boggle/room/{$room->code}")->assertOk();
+    $this->get("/word-grid/room/{$room->code}")->assertOk();
 
     $guest = User::where('is_guest', true)->sole();
 
@@ -54,7 +54,7 @@ test('a guest can view a room page without an account, and is given a throwaway 
 test('an unknown room code 404s', function () {
     $user = User::factory()->create();
 
-    $this->actingAs($user)->get('/boggle/room/ZZZZZZ')->assertNotFound();
+    $this->actingAs($user)->get('/word-grid/room/ZZZZZZ')->assertNotFound();
 });
 
 test('only the host sees the board size and time limit controls', function () {
@@ -62,8 +62,8 @@ test('only the host sees the board size and time limit controls', function () {
     $guest = User::factory()->create();
     $room = Room::factory()->create(['host_user_id' => $host->id]);
 
-    $this->actingAs($host)->get("/boggle/room/{$room->code}")->assertSee('Board Size');
-    $this->actingAs($guest)->get("/boggle/room/{$room->code}")->assertDontSee('Board Size');
+    $this->actingAs($host)->get("/word-grid/room/{$room->code}")->assertSee('Board Size');
+    $this->actingAs($guest)->get("/word-grid/room/{$room->code}")->assertDontSee('Board Size');
 });
 
 test('starting the room creates a shared game session and redirects the host into it', function () {

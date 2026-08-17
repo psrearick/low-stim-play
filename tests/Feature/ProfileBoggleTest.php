@@ -32,14 +32,14 @@ function boggleParticipantFor(User $user, array $foundWords = ['cat' => 1], int 
 }
 
 test('guests are redirected to login for the boggle stats index', function () {
-    $this->get('/profile/boggle')->assertRedirect('/login');
+    $this->get('/profile/word-grid')->assertRedirect('/login');
 });
 
 test('guests are redirected to login for a boggle game detail page', function () {
     $user = User::factory()->create();
     $participant = boggleParticipantFor($user);
 
-    $this->get("/profile/boggle/{$participant->id}")->assertRedirect('/login');
+    $this->get("/profile/word-grid/{$participant->id}")->assertRedirect('/login');
 });
 
 test('the boggle stats index renders for an authenticated user', function () {
@@ -47,7 +47,7 @@ test('the boggle stats index renders for an authenticated user', function () {
     boggleParticipantFor($user, ['cat' => 1, 'plate' => 2], 3, totalValidWords: 10);
 
     $this->actingAs($user)
-        ->get('/profile/boggle')
+        ->get('/profile/word-grid')
         ->assertSeeLivewire('pages::profile.boggle.index')
         ->assertSee('PLATE');
 });
@@ -72,7 +72,7 @@ test('the boggle stats index shows a win/loss result for online games and a dash
     boggleParticipantFor($user, ['owl' => 1], 3, mode: GameMode::Solo);
 
     $this->actingAs($user)
-        ->get('/profile/boggle')
+        ->get('/profile/word-grid')
         ->assertSee('Win')
         ->assertSee('Loss')
         ->assertSee('—');
@@ -83,7 +83,7 @@ test('the boggle stats index links each personal best to the game it came from',
     $best = boggleParticipantFor($user, ['elephant' => 11], 11);
 
     $this->actingAs($user)
-        ->get('/profile/boggle')
+        ->get('/profile/word-grid')
         ->assertSee(route('profile.boggle.show', $best), escape: false);
 });
 
@@ -92,7 +92,7 @@ test('a boggle game detail page shows its stats and found words', function () {
     $participant = boggleParticipantFor($user, ['cat' => 1, 'plate' => 2], 3, totalValidWords: 10);
 
     $this->actingAs($user)
-        ->get("/profile/boggle/{$participant->id}")
+        ->get("/profile/word-grid/{$participant->id}")
         ->assertSeeLivewire('pages::profile.boggle.show')
         ->assertSee('CAT')
         ->assertSee('PLATE')
@@ -104,7 +104,7 @@ test('a boggle game detail page shows the result for an online game', function (
     $participant = boggleParticipantFor($user, ['cat' => 1], 5, mode: GameMode::Online, result: GameResult::Win);
 
     $this->actingAs($user)
-        ->get("/profile/boggle/{$participant->id}")
+        ->get("/profile/word-grid/{$participant->id}")
         ->assertSee('Win');
 });
 
@@ -113,7 +113,7 @@ test('a boggle game detail page omits the result tile entirely for a solo game',
     $participant = boggleParticipantFor($user, ['cat' => 1], 5, mode: GameMode::Solo);
 
     $this->actingAs($user)
-        ->get("/profile/boggle/{$participant->id}")
+        ->get("/profile/word-grid/{$participant->id}")
         ->assertDontSee('Result');
 });
 
@@ -132,7 +132,7 @@ test('a user cannot view another user\'s boggle game detail page', function () {
     $participant = boggleParticipantFor($otherUser);
 
     $this->actingAs($user)
-        ->get("/profile/boggle/{$participant->id}")
+        ->get("/profile/word-grid/{$participant->id}")
         ->assertNotFound();
 });
 
@@ -142,6 +142,6 @@ test('a boggle game detail page 404s for a non-Boggle participant', function () 
     $participant = GameParticipant::factory()->create(['game_session_id' => $session->id, 'user_id' => $user->id]);
 
     $this->actingAs($user)
-        ->get("/profile/boggle/{$participant->id}")
+        ->get("/profile/word-grid/{$participant->id}")
         ->assertNotFound();
 });

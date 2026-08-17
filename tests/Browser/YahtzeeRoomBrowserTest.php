@@ -101,19 +101,19 @@ test('a host sees a dropdown of their own rooms on the setup screen and can jump
     $host = User::factory()->create(['password' => bcrypt('password')]);
     $room = Room::factory()->create(['host_user_id' => $host->id]);
 
-    $page = loginAsAndVisit($host, '/yahtzee');
+    $page = loginAsAndVisit($host, '/yacht');
 
     $page->assertSee('Play in a room you host')
         ->click('#hosted-room-'.$room->code);
 
-    $page->assertPathIs('/yahtzee/room/'.$room->code)
+    $page->assertPathIs('/yacht/room/'.$room->code)
         ->assertSee("I'm ready");
 });
 
 test('the current seat can roll and score a category from a real browser', function () {
     [$room, , $users] = startedYahtzeeRoom();
 
-    $page = loginAsAndVisit($users->first(), "/yahtzee?room={$room->code}");
+    $page = loginAsAndVisit($users->first(), "/yacht?room={$room->code}");
 
     $page->assertSee($users->first()->name)
         ->assertVisible('#rollBtn')
@@ -134,9 +134,9 @@ test('an unseated visitor gets the read-only spectator view, not turn controls',
     [$room] = startedYahtzeeRoom();
     $spectator = User::factory()->create(['password' => bcrypt('password')]);
 
-    $page = loginAsAndVisit($spectator, "/yahtzee/room/{$room->code}");
+    $page = loginAsAndVisit($spectator, "/yacht/room/{$room->code}");
 
-    $page->assertPathIs('/yahtzee')
+    $page->assertPathIs('/yacht')
         ->assertMissing('#rollBtn')
         ->assertVisible('.dice-area')
         ->assertSourceMissing('not-mine');
@@ -149,7 +149,7 @@ test('every seat\'s column is visible in the main scorecard on a narrow phone, n
     // viewport, relying on horizontal scroll instead.
     [$room, , $users] = startedYahtzeeRoom(4);
 
-    $page = loginAsAndVisit($users->first(), "/yahtzee?room={$room->code}");
+    $page = loginAsAndVisit($users->first(), "/yacht?room={$room->code}");
     $page->resize(390, 844);
 
     $page->assertMissing('#scores-btn')
@@ -163,7 +163,7 @@ test('every seat\'s column is visible in the main scorecard on a narrow phone, n
 test('the scorecard actually scrolls horizontally on a narrow phone when there are too many players to fit', function () {
     [$room, , $users] = startedYahtzeeRoom(6);
 
-    $page = loginAsAndVisit($users->first(), "/yahtzee?room={$room->code}");
+    $page = loginAsAndVisit($users->first(), "/yacht?room={$room->code}");
     $page->resize(390, 844);
 
     $page->assertSee($users->first()->name);
@@ -197,7 +197,7 @@ test('the scorecard actually scrolls horizontally on a narrow phone when there a
 test('the scorecard fits an 8-player game on a tablet-width viewport with no horizontal scrolling', function () {
     [$room, , $users] = startedYahtzeeRoom(8);
 
-    $page = loginAsAndVisit($users->first(), "/yahtzee?room={$room->code}");
+    $page = loginAsAndVisit($users->first(), "/yacht?room={$room->code}");
     $page->resize(1024, 768);
 
     $page->assertSee($users->first()->name);
@@ -207,4 +207,33 @@ test('the scorecard fits an 8-player game on a tablet-width viewport with no hor
     );
 
     expect($info['scrollWidth'])->toBeLessThanOrEqual($info['clientWidth']);
+});
+
+/**
+ * docs/TODO.md's former #14: a very short, wide viewport (1920x750,
+ * simulating an aspect-ratio change like AirPlay/screen mirroring) still
+ * needed vertical scrolling to see all 17 scorecard rows even at the
+ * cqh-based row height's 10px font floor. Root cause turned out not to be
+ * the floor at all: .yahtzee-play .row (the 5-die grid) had flex: 1 1
+ * auto, and a positive flex-grow inflated it -- and, since dice are
+ * aspect-ratio: 1/1, .dice-area's whole height along with it -- to nearly
+ * fill .dice-area's full-width flex row, regardless of the intended
+ * min(56vw, 42vh, 720px) cap. Confirmed live even on an ordinary
+ * 1920x1080 desktop viewport (.row rendered 1860px wide against a ~454px
+ * intended cap) before fixing app.css to flex: 0 1 auto -- this test
+ * guards the short-viewport symptom that originally surfaced it.
+ */
+test('the scorecard fits an 8-player game on a short, wide TV-cast viewport with no vertical scrolling', function () {
+    [$room, , $users] = startedYahtzeeRoom(8);
+
+    $page = loginAsAndVisit($users->first(), "/yacht?room={$room->code}");
+    $page->resize(1920, 750);
+
+    $page->assertSee($users->first()->name);
+
+    $info = $page->script(
+        "(() => { const el = document.querySelector('.card-wrap'); return { scrollHeight: el.scrollHeight, clientHeight: el.clientHeight }; })()"
+    );
+
+    expect($info['scrollHeight'])->toBeLessThanOrEqual($info['clientHeight']);
 });

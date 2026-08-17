@@ -26,14 +26,14 @@ function familyFeudParticipantFor(User $user, array $roundHistory = [10], int $s
 }
 
 test('guests are redirected to login for the family feud stats index', function () {
-    $this->get('/profile/family-feud')->assertRedirect('/login');
+    $this->get('/profile/survey-says')->assertRedirect('/login');
 });
 
 test('guests are redirected to login for a family feud game detail page', function () {
     $user = User::factory()->create();
     $participant = familyFeudParticipantFor($user);
 
-    $this->get("/profile/family-feud/{$participant->id}")->assertRedirect('/login');
+    $this->get("/profile/survey-says/{$participant->id}")->assertRedirect('/login');
 });
 
 test('the family feud stats index renders for an authenticated user', function () {
@@ -41,7 +41,7 @@ test('the family feud stats index renders for an authenticated user', function (
     familyFeudParticipantFor($user, [40, 30], 70);
 
     $this->actingAs($user)
-        ->get('/profile/family-feud')
+        ->get('/profile/survey-says')
         ->assertSeeLivewire('pages::profile.family-feud.index')
         ->assertSee('70');
 });
@@ -67,7 +67,7 @@ test('the family feud stats index links each personal best to the game it came f
     $best = familyFeudParticipantFor($user, [40], 40);
 
     $this->actingAs($user)
-        ->get('/profile/family-feud')
+        ->get('/profile/survey-says')
         ->assertSee(route('profile.family-feud.show', $best), escape: false);
 });
 
@@ -76,7 +76,7 @@ test('a family feud game detail page shows its score, result, and round-by-round
     $participant = familyFeudParticipantFor($user, [40, 30, 0], score: 70, teamIndex: 1, isCaptain: true);
 
     $this->actingAs($user)
-        ->get("/profile/family-feud/{$participant->id}")
+        ->get("/profile/survey-says/{$participant->id}")
         ->assertSeeLivewire('pages::profile.family-feud.show')
         ->assertSee('70')
         ->assertSee('Captain');
@@ -88,7 +88,7 @@ test('a user cannot view another user\'s family feud game detail page', function
     $participant = familyFeudParticipantFor($otherUser);
 
     $this->actingAs($user)
-        ->get("/profile/family-feud/{$participant->id}")
+        ->get("/profile/survey-says/{$participant->id}")
         ->assertNotFound();
 });
 
@@ -98,7 +98,7 @@ test('a family feud game detail page 404s for a non-Family-Feud participant', fu
     $participant = GameParticipant::factory()->create(['game_session_id' => $session->id, 'user_id' => $user->id]);
 
     $this->actingAs($user)
-        ->get("/profile/family-feud/{$participant->id}")
+        ->get("/profile/survey-says/{$participant->id}")
         ->assertNotFound();
 });
 

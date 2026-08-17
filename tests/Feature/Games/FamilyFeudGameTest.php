@@ -43,7 +43,7 @@ function makeQuestion(): FamilyFeudQuestion
 }
 
 test('the setup screen renders', function () {
-    $this->get('/family-feud')->assertSeeLivewire('pages::family-feud.play');
+    $this->get('/survey-says')->assertSeeLivewire('pages::family-feud.play');
 });
 
 test('starting the game with no questions in the bank shows an error instead of crashing', function () {

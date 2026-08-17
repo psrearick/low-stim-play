@@ -72,6 +72,19 @@
     --rival-2: oklch(0.50 0.12 150);
     --rival-3: oklch(0.50 0.12 300);
     --rival-4: oklch(0.48 0.11 190);
+    /*
+     * Clear the Deck's spectator/TV-cast current-player highlight only
+     * (docs/TODO.md's former #16) -- deliberately its own token, not a
+     * bumped --accent, since --accent is used site-wide (a selected
+     * Boggle die, a found word, option.active, the controlling Family
+     * Feud team, a won result) and this app's own design ethos is
+     * explicitly muted/low-saturation, not "make the shared accent more
+     * vivid everywhere." Darker and more saturated than --accent's own
+     * light-theme value for stronger lightness *and* hue contrast against
+     * --die/--bg at once (the pairing that actually reads at a distance,
+     * not saturation alone) -- see .ctd-spectator-seat-active below.
+     */
+    --ctd-active: oklch(0.40 0.15 248.57);
 }
 
 .dark {
@@ -91,6 +104,9 @@
     --rival-2: oklch(0.72 0.13 150);
     --rival-3: oklch(0.72 0.13 300);
     --rival-4: oklch(0.70 0.12 190);
+    /* See :root's own --ctd-active above -- brighter and more saturated
+       than --accent's own dark-theme value, for the same reason. */
+    --ctd-active: oklch(0.80 0.17 248.57);
 }
 
 /* No flashing, blinking, or motion of any kind - the whole point of this app. */
@@ -1345,7 +1361,22 @@ body.scrollable.yahtzee-play.in-game {
        .dice-area above); shrinking the dice themselves is what actually
        makes room, not just a side-effect of it. */
     width: min(56vw, 42vh, 720px);
-    flex: 1 1 auto;
+    /* flex-grow: 0, not 1 (docs/TODO.md's former #14) -- flex-basis alone
+       (from the width property above) is only a *starting* size, and a
+       positive flex-grow happily inflates a square-aspect-ratio grid past
+       it to fill whatever's left in .dice-area's full-width flex row.
+       Confirmed live: at a plain 1920x1080 desktop viewport (not even an
+       extreme aspect ratio), .row rendered 1860px wide against an
+       intended min(56vw, 42vh, 720px) cap of ~454px -- and since dice are
+       aspect-ratio: 1/1, that also inflated .dice-area's *height* by the
+       same factor, the actual root cause of table.scorecard's 17 rows
+       running out of vertical room on a short-but-wide (e.g. TV-cast)
+       viewport, not the row-height cqh floor alone. flex-shrink: 1 (so a
+       narrow mobile .dice-area can still shrink this below its own
+       basis, sharing the row with Roll/Undo -- see the comment above)
+       and min-width: 0 (so shrinking isn't blocked by the grid's own
+       intrinsic content size) are both still needed and kept. */
+    flex: 0 1 auto;
     min-width: 0;
 }
 
@@ -1689,8 +1720,19 @@ body.scrollable.farkle-play.in-game {
     min-height: min(160px, 25vh);
 }
 
+/* Ceiling raised from 22px to 32px, rate from 2.4vh to 3.2vh
+   (docs/TODO.md's former #17) -- a seated player actively playing (i.e.
+   not toggled to "Watch only") on a device that's itself being
+   screen-mirrored/cast to a TV still saw this same fixed 22px, while the
+   dedicated spectator scoreboard right below got bumped up to a real
+   cqh-scaled 36px ceiling for exactly this TV-legibility reason. Bumped
+   here too rather than left at 22px, since that prior fix is itself
+   direct evidence 22px reads too small on an actual TV in this app.
+   Kept in sync with the live (in-progress) scoreboard's own desktop-only
+   override just below, on purpose -- the two have always intentionally
+   matched font size rather than drifting to two different numbers. */
 .farkle-final-scores .grid > span {
-    font-size: clamp(16px, 2.4vh, 22px);
+    font-size: clamp(16px, 3.2vh, 32px);
     padding-top: clamp(10px, 1.4vh, 16px);
     padding-bottom: clamp(10px, 1.4vh, 16px);
 }
@@ -1701,10 +1743,12 @@ body.scrollable.farkle-play.in-game {
    screen with room to spare. First bumped to 18px, then reported still
    too small (docs/concerns.md again) -- raised to match
    .farkle-final-scores' own 22px so the live and final scoreboards read
-   at the same size, rather than picking a new number. */
+   at the same size, rather than picking a new number. Ceiling raised
+   again to 32px alongside .farkle-final-scores' own identical bump above
+   (docs/TODO.md's former #17) -- see that rule's comment for why. */
 @media (min-width: 900px) {
     .farkle-scoreboard:not(.farkle-final-scores) .grid > span {
-        font-size: 22px;
+        font-size: clamp(18px, 3.2vh, 32px);
         padding-top: 14px;
         padding-bottom: 14px;
     }
@@ -2716,15 +2760,24 @@ body.scrollable.family-feud-play {
 }
 
 /* Outlines the seat whose turn it currently is, so it reads at a glance
-   from across a room -- the same border/background pairing a selected
-   card already uses (.ctd-card-selected above) for visual consistency. */
+   from across a room. docs/TODO.md's former #16: --accent alone (the same
+   border/background pairing .ctd-card-selected above uses) read as too
+   light/washed-out cast to a TV -- fixed with a dedicated, higher-contrast
+   --ctd-active token (see :root/.dark above) instead of bumping --accent
+   itself, plus a thicker border (a border's own width matters as much as
+   its color/lightness contrast once viewed from across a room, not just
+   hue). The active player's name also gets a "▸" marker in the Blade
+   template itself, not just this color -- a shape-based signal that still
+   reads correctly even under a poorly color-calibrated TV or for a
+   colorblind viewer, neither of which a color-only change can fix. */
 .clear-the-deck-play .ctd-spectator-seat-active {
-    border-color: var(--accent);
+    border-color: var(--ctd-active);
+    border-width: 3px;
     background: var(--die-kept);
 }
 
 .clear-the-deck-play .ctd-opponent-name-active {
-    color: var(--accent);
+    color: var(--ctd-active);
 }
 
 /* Spectator-only name/hand-count text -- deliberately larger than

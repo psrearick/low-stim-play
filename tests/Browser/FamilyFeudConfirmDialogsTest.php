@@ -34,7 +34,7 @@ function startLocalFeudGame(): PendingAwaitablePage
 {
     FamilyFeudQuestion::factory()->count(20)->create();
 
-    $page = visit('/family-feud');
+    $page = visit('/survey-says');
     $page->click('Start Game')->wait(0.5);
 
     return $page;

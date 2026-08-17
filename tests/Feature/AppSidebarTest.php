@@ -30,7 +30,7 @@ test('the sidebar appears on every Dashboard/Profile/Stats page', function () {
     $user = User::factory()->create();
     $this->actingAs($user);
 
-    foreach (['/dashboard', '/profile', '/profile/boggle', '/profile/yahtzee', '/profile/family-feud', '/profile/10000', '/profile/games'] as $path) {
+    foreach (['/dashboard', '/profile', '/profile/word-grid', '/profile/yacht', '/profile/survey-says', '/profile/10000', '/profile/games'] as $path) {
         assertHasSidebar($this, $path);
     }
 });
@@ -47,14 +47,14 @@ test('the sidebar does not appear on a game-play page', function () {
     $user = User::factory()->create();
 
     $this->actingAs($user)
-        ->get('/boggle/play')
+        ->get('/word-grid/play')
         ->assertDontSee('id="app-sidebar"', false);
 });
 
 test('exactly one sidebar link is marked active on a stats page', function () {
     $user = User::factory()->create();
 
-    $response = $this->actingAs($user)->get('/profile/boggle');
+    $response = $this->actingAs($user)->get('/profile/word-grid');
 
     expect(substr_count($response->getContent(), 'app-sidebar-link active'))->toBe(1);
     $response->assertSee('app-sidebar-link active', false);

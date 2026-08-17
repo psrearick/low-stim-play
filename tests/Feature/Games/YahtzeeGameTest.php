@@ -13,7 +13,7 @@ use Livewire\Livewire;
 uses(RefreshDatabase::class);
 
 test('the setup screen renders', function () {
-    $this->get('/yahtzee')->assertSeeLivewire('pages::yahtzee.play');
+    $this->get('/yacht')->assertSeeLivewire('pages::yahtzee.play');
 });
 
 test('player count is clamped between 1 and 8', function () {

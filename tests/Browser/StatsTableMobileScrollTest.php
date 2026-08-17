@@ -68,7 +68,7 @@ test('the Boggle All Games table scrolls horizontally on mobile', function () {
     $session = GameSession::factory()->create(['type' => GameType::Boggle, 'mode' => GameMode::Solo]);
     GameParticipant::factory()->create(['game_session_id' => $session->id, 'user_id' => $user->id, 'score' => 10]);
 
-    $page = loginAndVisit($user, '/profile/boggle')->resize(375, 800);
+    $page = loginAndVisit($user, '/profile/word-grid')->resize(375, 800);
 
     assertHorizontallyScrollable($page);
 });
@@ -78,7 +78,7 @@ test('the Yahtzee All Games table scrolls horizontally on mobile', function () {
     $session = GameSession::factory()->create(['type' => GameType::Yahtzee, 'mode' => GameMode::Local]);
     GameParticipant::factory()->create(['game_session_id' => $session->id, 'user_id' => $user->id, 'score' => 150]);
 
-    $page = loginAndVisit($user, '/profile/yahtzee')->resize(375, 800);
+    $page = loginAndVisit($user, '/profile/yacht')->resize(375, 800);
 
     assertHorizontallyScrollable($page);
 });
@@ -88,7 +88,7 @@ test('the Family Feud All Games table scrolls horizontally on mobile', function 
     $session = GameSession::factory()->create(['type' => GameType::FamilyFeud, 'mode' => GameMode::Local]);
     GameParticipant::factory()->create(['game_session_id' => $session->id, 'user_id' => $user->id, 'score' => 60]);
 
-    $page = loginAndVisit($user, '/profile/family-feud')->resize(375, 800);
+    $page = loginAndVisit($user, '/profile/survey-says')->resize(375, 800);
 
     assertHorizontallyScrollable($page);
 });

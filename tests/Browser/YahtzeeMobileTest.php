@@ -6,7 +6,7 @@
 // navigation. resize() just sets the viewport and leaves real click
 // dispatch alone, which works reliably.
 it('shows the dice and Roll button together on a narrow mobile viewport', function () {
-    $page = visit('/yahtzee');
+    $page = visit('/yacht');
     $page->resize(390, 844);
 
     $page->click('[aria-label="Fewer players"]')->click('Start Game');
@@ -22,7 +22,7 @@ it('shows the dice and Roll button together on a narrow mobile viewport', functi
 });
 
 it('keeps the fullscreen toggle reachable on a narrow mobile viewport', function () {
-    $page = visit('/yahtzee');
+    $page = visit('/yacht');
     $page->resize(390, 844);
 
     $page->assertVisible('#chrome-toggle-btn');
@@ -36,7 +36,7 @@ it('keeps the fullscreen toggle reachable on a narrow mobile viewport', function
 // column instead of sitting beside it, hiding whichever player rendered
 // underneath. See docs/DEVLOG.md's Yahtzee section.
 it('keeps the sticky category column from overlapping the first player column on mobile', function () {
-    $page = visit('/yahtzee');
+    $page = visit('/yacht');
     $page->resize(390, 844);
 
     for ($i = 0; $i < 6; $i++) {

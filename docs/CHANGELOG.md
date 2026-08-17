@@ -4,6 +4,12 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 
 ## 2026-08-17
 
+- Fixed Boggle recording a solo game to stats when "End Game" was clicked to stop a timed game early, before its own clock ran out; untimed games and naturally-expired timed games still record as before. Reveal screen now shows a "not saved" message for an early-ended game.
+- Bumped Farkle's live (non-spectator) and final scoreboard font from a flat 22px to a `clamp()` reaching up to 32px on a large screen, matching the dedicated spectator scoreboard's own earlier TV-legibility bump.
+- Made Clear the Deck's spectator-view current-player highlight easier to read on a TV: a new dedicated `--ctd-active` color (not the shared `--accent`), a thicker border, and a "▸" marker on the active player's name.
+- Verified Family Feud's and Best Match's spectator views against the same no-scroll requirement Clear the Deck/Farkle/Yahtzee already met (real seeded rooms at a full 8-player room, 1920x750 TV-cast viewport); confirmed clean, no fix needed.
+- Fixed a real bug in Yahtzee's dice row silently over-growing past its intended size on any sufficiently wide screen (worst on a short/wide TV-cast viewport, where it forced the scorecard into vertical scrolling); `.yahtzee-play .row`'s `flex-grow` was the root cause, not the scorecard's own row-height floor.
+- Renamed Boggle/Yahtzee/Family Feud's URL paths to `/word-grid`, `/yacht`, `/survey-says` (and their room/play/profile sub-paths), matching their already-renamed display names; route names, enums, and internal code untouched.
 - Fixed a 500 crash visiting Farkle/Yahtzee/Family Feud/Best Match/Clear the Deck's play page for a room whose active session belongs to a different game (e.g. a stale tab left open after the host switched games); now redirects to the room hub instead.
 - Verified analytics on the deployed app (real client IP resolution, MaxMind/admin-email env vars) and removed the now-redundant weekly `analytics:geoip-update` schedule, since it's a Laravel Cloud Build Command now and the schedule couldn't reach any replica but the one it happened to run on anyway.
 - Rewrote `README.md` from scratch (standard structure: games, design principles, tech stack, project structure, local development, testing, deployment, docs) and deleted the `legacy/` static-site directory, confirmed fully ported and safely preserved in its own separate GitHub remote.

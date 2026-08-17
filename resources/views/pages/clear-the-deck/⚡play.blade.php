@@ -1003,7 +1003,7 @@ new class extends Component
                                 $isCurrentTurn = $seat['seatIndex'] === $turnSeatIndex;
                             @endphp
                             <div wire:key="spectator-seat-{{ $seat['seatIndex'] }}" class="flex flex-col items-center gap-1 ctd-spectator-seat {{ $isCurrentTurn ? 'ctd-spectator-seat-active' : '' }}">
-                                <span class="ctd-spectator-name {{ $isCurrentTurn ? 'ctd-opponent-name-active' : '' }}">{{ $seat['name'] }}</span>
+                                <span class="ctd-spectator-name {{ $isCurrentTurn ? 'ctd-opponent-name-active' : '' }}">{{ $isCurrentTurn ? '▸ ' : '' }}{{ $seat['name'] }}</span>
                                 <div class="ctd-tableau" style="--ctd-card-w: {{ $spectatorSize }};">
                                     @foreach ($this->columnsForSeat($seat['seatIndex']) as $col)
                                         <div class="ctd-column" wire:key="spectator-{{ $seat['seatIndex'] }}-col-{{ $col['type'] }}-{{ $col['index'] }}">

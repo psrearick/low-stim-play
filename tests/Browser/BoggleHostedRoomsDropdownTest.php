@@ -12,10 +12,10 @@ it('shows the hosted-rooms dropdown and jumps into the chosen room lobby', funct
 
     $this->actingAs($host);
 
-    $page = visit('/boggle');
+    $page = visit('/word-grid');
     $page->assertSee('Play in a room you host')
         ->click('#hosted-room-'.$room->code)
         ->wait(0.5);
 
-    $page->assertPathIs('/boggle/room/'.$room->code);
+    $page->assertPathIs('/word-grid/room/'.$room->code);
 });

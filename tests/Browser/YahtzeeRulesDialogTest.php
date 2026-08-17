@@ -1,7 +1,7 @@
 <?php
 
 it('opens and closes the rules dialog from the button bar', function () {
-    $page = visit('/yahtzee');
+    $page = visit('/yacht');
 
     $page->assertDontSee('How to Use This Page')
         ->click('#rules-btn')
