@@ -4,13 +4,15 @@ Everything about how this app came to be built the way it is: the decisions made
 
 ## Origins
 
-The `legacy/` directory contains a static HTML/CSS/JS game suite (Boggle, Yahtzee, Family Feud) built for photosensitive and migraine-prone users. This app is a migration of that suite into a proper Laravel application: user accounts with passkey authentication, game history/stats, and real-time multiplayer via Laravel Reverb, while preserving the low-stim design language (no animation, no flashing, muted low-contrast palette) exactly.
+This app started as a migration of an earlier static HTML/CSS/JS game suite (Boggle, Yahtzee, Family Feud) built for photosensitive and migraine-prone users, into a proper Laravel application: user accounts with passkey authentication, game history/stats, and real-time multiplayer via Laravel Reverb, while preserving the low-stim design language (no animation, no flashing, muted low-contrast palette) exactly.
 
 Foundational decisions made before any code was written:
 - Custom `docker-compose.yml` (not Sail), with MariaDB + Redis.
 - Fortify + `laravel/passkeys` for auth — no Breeze; custom Blade/Livewire views throughout.
 - Boggle built first, to validate the architecture (service classes, Room/multiplayer system, stats) before repeating the pattern for Yahtzee and Family Feud.
 - Tailwind v4 for styling, with the legacy CSS ported in as real classes rather than reinterpreted as Tailwind utilities (see "Site-wide design system & chrome" below).
+
+**The `legacy/` directory (the original static suite, kept around as a migration reference) was removed once the migration was confirmed complete (2026-08-17).** A final pass compared every file in it against this app: all five original pages (Boggle, Boggle group-play, Yahtzee, Yahtzee dice-only roller, Family Feud, About) have real equivalents; `shared.css`/`boggle-shared.css`'s design tokens were ported near-verbatim into `resources/css/app.css`; `words.txt` was copied to `storage/app/words.txt`; the Netlify judge function became `JudgeService` (`OPENROUTER_API_KEY`); and every static asset (favicons, `manifest.json`, `sw.js`, `og-image.png`) was already copied into `public/`. `legacy/` was its own nested git repository with a separate GitHub remote (confirmed clean and fully pushed before deletion), not a submodule of this repo, so removing it locally doesn't lose its history. `README.md` was rewritten from scratch at the same time — it had been tracking migration status (a "what's ported so far" framing) rather than describing the app as it exists now.
 
 ## Infrastructure & tooling
 

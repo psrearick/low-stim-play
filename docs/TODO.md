@@ -18,13 +18,12 @@ The Order of Work list is a separate, ordinary numbered list reflecting current 
 8. [Task 11: Shared puzzle-game infrastructure](#11-shared-puzzle-game-infrastructure)
 9. [Task 5: Rename "Home"/"Dashboard"](#5-rename-homedashboard)
 10. [Task 10: Spec and build NYT-style puzzle games](#10-spec-and-build-nyt-style-puzzle-games)
-11. [Task 7: Update README](#7-update-readme)
-12. [Task 13: Privacy policy page](#13-privacy-policy-page)
-13. [Task 14: Yahtzee scorecard can still need vertical scrolling on a very short viewport](#14-yahtzee-scorecard-can-still-need-vertical-scrolling-on-a-very-short-viewport)
-14. [Task 15: Verify Family Feud/Best Match spectator views against the same no-scroll requirement](#15-verify-family-feudbest-match-spectator-views-against-the-same-no-scroll-requirement)
-15. [Task 16: Clear the Deck's current-player highlight is hard to read on a TV](#16-clear-the-decks-current-player-highlight-is-hard-to-read-on-a-tv)
-16. [Task 17: Verify Farkle's non-spectator scoreboard font size when cast to a TV](#17-verify-farkles-non-spectator-scoreboard-font-size-when-cast-to-a-tv)
-17. [Task 18: Boggle: start a new game without ending the current one](#18-boggle-start-a-new-game-without-ending-the-current-one)
+11. [Task 13: Privacy policy page](#13-privacy-policy-page)
+12. [Task 14: Yahtzee scorecard can still need vertical scrolling on a very short viewport](#14-yahtzee-scorecard-can-still-need-vertical-scrolling-on-a-very-short-viewport)
+13. [Task 15: Verify Family Feud/Best Match spectator views against the same no-scroll requirement](#15-verify-family-feudbest-match-spectator-views-against-the-same-no-scroll-requirement)
+14. [Task 16: Clear the Deck's current-player highlight is hard to read on a TV](#16-clear-the-decks-current-player-highlight-is-hard-to-read-on-a-tv)
+15. [Task 17: Verify Farkle's non-spectator scoreboard font size when cast to a TV](#17-verify-farkles-non-spectator-scoreboard-font-size-when-cast-to-a-tv)
+16. [Task 18: Boggle: start a new game without ending the current one](#18-boggle-start-a-new-game-without-ending-the-current-one)
 
 ## Tasks
 
@@ -43,10 +42,6 @@ The original app plan mentioned a friends-activity feed on the dashboard once, b
 ### 5. Rename "Home"/"Dashboard"
 
 The navigation redesign (see `docs/DEVLOG.md`'s "Navigation" section) deliberately deferred this — it only makes sense once the new sidebar's structure clarifies each page's actual role, which it now does. "Home" (`/`, the public game-picker page) and "Dashboard" (`/dashboard`, the signed-in stats/nav hub) still read as near-synonyms. Needs actual new names, not just a decision that they should change.
-
-### 7. Update README
-
-`README.md`'s "What's here" section (lines 13-19) only lists Boggle, Yahtzee, and Family Feud — it hasn't been updated for either Farkle ("10,000") or Best Match, both of which have since shipped (see `docs/DEVLOG.md`). Needs a pass to bring it in line with the app's current state.
 
 ### 8. Add Quartiles
 
