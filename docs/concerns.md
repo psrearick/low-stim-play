@@ -1,4 +1,0 @@
-- In clear the deck, when an ipad/desktop display is spectating, table cards should be at the top, not the bottom. Also, with five players, it didn't all fit on one screen, so I had to scroll with was very annoying. So, there needs to be less spacing between the players's columns. The sizes need adjusting. Also, when casting it on a TV, the players names and hand size font are so small they are hard to read.
-- In clear the deck, the current player is in blue, but when cast on the tv, that blue is hard read. Maybe the blue should be a little darker.
-- When casting 10,000 (farkle) on to a tv, the players names/scores are small and hard to read.
-- In boggle, there should be a button to start a new game without ending the previous one, like if it is just a bad puzzle and you don't want the ended game to be in your stats.

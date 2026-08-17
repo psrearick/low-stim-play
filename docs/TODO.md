@@ -9,18 +9,22 @@ The Order of Work list is a separate, ordinary numbered list reflecting current 
 ## Order of Work
 
 1. [Task 12: Verify analytics on the deployed app](#12-verify-analytics-on-the-deployed-app)
-2. [Task 8: Add Quartiles](#8-add-quartiles)
-3. [Task 2: Two-factor authentication toggle](#2-two-factor-authentication-toggle)
-4. [Task 3: Image avatars](#3-image-avatars)
-5. [Task 9: Rename trademark-adjacent game routes/URLs](#9-rename-trademark-adjacent-game-routesurls)
-6. [Task 4: Friends activity](#4-friends-activity)
-7. [Task 11: Shared puzzle-game infrastructure](#11-shared-puzzle-game-infrastructure)
-8. [Task 5: Rename "Home"/"Dashboard"](#5-rename-homedashboard)
-9. [Task 10: Spec and build NYT-style puzzle games](#10-spec-and-build-nyt-style-puzzle-games)
-10. [Task 7: Update README](#7-update-readme)
-11. [Task 13: Privacy policy page](#13-privacy-policy-page)
-12. [Task 14: Yahtzee scorecard can still need vertical scrolling on a very short viewport](#14-yahtzee-scorecard-can-still-need-vertical-scrolling-on-a-very-short-viewport)
-13. [Task 15: Verify Family Feud/Best Match spectator views against the same no-scroll requirement](#15-verify-family-feudbest-match-spectator-views-against-the-same-no-scroll-requirement)
+2. [Task 19: Fix crash visiting a game's play page for a room whose active session is a different game](#19-fix-crash-visiting-a-games-play-page-for-a-room-whose-active-session-is-a-different-game)
+3. [Task 8: Add Quartiles](#8-add-quartiles)
+4. [Task 2: Two-factor authentication toggle](#2-two-factor-authentication-toggle)
+5. [Task 3: Image avatars](#3-image-avatars)
+6. [Task 9: Rename trademark-adjacent game routes/URLs](#9-rename-trademark-adjacent-game-routesurls)
+7. [Task 4: Friends activity](#4-friends-activity)
+8. [Task 11: Shared puzzle-game infrastructure](#11-shared-puzzle-game-infrastructure)
+9. [Task 5: Rename "Home"/"Dashboard"](#5-rename-homedashboard)
+10. [Task 10: Spec and build NYT-style puzzle games](#10-spec-and-build-nyt-style-puzzle-games)
+11. [Task 7: Update README](#7-update-readme)
+12. [Task 13: Privacy policy page](#13-privacy-policy-page)
+13. [Task 14: Yahtzee scorecard can still need vertical scrolling on a very short viewport](#14-yahtzee-scorecard-can-still-need-vertical-scrolling-on-a-very-short-viewport)
+14. [Task 15: Verify Family Feud/Best Match spectator views against the same no-scroll requirement](#15-verify-family-feudbest-match-spectator-views-against-the-same-no-scroll-requirement)
+15. [Task 16: Clear the Deck's current-player highlight is hard to read on a TV](#16-clear-the-decks-current-player-highlight-is-hard-to-read-on-a-tv)
+16. [Task 17: Verify Farkle's non-spectator scoreboard font size when cast to a TV](#17-verify-farkles-non-spectator-scoreboard-font-size-when-cast-to-a-tv)
+17. [Task 18: Boggle: start a new game without ending the current one](#18-boggle-start-a-new-game-without-ending-the-current-one)
 
 ## Tasks
 
@@ -75,3 +79,25 @@ The tablet/TV-width horizontal-scroll fix (`docs/DEVLOG.md`'s Yahtzee section, "
 ### 15. Verify Family Feud/Best Match spectator views against the same no-scroll requirement
 
 Clear the Deck, Farkle, and Yahtzee's central spectator/TV-cast views were all confirmed (via real seeded rooms and screenshots at several viewports) and fixed where broken — see `docs/DEVLOG.md`'s Clear the Deck/Farkle/Yahtzee sections. Family Feud and Best Match were checked by reading the code only: neither uses the `overflow-y-auto` scrollable-panel pattern the other three had, and both have a structurally different "spectator" shape (Family Feud is two teams, not an enumerable seat list; Best Match is a turn/round-based reveal, not a permanent everyone-at-once panel), so neither showed the same obvious bug smell. Neither got the same seeded-room-plus-screenshot verification the other three did, so this is a code-reading conclusion, not a confirmed clean bill of health — worth an actual screenshot pass at a realistic max player/team count before considering the concern fully closed for every game.
+
+### 16. Clear the Deck's current-player highlight is hard to read on a TV
+
+The current player's tableau is outlined/highlighted in blue (`--accent`, via `.ctd-spectator-seat-active`/`.ctd-opponent-name-active` — see `docs/DEVLOG.md`'s Clear the Deck section for where this is defined), but that blue reads as too light/washed-out when cast to a TV, making it hard to tell at a glance whose turn it is. Needs an actual color-contrast pass (a darker or higher-saturation blue, or a different signal entirely) verified against real TV-viewing conditions, not just a desktop monitor — check whether this shared `--accent` color is used the same way elsewhere in the app before changing it in isolation, since a global color-token change has a much bigger blast radius than a Clear the Deck-only one.
+
+### 17. Verify Farkle's non-spectator scoreboard font size when cast to a TV
+
+Farkle's in-progress scoreboard font was bumped to a real `cqh`-scaled size (up to 36px) specifically for the dedicated spectator view (`docs/DEVLOG.md`'s Farkle section) as part of fixing the no-scroll bug — but that only applies once `$this->isSpectator` is true (no seat at all, or a seated player who's explicitly toggled "Watch only"). A seated player who's actively playing on the same device that's being screen-mirrored/cast to a TV (i.e., hasn't toggled "Watch only") still sees the older, smaller fixed-size scoreboard (22px via the existing `@media (min-width: 900px)` rule, from an earlier `docs/concerns.md` fix). Verify whether 22px is legible enough on an actual TV at real viewing distance; if not, either bump that size too or make "Watch only" more clearly the recommended mode for casting.
+
+### 18. Boggle: start a new game without ending the current one
+
+Add a way to start a brand-new Boggle puzzle without formally ending the current one — e.g. when the current board/puzzle is just uninteresting and shouldn't count toward stats. Needs a real design decision before building: does discarding the current game mean its `GameSession`/`GameParticipant` rows are never written at all (only created once a game is actually finished, unlike today), or are they written but need a way to be excluded from stats after the fact? Where does the new button live relative to the existing "New Game" (which currently *does* end/record the prior game) so the two aren't confusable?
+
+### 19. Fix crash visiting a game's play page for a room whose active session is a different game
+
+**Confirmed reproducible** (root-caused starting from a raw error in `docs/notes.md`, then reproduced live with a real test): visiting an online-room game's play page — any of Farkle, Yahtzee, Family Feud, Best Match, or Clear the Deck, the five games that sync shared state via `GameSession.state` — for a room whose *current* active game session actually belongs to a *different* game throws a 500 (`TypeError: ...hydrateFromState(): Argument #1 ($state) must be of type array, null given`). Confirmed with a room switched to Boggle specifically (Boggle's own `GameSession` never populates `state` at all — it only uses `settings.seed`, see `pages::boggle.room`), but the same root cause would also corrupt-read (not necessarily throw the identical error, but still break) any of the other four games' state shape if visited while a *different one* of those four is actually active.
+
+**Root cause**: each of the five pages' `mount()` fetches `$room->gameSession` and unconditionally calls `hydrateFromState($session->state)` without ever checking that `$session->type` actually matches the page's own game.
+
+**How this is reached in practice**: a stale bookmark/browser tab left open to one game's play URL from before the host switches the room to a different game (`docs/DEVLOG.md`'s Room system section, `switchGame()`), or simply typing/pasting the wrong game's play URL with a `?room=` for a room that's actively playing something else.
+
+**Fix direction**: each affected page's `mount()` should verify `$session->type` matches its own `GameType` before calling `hydrateFromState()`, and treat a mismatch the same way as "no active game here" — redirect to the room hub (`route('room.show', ['code' => ...])`) instead of crashing, matching the same "always land somewhere truthful" principle the room-hub work already established (see `docs/DEVLOG.md`'s Room system section, "Advancing from one game to the next").

@@ -11,6 +11,8 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 - Fixed Clear the Deck's spectator/TV-cast view requiring scrolling to see all players at high player counts, and moved the "On the table" pile above the seat grid in that view.
 - Fixed the same never-fits-without-scrolling bug in Farkle's and Yahtzee's own spectator/TV-cast views.
 - Fixed two CSS custom properties (`--text-label`, `--tracking-label`) that were never actually defined, silently leaving Clear the Deck's spectator names at an unstyled default size.
+- Moved `docs/concerns.md`'s remaining items into `docs/TODO.md` as new tasks with clearer descriptions, then cleared `concerns.md`.
+- Root-caused and confirmed reproducible a crash reported in `docs/notes.md` (visiting a game's play page for a room whose active session belongs to a different game); added as a new `docs/TODO.md` task rather than fixed. Cleared `notes.md`.
 
 ## 2026-08-16
 
