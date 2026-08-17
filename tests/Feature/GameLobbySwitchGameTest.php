@@ -83,9 +83,13 @@ test('switching games broadcasts RoomGameSwitched with the target game type', fu
     });
 });
 
-test('another present player is redirected when the game is switched', function () {
+test('another present player sees a join prompt when the game is switched, without being redirected', function () {
     $host = User::factory()->create();
     $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    // Written synchronously by the real switchGame(), before it broadcasts
+    // -- see <livewire:game-lobby>::switchGame()'s own comment.
+    $room->markPendingGame(GameType::Yahtzee);
 
     // Stands in for the real broadcast reaching a second connected
     // player's own game-lobby instance -- same convention as this app's
@@ -94,8 +98,9 @@ test('another present player is redirected when the game is switched', function 
     // this test environment doesn't have (BROADCAST_CONNECTION=null).
     Livewire::actingAs($host)
         ->test('game-lobby', ['room' => $room, 'currentGame' => GameType::Boggle])
-        ->call('onGameSwitched', ['type' => GameType::Yahtzee->value])
-        ->assertRedirect(route('yahtzee.room', ['code' => $room->code]));
+        ->call('onGameSwitched')
+        ->assertNoRedirect()
+        ->assertSee(GameType::Yahtzee->label());
 });
 
 test('switching to a game clears seats left over from whichever game was played before', function () {

@@ -568,7 +568,7 @@ new class extends Component
         @teleport('#game-actions')
             <div style="display: contents;">
                 @if ($phase === AppleMatchPhase::GameEnd)
-                    <a href="{{ route('apple-match.room', ['code' => $room]) }}"><button type="button">Back to room</button></a>
+                    <a href="{{ route('room.show', ['code' => $room]) }}"><button type="button">Back to room</button></a>
                 @endif
             </div>
         @endteleport

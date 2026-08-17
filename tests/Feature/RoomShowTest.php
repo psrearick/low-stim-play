@@ -186,7 +186,7 @@ test('a non-host cannot start a game from the room hub', function () {
         ->assertForbidden();
 });
 
-test('another member on the room hub follows the host into the chosen game\'s lobby', function () {
+test('another member on the room hub sees a join prompt once the host picks a game, without being redirected', function () {
     // Stands in for the real broadcast the same way tests/Browser/
     // YahtzeeRoomBrowserTest.php's onStateUpdated() calls do -- this app's
     // test env runs with BROADCAST_CONNECTION=null, so nothing ever really
@@ -197,8 +197,13 @@ test('another member on the room hub follows the host into the chosen game\'s lo
     $room = Room::factory()->create(['host_user_id' => $host->id]);
     $room->addMember($guest);
 
+    // Written synchronously by the real startGame(), before it broadcasts --
+    // see pages::room.show::startGame()'s own comment.
+    $room->markPendingGame(GameType::Farkle);
+
     Livewire::actingAs($guest)
         ->test('pages::room.show', ['code' => $room->code])
-        ->call('onGameSwitched', ['type' => GameType::Farkle->value])
-        ->assertRedirect(route('farkle.room', ['code' => $room->code]));
+        ->call('onGameSwitched')
+        ->assertNoRedirect()
+        ->assertSee(GameType::Farkle->label());
 });

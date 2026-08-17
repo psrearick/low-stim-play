@@ -23,6 +23,12 @@ uses(RefreshDatabase::class);
  * from "already over," and silently redirected right back to the game the
  * user had just clicked "Back to room" to leave. Fixed by finishGame()
  * marking the room RoomStatus::Finished once an online game actually ends.
+ *
+ * "Back to room" itself now points at the game-agnostic room hub
+ * (pages::room.show), not this game's own lobby -- see docs/concerns.md's
+ * "advancing from one game to the next" item -- so this also covers that
+ * routing change: the hub reads Room.status/game_session_id directly
+ * rather than needing redirectIfAlreadyStarted() to behave at all.
  */
 it('actually navigates back to the room after the host ends the game', function () {
     $host = User::factory()->create();
@@ -51,8 +57,8 @@ it('actually navigates back to the room after the host ends the game', function 
         ->click('#end-game-confirm')
         ->assertSee('Back to room')
         ->click('Back to room')
-        ->assertPathIs('/10000/room/'.$room->code)
-        ->assertSee('10,000 Room');
+        ->assertPathIs('/room/'.$room->code)
+        ->assertSee('Start a new game in this room');
 
     expect($room->fresh()->status)->toBe(RoomStatus::Finished);
 });

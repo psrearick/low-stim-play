@@ -2,6 +2,19 @@
 
 A terse, commit-by-commit record of what changed, newest first. No rationale or decisions here — see `docs/DEVLOG.md` for the *why* behind anything listed here, organized by feature instead of by commit. See `docs/TODO.md` for what's still outstanding.
 
+## 2026-08-17
+
+- Fixed "Back to room" on every game linking into that game's own lobby instead of the game-agnostic room hub, which could strand a straggler on a stale page after the host switched games.
+- Replaced the room hub's and game lobby's forced redirect on a host game-switch with a dismissible "Join" prompt, so other viewers aren't yanked into a new game mid-thought.
+- Added a global dismissible toast notification (in the navbar Rooms dropdown) when the host switches or starts a game in any room the current account belongs to.
+- Added a chevron to each room row in the navbar Rooms dropdown to make it read as a link.
+
+## 2026-08-16
+
+- Added first-party cookieless analytics with an admin dashboard at `/analytics`: salted daily-rotating visitor hashes, a recording middleware + queued job pipeline, hourly rollups/nightly pruning, and an env-gated dashboard.
+- Fixed the analytics dashboard crashing on some app workers after deploy by caching only plain arrays/Collections in `AnalyticsRepository`, never app-defined classes, removing all object (de)serialization from the cache layer.
+- Added y-axis reference numbers to the analytics dashboard's timeseries chart, which previously had no numeric scale.
+
 ## 2026-08-15
 
 - Fixed the site footer appearing to rise over content mid-scroll on tablet landscape -- switched `body`'s `min-height` to `100dvh` and forced independent compositing on `.site-footer`.

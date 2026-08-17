@@ -863,7 +863,7 @@ new class extends Component
                 @if ($room === null)
                     <button type="button" wire:click="newGame">New Game</button>
                 @elseif ($gameOver)
-                    <a href="{{ route('farkle.room', ['code' => $room]) }}"><button type="button">Back to room</button></a>
+                    <a href="{{ route('room.show', ['code' => $room]) }}"><button type="button">Back to room</button></a>
                 @endif
             </div>
         @endteleport

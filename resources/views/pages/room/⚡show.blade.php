@@ -160,25 +160,33 @@ new class extends Component
 
         $this->room->update(['game_session_id' => null]);
 
+        // Written synchronously, before broadcasting, so that any other
+        // member's onGameSwitched() below (fired by the broadcast this
+        // same request sends) recomputes $this->pendingGameType from an
+        // already-up-to-date cache rather than racing the host's own
+        // follow-up page load, which is what used to write this (see
+        // pages::{game}.room's own mount()). Also covers a late joiner who
+        // loads this hub after the fact -- Room::markPendingGame()'s own
+        // docblock.
+        $this->room->markPendingGame($type);
+
         RoomGameSwitched::dispatch($this->room, $type);
 
         $this->redirect(route($type->roomRoute(), ['code' => $this->room->code]));
     }
 
     /**
-     * @param  array{type: string}  $event
+     * No longer redirects -- other members used to be yanked straight into
+     * the newly-picked game the instant the host chose it, which is the
+     * "timing is weird" complaint in docs/concerns.md (getting teleported
+     * mid-thought, before ever choosing to follow). Now this just re-renders
+     * (any Livewire listener invocation does), which recomputes
+     * $this->pendingGameType from the cache startGame() above just wrote and
+     * shows the existing "host is setting up X -- Join" banner below instead
+     * -- the same banner a late joiner already sees. Mirrors
+     * <livewire:game-lobby>'s own onGameSwitched().
      */
-    public function onGameSwitched(array $event): void
-    {
-        $type = GameType::from($event['type']);
-
-        // The host's own browser already navigated directly from
-        // startGame() above -- this only fires for *other* members
-        // reacting to the broadcast, but harmlessly redirects the host's
-        // own connection to the same place again if it somehow arrives
-        // there too. Mirrors <livewire:game-lobby>'s own onGameSwitched().
-        $this->redirect(route($type->roomRoute(), ['code' => $this->room->code]));
-    }
+    public function onGameSwitched(): void {}
 
     public function endRoom(): void
     {

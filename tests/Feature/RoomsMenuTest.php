@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\GameType;
 use App\Models\Room;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -139,4 +140,57 @@ test('myRooms is empty for a logged-out visitor', function () {
     $list = Livewire::test('rooms-menu')->get('myRooms');
 
     expect($list)->toHaveCount(0);
+});
+
+/**
+ * docs/concerns.md's "advancing from one game to the next" item: a member
+ * who isn't sitting on the room hub or a game's own lobby at all -- browsing
+ * some unrelated page -- still needs to find out the host moved on. This
+ * component is mounted on every page (layouts/app.blade.php), so it's the
+ * one place that can reach them regardless of what they're looking at.
+ */
+test('onGameSwitched pushes a dismissible notification linking to the room hub', function () {
+    $user = User::factory()->create();
+    $room = Room::factory()->create();
+    $room->addMember($user);
+
+    $component = Livewire::actingAs($user)
+        ->test('rooms-menu')
+        ->call('onGameSwitched', ['type' => GameType::Farkle->value, 'code' => $room->code])
+        ->assertSee(GameType::Farkle->label())
+        ->assertSee($room->code);
+
+    $notifications = $component->get('notifications');
+
+    expect($notifications)->toHaveCount(1)
+        ->and($notifications[0]['href'])->toBe(route('room.show', ['code' => $room->code]));
+
+    $component->call('dismissNotification', $notifications[0]['id'])
+        ->assertDontSee(GameType::Farkle->label());
+});
+
+test('onGameStarting pushes a dismissible notification linking to the room hub', function () {
+    $user = User::factory()->create();
+    $room = Room::factory()->create();
+    $room->addMember($user);
+
+    $component = Livewire::actingAs($user)
+        ->test('rooms-menu')
+        ->call('onGameStarting', ['code' => $room->code])
+        ->assertSee($room->code);
+
+    $notifications = $component->get('notifications');
+
+    expect($notifications)->toHaveCount(1)
+        ->and($notifications[0]['href'])->toBe(route('room.show', ['code' => $room->code]));
+});
+
+test('a switch/start event for a room the user does not belong to is ignored', function () {
+    $user = User::factory()->create();
+    $otherRoom = Room::factory()->create();
+
+    Livewire::actingAs($user)
+        ->test('rooms-menu')
+        ->call('onGameSwitched', ['type' => GameType::Farkle->value, 'code' => $otherRoom->code])
+        ->assertSet('notifications', []);
 });

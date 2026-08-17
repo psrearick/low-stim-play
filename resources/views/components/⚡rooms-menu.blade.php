@@ -1,10 +1,12 @@
 <?php
 
+use App\Enums\GameType;
 use App\Models\Room;
 use App\Models\RoomMember;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cookie;
+use Illuminate\Support\Str;
 use Livewire\Component;
 
 /**
@@ -33,6 +35,18 @@ new class extends Component
     public string $guestName = '';
 
     /**
+     * Room-switch/start pings for rooms this account belongs to, surfaced
+     * here rather than only on the room hub or a game's own lobby (docs/
+     * concerns.md #1) so a member who's elsewhere in the app entirely --
+     * mid-play in a *different* game, browsing another page -- still finds
+     * out the host moved on, instead of only discovering it whenever they
+     * next happen to click "Back to room" themselves.
+     *
+     * @var list<array{id: string, message: string, href: string}>
+     */
+    public array $notifications = [];
+
+    /**
      * @return \Illuminate\Support\Collection<int, RoomMember>
      */
     public function getMyRoomsProperty(): \Illuminate\Support\Collection
@@ -45,6 +59,87 @@ new class extends Component
             ->whereHas('room', fn ($query) => $query->notExpired())
             ->with('room')
             ->get();
+    }
+
+    /**
+     * One pair of echo-presence listeners per room this account belongs to
+     * -- this component is mounted on every page (layouts/app.blade.php),
+     * not just the room hub or a game's own lobby, so it's the one place
+     * that can notify a member regardless of what page they're actually on.
+     * Bounded by $this->myRooms itself (notExpired(), so this can't grow
+     * without limit as old rooms accumulate).
+     *
+     * @return array<string, string>
+     */
+    protected function getListeners(): array
+    {
+        $listeners = [];
+
+        foreach ($this->myRooms as $member) {
+            $channel = "room.{$member->room->code}";
+            $listeners["echo-presence:{$channel},RoomGameSwitched"] = 'onGameSwitched';
+            $listeners["echo-presence:{$channel},RoomGameStarting"] = 'onGameStarting';
+        }
+
+        return $listeners;
+    }
+
+    /**
+     * @param  array{type: string, code: string}  $event
+     */
+    public function onGameSwitched(array $event): void
+    {
+        $room = $this->findRoomByCode($event['code'] ?? null);
+
+        if ($room === null) {
+            return;
+        }
+
+        $type = GameType::from($event['type']);
+
+        $this->pushNotification(
+            "Host is setting up {$type->label()} in Room {$room->code}.",
+            route('room.show', ['code' => $room->code]),
+        );
+    }
+
+    /**
+     * @param  array{code: string}  $event
+     */
+    public function onGameStarting(array $event): void
+    {
+        $room = $this->findRoomByCode($event['code'] ?? null);
+
+        if ($room === null) {
+            return;
+        }
+
+        $this->pushNotification(
+            "The game has started in Room {$room->code}.",
+            route('room.show', ['code' => $room->code]),
+        );
+    }
+
+    public function dismissNotification(string $id): void
+    {
+        $this->notifications = array_values(array_filter(
+            $this->notifications,
+            fn (array $notification) => $notification['id'] !== $id,
+        ));
+    }
+
+    private function findRoomByCode(?string $code): ?Room
+    {
+        if ($code === null) {
+            return null;
+        }
+
+        return $this->myRooms->first(fn (RoomMember $member) => $member->room->code === $code)?->room;
+    }
+
+    private function pushNotification(string $message, string $href): void
+    {
+        $this->notifications[] = ['id' => (string) Str::uuid(), 'message' => $message, 'href' => $href];
     }
 
     public function joinByCode(): void
@@ -108,6 +203,23 @@ new class extends Component
 ?>
 
 <div class="relative inline-flex">
+    @if (count($notifications) > 0)
+        <div class="fixed top-16 right-3 z-50 flex flex-col gap-2 w-72 max-w-[90vw]">
+            @foreach ($notifications as $notification)
+                <div wire:key="rooms-menu-notification-{{ $notification['id'] }}"
+                    class="rounded-lg border-2 border-accent bg-surface p-3 flex flex-col gap-2">
+                    <p class="status-line">{{ $notification['message'] }}</p>
+                    <div class="flex gap-2">
+                        <a href="{{ $notification['href'] }}" class="flex-1">
+                            <button type="button" class="w-full">Join</button>
+                        </a>
+                        <button type="button" wire:click="dismissNotification('{{ $notification['id'] }}')">Dismiss</button>
+                    </div>
+                </div>
+            @endforeach
+        </div>
+    @endif
+
     <button type="button" id="rooms-menu-toggle" wire:ignore.self aria-haspopup="true" aria-expanded="false">
         Rooms <span aria-hidden="true">&#9662;</span>
     </button>
@@ -120,9 +232,12 @@ new class extends Component
             @forelse ($this->myRooms as $member)
                 <li wire:key="rooms-menu-{{ $member->room->id }}">
                     <a href="{{ route('room.show', ['code' => $member->room->code]) }}"
-                        class="flex items-center justify-between px-2 py-2 rounded text-sm text-text hover:bg-bg/60">
+                        class="flex items-center justify-between gap-2 px-2 py-2 rounded text-sm text-text hover:bg-bg/60">
                         <span>{{ $member->room->code }}</span>
-                        <span class="text-xs text-text/65">{{ ucfirst($member->room->status->value) }}</span>
+                        <span class="flex items-center gap-1 text-xs text-text/65">
+                            {{ ucfirst($member->room->status->value) }}
+                            <span aria-hidden="true">&rsaquo;</span>
+                        </span>
                     </a>
                 </li>
             @empty

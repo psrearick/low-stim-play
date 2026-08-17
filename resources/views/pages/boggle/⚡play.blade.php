@@ -738,7 +738,7 @@ new class extends Component
             @endif
 
             @if ($room !== null)
-                <a href="{{ route('boggle.room', ['code' => $room]) }}"><button type="button">Back to room</button></a>
+                <a href="{{ route('room.show', ['code' => $room]) }}"><button type="button">Back to room</button></a>
             @elseif ($challenge !== null)
                 <a href="{{ route('boggle.lobby') }}"><button type="button">Back home</button></a>
             @else

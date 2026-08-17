@@ -188,24 +188,36 @@ new class extends Component
 
         $this->room->update(['game_session_id' => null]);
 
+        // Written synchronously, before broadcasting -- see pages::room.show
+        // ::startGame()'s matching comment. Lets getSwitchedGameTypeProperty()
+        // below show a "host switched to X -- Join" banner to whoever's
+        // still sitting on this lobby, instead of yanking them there.
+        $this->room->markPendingGame($type);
+
         RoomGameSwitched::dispatch($this->room, $type);
 
         $this->redirect(route($type->roomRoute(), ['code' => $this->room->code]));
     }
 
     /**
-     * @param  array{type: string}  $event
+     * No longer redirects -- see pages::room.show::onGameSwitched()'s
+     * matching comment. Just re-renders, so getSwitchedGameTypeProperty()
+     * below picks up the cache switchGame() above just wrote.
      */
-    public function onGameSwitched(array $event): void
-    {
-        $type = GameType::from($event['type']);
+    public function onGameSwitched(): void {}
 
-        // The host's own browser already navigated directly from
-        // switchGame() above -- this only fires for *other* players
-        // reacting to the broadcast, but harmlessly redirects the host's
-        // own connection to the same place again if it somehow arrives
-        // there too.
-        $this->redirect(route($type->roomRoute(), ['code' => $this->room->code]));
+    /**
+     * The game the host just switched *this room* to, if any -- null once
+     * that game actually starts (a real GameSession exists) or if nothing's
+     * been switched to since this lobby's own game last started. Always a
+     * *different* game than $currentGame: switchGame() above is only ever
+     * offered for games in $this->otherGames.
+     */
+    public function getSwitchedGameTypeProperty(): ?GameType
+    {
+        $type = $this->room->pendingGameType();
+
+        return $type !== $this->currentGame ? $type : null;
     }
 
     /**
@@ -244,6 +256,15 @@ new class extends Component
         <button type="button" data-copy="{{ $room->code }}">Copy</button>
     </div>
     <p class="status-line">Share this code so others can join.</p>
+
+    @if ($this->switchedGameType !== null)
+        <div class="setup w-full">
+            <p class="status-line">The host switched to {{ $this->switchedGameType->label() }}.</p>
+            <a href="{{ route($this->switchedGameType->roomRoute(), ['code' => $room->code]) }}">
+                <button type="button">Join</button>
+            </a>
+        </div>
+    @endif
 
     <ul class="w-full flex flex-col gap-2">
         @forelse ($players as $player)

@@ -46,6 +46,7 @@ class RoomGameSwitched implements ShouldBroadcastNow
     {
         return [
             'type' => $this->type->value,
+            'code' => $this->room->code,
         ];
     }
 }
