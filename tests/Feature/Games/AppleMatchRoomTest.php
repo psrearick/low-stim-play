@@ -105,6 +105,17 @@ test('the host landing on the room page marks the room as pending Best Match, so
     expect($room->fresh()->pendingGameType())->toBe(GameType::AppleMatch);
 });
 
+test('visiting the play page for a room whose active session belongs to a different game redirects to the room hub instead of crashing', function () {
+    $user = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $user->id]);
+    $session = GameSession::factory()->online()->create(['type' => GameType::Boggle, 'room_code' => $room->code]);
+    $room->update(['game_session_id' => $session->id]);
+
+    Livewire::actingAs($user)
+        ->test('pages::apple-match.play', ['room' => $room->code])
+        ->assertRedirect(route('room.show', ['code' => $room->code]));
+});
+
 test('starting the room with fewer than 3 players shows the host a real error instead of silently doing nothing', function () {
     seedAppleMatchDeck();
     $host = User::factory()->create();

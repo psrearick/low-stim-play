@@ -187,6 +187,17 @@ test('only the current seat can act, and a non-current seat is forbidden', funct
         ->assertSet('mySeatIndex', 0);
 });
 
+test('visiting the play page for a room whose active session belongs to a different game redirects to the room hub instead of crashing', function () {
+    $user = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $user->id]);
+    $session = GameSession::factory()->online()->create(['type' => GameType::Boggle, 'room_code' => $room->code]);
+    $room->update(['game_session_id' => $session->id]);
+
+    Livewire::actingAs($user)
+        ->test('pages::farkle.play', ['room' => $room->code])
+        ->assertRedirect(route('room.show', ['code' => $room->code]));
+});
+
 test('an unseated spectator sees no seat and cannot mutate the game', function () {
     $host = User::factory()->create();
     $guest = User::factory()->create();

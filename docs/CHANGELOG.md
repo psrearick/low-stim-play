@@ -4,6 +4,7 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 
 ## 2026-08-17
 
+- Fixed a 500 crash visiting Farkle/Yahtzee/Family Feud/Best Match/Clear the Deck's play page for a room whose active session belongs to a different game (e.g. a stale tab left open after the host switched games); now redirects to the room hub instead.
 - Verified analytics on the deployed app (real client IP resolution, MaxMind/admin-email env vars) and removed the now-redundant weekly `analytics:geoip-update` schedule, since it's a Laravel Cloud Build Command now and the schedule couldn't reach any replica but the one it happened to run on anyway.
 - Rewrote `README.md` from scratch (standard structure: games, design principles, tech stack, project structure, local development, testing, deployment, docs) and deleted the `legacy/` static-site directory, confirmed fully ported and safely preserved in its own separate GitHub remote.
 - Fixed "Back to room" on every game linking into that game's own lobby instead of the game-agnostic room hub, which could strand a straggler on a stale page after the host switched games.

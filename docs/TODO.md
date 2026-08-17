@@ -8,21 +8,20 @@ The Order of Work list is a separate, ordinary numbered list reflecting current 
 
 ## Order of Work
 
-1. [Task 19: Fix crash visiting a game's play page for a room whose active session is a different game](#19-fix-crash-visiting-a-games-play-page-for-a-room-whose-active-session-is-a-different-game)
-2. [Task 8: Add Quartiles](#8-add-quartiles)
-3. [Task 2: Two-factor authentication toggle](#2-two-factor-authentication-toggle)
-4. [Task 3: Image avatars](#3-image-avatars)
-5. [Task 9: Rename trademark-adjacent game routes/URLs](#9-rename-trademark-adjacent-game-routesurls)
-6. [Task 4: Friends activity](#4-friends-activity)
-7. [Task 11: Shared puzzle-game infrastructure](#11-shared-puzzle-game-infrastructure)
-8. [Task 5: Rename "Home"/"Dashboard"](#5-rename-homedashboard)
-9. [Task 10: Spec and build NYT-style puzzle games](#10-spec-and-build-nyt-style-puzzle-games)
-10. [Task 13: Privacy policy page](#13-privacy-policy-page)
-11. [Task 14: Yahtzee scorecard can still need vertical scrolling on a very short viewport](#14-yahtzee-scorecard-can-still-need-vertical-scrolling-on-a-very-short-viewport)
-12. [Task 15: Verify Family Feud/Best Match spectator views against the same no-scroll requirement](#15-verify-family-feudbest-match-spectator-views-against-the-same-no-scroll-requirement)
-13. [Task 16: Clear the Deck's current-player highlight is hard to read on a TV](#16-clear-the-decks-current-player-highlight-is-hard-to-read-on-a-tv)
-14. [Task 17: Verify Farkle's non-spectator scoreboard font size when cast to a TV](#17-verify-farkles-non-spectator-scoreboard-font-size-when-cast-to-a-tv)
-15. [Task 18: Boggle: start a new game without ending the current one](#18-boggle-start-a-new-game-without-ending-the-current-one)
+1. [Task 8: Add Quartiles](#8-add-quartiles)
+2. [Task 2: Two-factor authentication toggle](#2-two-factor-authentication-toggle)
+3. [Task 3: Image avatars](#3-image-avatars)
+4. [Task 9: Rename trademark-adjacent game routes/URLs](#9-rename-trademark-adjacent-game-routesurls)
+5. [Task 4: Friends activity](#4-friends-activity)
+6. [Task 11: Shared puzzle-game infrastructure](#11-shared-puzzle-game-infrastructure)
+7. [Task 5: Rename "Home"/"Dashboard"](#5-rename-homedashboard)
+8. [Task 10: Spec and build NYT-style puzzle games](#10-spec-and-build-nyt-style-puzzle-games)
+9. [Task 13: Privacy policy page](#13-privacy-policy-page)
+10. [Task 14: Yahtzee scorecard can still need vertical scrolling on a very short viewport](#14-yahtzee-scorecard-can-still-need-vertical-scrolling-on-a-very-short-viewport)
+11. [Task 15: Verify Family Feud/Best Match spectator views against the same no-scroll requirement](#15-verify-family-feudbest-match-spectator-views-against-the-same-no-scroll-requirement)
+12. [Task 16: Clear the Deck's current-player highlight is hard to read on a TV](#16-clear-the-decks-current-player-highlight-is-hard-to-read-on-a-tv)
+13. [Task 17: Verify Farkle's non-spectator scoreboard font size when cast to a TV](#17-verify-farkles-non-spectator-scoreboard-font-size-when-cast-to-a-tv)
+14. [Task 18: Boggle: start a new game without ending the current one](#18-boggle-start-a-new-game-without-ending-the-current-one)
 
 ## Tasks
 
@@ -82,12 +81,3 @@ Farkle's in-progress scoreboard font was bumped to a real `cqh`-scaled size (up 
 
 Add a way to start a brand-new Boggle puzzle without formally ending the current one — e.g. when the current board/puzzle is just uninteresting and shouldn't count toward stats. Needs a real design decision before building: does discarding the current game mean its `GameSession`/`GameParticipant` rows are never written at all (only created once a game is actually finished, unlike today), or are they written but need a way to be excluded from stats after the fact? Where does the new button live relative to the existing "New Game" (which currently *does* end/record the prior game) so the two aren't confusable?
 
-### 19. Fix crash visiting a game's play page for a room whose active session is a different game
-
-**Confirmed reproducible** (root-caused starting from a raw error in `docs/notes.md`, then reproduced live with a real test): visiting an online-room game's play page — any of Farkle, Yahtzee, Family Feud, Best Match, or Clear the Deck, the five games that sync shared state via `GameSession.state` — for a room whose *current* active game session actually belongs to a *different* game throws a 500 (`TypeError: ...hydrateFromState(): Argument #1 ($state) must be of type array, null given`). Confirmed with a room switched to Boggle specifically (Boggle's own `GameSession` never populates `state` at all — it only uses `settings.seed`, see `pages::boggle.room`), but the same root cause would also corrupt-read (not necessarily throw the identical error, but still break) any of the other four games' state shape if visited while a *different one* of those four is actually active.
-
-**Root cause**: each of the five pages' `mount()` fetches `$room->gameSession` and unconditionally calls `hydrateFromState($session->state)` without ever checking that `$session->type` actually matches the page's own game.
-
-**How this is reached in practice**: a stale bookmark/browser tab left open to one game's play URL from before the host switches the room to a different game (`docs/DEVLOG.md`'s Room system section, `switchGame()`), or simply typing/pasting the wrong game's play URL with a `?room=` for a room that's actively playing something else.
-
-**Fix direction**: each affected page's `mount()` should verify `$session->type` matches its own `GameType` before calling `hydrateFromState()`, and treat a mismatch the same way as "no active game here" — redirect to the room hub (`route('room.show', ['code' => ...])`) instead of crashing, matching the same "always land somewhere truthful" principle the room-hub work already established (see `docs/DEVLOG.md`'s Room system section, "Advancing from one game to the next").

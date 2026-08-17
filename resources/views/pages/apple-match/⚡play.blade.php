@@ -2,6 +2,7 @@
 
 use App\Enums\AppleMatchPhase;
 use App\Enums\GameResult;
+use App\Enums\GameType;
 use App\Enums\RoomStatus;
 use App\Events\RoomGameStateUpdated;
 use App\Models\AppleMatchCard;
@@ -117,6 +118,17 @@ new class extends Component
 
         $roomModel = $this->resolveRoom();
         $session = $roomModel->gameSession;
+
+        // A stale tab/bookmark, or a hand-edited ?room= for a room that's
+        // actively playing something else, can land here with no session
+        // at all or one belonging to a different game -- hydrateFromState()
+        // would otherwise throw on a null/foreign state shape. Treat it the
+        // same as "no active game here" and bounce to the room hub instead.
+        if ($session === null || $session->type !== GameType::AppleMatch) {
+            $this->redirect(route('room.show', ['code' => $roomModel->code]));
+
+            return;
+        }
 
         $this->gameSessionId = $session->id;
         $this->hydrateFromState($session->state);
