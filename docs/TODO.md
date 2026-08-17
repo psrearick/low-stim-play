@@ -19,6 +19,8 @@ The Order of Work list is a separate, ordinary numbered list reflecting current 
 9. [Task 10: Spec and build NYT-style puzzle games](#10-spec-and-build-nyt-style-puzzle-games)
 10. [Task 7: Update README](#7-update-readme)
 11. [Task 13: Privacy policy page](#13-privacy-policy-page)
+12. [Task 14: Yahtzee scorecard can still need vertical scrolling on a very short viewport](#14-yahtzee-scorecard-can-still-need-vertical-scrolling-on-a-very-short-viewport)
+13. [Task 15: Verify Family Feud/Best Match spectator views against the same no-scroll requirement](#15-verify-family-feudbest-match-spectator-views-against-the-same-no-scroll-requirement)
 
 ## Tasks
 
@@ -65,3 +67,11 @@ A cross-cutting set of features for the app's puzzle-style games (Boggle/Word Gr
 ### 13. Privacy policy page
 
 This app has no privacy policy page anywhere. `docs/specs/analytics.md` section 12 has drafted disclosure copy for the analytics system specifically (also reproduced in `docs/DEVLOG.md`'s "Analytics" section) that's ready to use once a real page exists — deliberately not built as part of the analytics work itself, since creating the app's first privacy-policy page is a bigger scope decision (where does it link from, what else does it need to cover) than implementing analytics.
+
+### 14. Yahtzee scorecard can still need vertical scrolling on a very short viewport
+
+The tablet/TV-width horizontal-scroll fix (`docs/DEVLOG.md`'s Yahtzee section, "Scorecard needed horizontal scrolling...") only addresses column width. Confirmed live at a very short viewport (1920×750, simulating an aspect-ratio change like AirPlay mirroring to a wider-but-shorter display) that `table.scorecard`'s row-height `cqh` scaling has a `10px` font-size floor, and 17 rows don't fit some short viewports even at that floor, since the dice area above `.card-wrap` still claims a large, currently-fixed share of the vertical space regardless of how little is left over. Would need either shrinking/collapsing the dice-area display for spectators specifically, or a more aggressive row-height floor, to guarantee no vertical scrolling at extreme aspect ratios.
+
+### 15. Verify Family Feud/Best Match spectator views against the same no-scroll requirement
+
+Clear the Deck, Farkle, and Yahtzee's central spectator/TV-cast views were all confirmed (via real seeded rooms and screenshots at several viewports) and fixed where broken — see `docs/DEVLOG.md`'s Clear the Deck/Farkle/Yahtzee sections. Family Feud and Best Match were checked by reading the code only: neither uses the `overflow-y-auto` scrollable-panel pattern the other three had, and both have a structurally different "spectator" shape (Family Feud is two teams, not an enumerable seat list; Best Match is a turn/round-based reveal, not a permanent everyone-at-once panel), so neither showed the same obvious bug smell. Neither got the same seeded-room-plus-screenshot verification the other three did, so this is a code-reading conclusion, not a confirmed clean bill of health — worth an actual screenshot pass at a realistic max player/team count before considering the concern fully closed for every game.

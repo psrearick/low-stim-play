@@ -903,33 +903,95 @@ new class extends Component
         @php
             $mainSize = 'clamp(58px, 9vw, 68px)';
             $oppSize = 'clamp(26px, 5vw, 40px)';
-            // Spectator view (docs/concerns.md) has no hand or "your
-            // columns" section competing for room below, so every seat's
-            // tableau can afford to render noticeably larger than the
-            // opponents-row size a playing seat's own screen uses.
-            $spectatorSize = 'clamp(50px, 9vw, 110px)';
+
+            // Spectator/TV-cast view (docs/concerns.md): every seat's
+            // tableau needs to fit one screen with no scrolling, for any
+            // seat count this game allows (3-10, see docs/specs/
+            // clear-the-deck.md) and any display shape -- a wide-but-short
+            // TV/cast display and a narrower-but-taller tablet both have to
+            // work, and AirPlay/screen-mirroring can hand the page a
+            // noticeably different aspect ratio than the device it started
+            // on. Capped at 5 columns (so 3-10 seats is always 1-2 rows,
+            // never more) and sized from *both* the viewport width (fitting
+            // $spectatorCols tableaus across) and height (fitting
+            // $spectatorRows rows down, leaving headroom for the pile row
+            // above and the header/status line around it) via CSS min() --
+            // whichever axis is tighter wins, so this shrinks correctly
+            // regardless of which dimension a given display is short on.
+            // Constants tuned empirically against real screenshots at 3, 6,
+            // and 10 seats across desktop/tablet/TV viewports -- see
+            // docs/DEVLOG.md's Clear the Deck section.
+            $spectatorCount = count($seats);
+            $spectatorCols = min($spectatorCount, 5);
+            $spectatorRows = (int) ceil($spectatorCount / $spectatorCols);
+            $spectatorVw = round(84 / ($spectatorCols * 4.6), 2);
+            $spectatorVh = round(55 / ($spectatorRows * 1.75), 2);
+            $spectatorSize = "clamp(30px, min({$spectatorVw}vw, {$spectatorVh}vh), 120px)";
         @endphp
         <div id="clear-the-deck-game" class="flex flex-col items-center w-full" style="gap: inherit;">
             @unless ($phase === ClearTheDeckPhase::GameEnd)
+                @php
+                    $topValue = $centerStack === [] ? null : end($centerStack);
+                    $runLength = 0;
+                    for ($i = count($centerStack) - 1; $i >= 0; $i--) {
+                        if ($centerStack[$i] !== $topValue) {
+                            break;
+                        }
+                        $runLength++;
+                    }
+                    $fanDepth = min(3, $runLength);
+                @endphp
+
                 @if ($this->isSpectator)
+                    {{--
+                        docs/concerns.md: the pile renders *above* the seat
+                        grid here, not below it (unlike the playing view's
+                        own order just below) -- a spectator has no hand or
+                        "your columns" section of their own to read first,
+                        so the shared table state is the thing that should
+                        be visible without scrolling past every seat to find
+                        it. ctd-pile-row-spectator trims the generous margin
+                        the playing view's own copy uses, since this is
+                        competing with the seat grid below for the same
+                        fixed vertical budget.
+                    --}}
+                    <div class="ctd-pile-row ctd-pile-row-spectator" style="--ctd-card-w: {{ $mainSize }};">
+                        <div class="flex flex-col items-center gap-2">
+                            <p class="ctd-section-label">On the table<br>({{ count($centerStack) }} card{{ count($centerStack) === 1 ? '' : 's' }})</p>
+                            @if ($centerStack === [])
+                                <p class="status-line">Empty &mdash; any value can be played.</p>
+                            @else
+                                <div class="ctd-pile-wrap">
+                                    @for ($i = 0; $i < $fanDepth; $i++)
+                                        <x-clear-the-deck-card
+                                            :value="$topValue"
+                                            :size="$mainSize"
+                                            class="ctd-card-offset-{{ $i }}"
+                                            :sub="$i === $fanDepth - 1 && $runLength > 1 ? '(x'.$runLength.')' : null" />
+                                    @endfor
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+
                     {{--
                         docs/concerns.md: a TV/screen-share-friendly view --
                         every seat's tableau (not just "opponents", since a
                         watch-only seated player's own columns are part of
-                        this too), larger cards than the playing view's own
-                        opponents row (nothing else below competes for
-                        vertical room here), and the current turn's seat
-                        visually outlined so it reads at a glance from
-                        across a room.
+                        this too), and the current turn's seat visually
+                        outlined so it reads at a glance from across a room.
+                        $spectatorCols/$spectatorSize above size this so the
+                        whole grid -- 3 to 10 seats -- fits one screen with
+                        no scrolling on both a wide TV and a taller tablet.
                     --}}
-                    <div class="ctd-spectator-grid w-full">
+                    <div class="ctd-spectator-grid w-full" style="grid-template-columns: repeat({{ $spectatorCols }}, auto);">
                         @foreach ($seats as $seat)
                             @php
                                 $table = $seatTables[$seat['seatIndex']] ?? ['handCount' => 0, 'tableFaceUp' => [], 'tableFaceDownCount' => 0];
                                 $isCurrentTurn = $seat['seatIndex'] === $turnSeatIndex;
                             @endphp
                             <div wire:key="spectator-seat-{{ $seat['seatIndex'] }}" class="flex flex-col items-center gap-1 ctd-spectator-seat {{ $isCurrentTurn ? 'ctd-spectator-seat-active' : '' }}">
-                                <span class="ctd-opponent-name {{ $isCurrentTurn ? 'ctd-opponent-name-active' : '' }}">{{ $seat['name'] }}</span>
+                                <span class="ctd-spectator-name {{ $isCurrentTurn ? 'ctd-opponent-name-active' : '' }}">{{ $seat['name'] }}</span>
                                 <div class="ctd-tableau" style="--ctd-card-w: {{ $spectatorSize }};">
                                     @foreach ($this->columnsForSeat($seat['seatIndex']) as $col)
                                         <div class="ctd-column" wire:key="spectator-{{ $seat['seatIndex'] }}-col-{{ $col['type'] }}-{{ $col['index'] }}">
@@ -942,7 +1004,7 @@ new class extends Component
                                         </div>
                                     @endforeach
                                 </div>
-                                <span class="text-xs text-text/65">Hand: {{ $table['handCount'] }}</span>
+                                <span class="ctd-spectator-hand">Hand: {{ $table['handCount'] }}</span>
                             </div>
                         @endforeach
                     </div>
@@ -969,40 +1031,29 @@ new class extends Component
                             </div>
                         @endforeach
                     </div>
-                @endif
 
-                @php
-                    $topValue = $centerStack === [] ? null : end($centerStack);
-                    $runLength = 0;
-                    for ($i = count($centerStack) - 1; $i >= 0; $i--) {
-                        if ($centerStack[$i] !== $topValue) {
-                            break;
-                        }
-                        $runLength++;
-                    }
-                    $fanDepth = min(3, $runLength);
-                @endphp
-                <div class="ctd-pile-row" style="--ctd-card-w: {{ $mainSize }};">
-                    <div class="flex flex-col items-center gap-2">
-                        <p class="ctd-section-label">On the table<br>({{ count($centerStack) }} card{{ count($centerStack) === 1 ? '' : 's' }})</p>
-                        @if ($centerStack === [])
-                            <p class="status-line">Empty &mdash; any value can be played.</p>
-                        @else
-                            <div class="ctd-pile-wrap">
-                                @for ($i = 0; $i < $fanDepth; $i++)
-                                    <x-clear-the-deck-card
-                                        :value="$topValue"
-                                        :size="$mainSize"
-                                        class="ctd-card-offset-{{ $i }}"
-                                        :sub="$i === $fanDepth - 1 && $runLength > 1 ? '(x'.$runLength.')' : null" />
-                                @endfor
-                            </div>
+                    <div class="ctd-pile-row" style="--ctd-card-w: {{ $mainSize }};">
+                        <div class="flex flex-col items-center gap-2">
+                            <p class="ctd-section-label">On the table<br>({{ count($centerStack) }} card{{ count($centerStack) === 1 ? '' : 's' }})</p>
+                            @if ($centerStack === [])
+                                <p class="status-line">Empty &mdash; any value can be played.</p>
+                            @else
+                                <div class="ctd-pile-wrap">
+                                    @for ($i = 0; $i < $fanDepth; $i++)
+                                        <x-clear-the-deck-card
+                                            :value="$topValue"
+                                            :size="$mainSize"
+                                            class="ctd-card-offset-{{ $i }}"
+                                            :sub="$i === $fanDepth - 1 && $runLength > 1 ? '(x'.$runLength.')' : null" />
+                                    @endfor
+                                </div>
+                            @endif
+                        </div>
+                        @if ($this->isMyTurn)
+                            <button type="button" id="play-cards" wire:click="playCards">{{ $pendingFlipValue !== null ? 'Confirm' : 'Submit' }}</button>
                         @endif
                     </div>
-                    @if ($this->isMyTurn && ! $this->isSpectator)
-                        <button type="button" id="play-cards" wire:click="playCards">{{ $pendingFlipValue !== null ? 'Confirm' : 'Submit' }}</button>
-                    @endif
-                </div>
+                @endif
 
                 @if ($mySeatIndex !== null && ! $this->isSpectator)
                     <div class="flex flex-col items-center gap-2">

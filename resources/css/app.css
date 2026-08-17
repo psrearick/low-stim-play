@@ -1710,6 +1710,74 @@ body.scrollable.farkle-play.in-game {
     }
 }
 
+/* Spectator/TV-cast scoreboard (docs/concerns.md's "advancing from one
+   game to the next" item, generalized from Clear the Deck) -- a grid
+   instead of the base rule's single tall column, and no min-height/
+   overflow-y-auto of its own: it fills 100% of .farkle-scoreboard's own
+   height (still bounded by #farkle-game's flex chain above), so every
+   player is guaranteed to be laid out inside it rather than needing an
+   internal scrollbar to reach the rest. */
+.farkle-scoreboard-spectator {
+    display: flex;
+}
+
+.farkle-spectator-grid {
+    /* flex: 1 1 auto + min-height: 0, not just width: 100% -- this is
+       what actually stretches the grid to fill .farkle-scoreboard-
+       spectator's own full height (a flex container with one child)
+       rather than shrinking to its content's natural height, which is
+       what a sized container needs before cqh units below mean anything.
+       A sized container -- not just display: contents -- is what lets
+       .farkle-spectator-name/-score size themselves in cqh against *this*
+       element's actual rendered height rather than the viewport, the same
+       technique table.scorecard's own cells already use (see this file's
+       Yahtzee section) to guarantee everything fits without needing to
+       know the player count in advance. */
+    container-type: size;
+    container-name: farkle-spectator;
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    align-content: center;
+    gap: clamp(4px, 2cqh, 16px) clamp(4px, 2cqw, 16px);
+    padding: clamp(4px, 2cqh, 16px);
+}
+
+.farkle-spectator-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(2px, 1cqh, 8px);
+    padding: clamp(4px, 1.6cqh, 14px);
+    border-radius: var(--radius-md);
+    border: 2px solid transparent;
+}
+
+/* Same border/background pairing this app already uses everywhere else
+   to flag "whose turn it is right now" at a glance (Clear the Deck's own
+   .ctd-spectator-seat-active, a selected die/card) -- consistent, not a
+   new visual language. */
+.farkle-spectator-card-active {
+    border-color: var(--accent);
+    background: var(--die-kept);
+}
+
+.farkle-spectator-name {
+    color: var(--ink);
+    font-weight: bold;
+    text-align: center;
+    font-size: clamp(13px, 4.4cqh, 24px);
+}
+
+.farkle-spectator-score {
+    color: var(--ink);
+    font-weight: bold;
+    font-size: clamp(18px, 6.5cqh, 36px);
+}
+
 .setup-row {
     display: flex;
     align-items: center;
@@ -1824,6 +1892,39 @@ body.scrollable.farkle-play.in-game {
     }
 }
 
+/* min(ch, cqw share), not the flat 22ch/16ch above -- docs/concerns.md's
+   "advancing from one game to the next" item generalizes Clear the Deck's
+   own no-scrolling-while-spectating fix to every game with a central
+   spectator view. table-layout: fixed forces the table's own rendered
+   width to be at least the sum of its <col> widths regardless of what
+   table.scorecard's own width property says (confirmed live: capping
+   that property alone did nothing -- the table just stayed at the wider,
+   uncapped size), so the columns themselves have to be what shrinks.
+   Declared here, on table.scorecard itself, rather than folded into the
+   :root override above -- var(--player-count) is only ever set inline on
+   this element (see yahtzee-scorecard-table.blade.php), and an unset
+   custom property has no value to substitute, so referencing it from a
+   :root-level declaration measured empty/invalid when checked live via
+   getComputedStyle. The cqw share (.card-wrap is the query container, see
+   its own container-type: size) is sized (empirically, against a real
+   8-player screenshot, accounting for cell padding/borders eating some
+   of the raw percentage) so category + player-count * player comfortably
+   sums to less than .card-wrap's own width -- .card-wrap's overflow: auto
+   never actually needs to trigger a scrollbar for a realistic room size.
+   min() means a *small* player count is completely unaffected: at 2
+   players, a wide per-player cqw share is far more than 16ch, so the
+   plain ch value still wins, identical to before this. Mobile (<900px,
+   see :root's own breakpoint above -- --scorecard-*-width stays at its
+   mobile default there, this rule only overrides the desktop value) is
+   untouched -- the existing fixed-width scroll-through experience an
+   existing test already covers. */
+@media (min-width: 900px) {
+    table.scorecard {
+        --scorecard-category-width: min(22ch, 19cqw);
+        --scorecard-player-width: min(16ch, calc(75cqw / var(--player-count)));
+    }
+}
+
 table.scorecard {
     border-collapse: collapse;
     /* Definite, not auto -- confirmed live that table-layout: fixed with
@@ -1842,6 +1943,7 @@ table.scorecard {
     flex: 0 0 auto;
     color: var(--ink);
 }
+
 
 /* 17 rows total (1 header + 6 upper + subtotal + bonus + 6 lower +
    Yahtzee bonus + total) -- font-size/padding are cqh-based (a % of
@@ -2578,23 +2680,37 @@ body.scrollable.family-feud-play {
 .clear-the-deck-play .ctd-opponent-name {
     color: var(--ink);
     font-weight: bold;
-    font-size: var(--text-label);
+    /* var(--text-label)/var(--tracking-label) below were never actually
+       defined anywhere in this file -- an unresolved var() with no
+       fallback on an inherited property (font-size, letter-spacing both
+       are) falls back to whatever's inherited, not to any sensible
+       default, so this and .ctd-section-label below were silently
+       rendering at the page's plain inherited 16px this whole time.
+       Confirmed live via a real screenshot before fixing (docs/DEVLOG.md's
+       Clear the Deck section) -- real values now, not custom properties
+       that don't exist. */
+    font-size: clamp(13px, 1.6vmin, 18px);
     font-family: var(--font-sans);
 }
 
 /* Spectator/TV-cast view (docs/concerns.md) -- every seat's tableau at
-   once, so flex-wrap onto multiple rows rather than the playing view's
-   own single-row horizontal scroll (.ctd-opponents-row above): a TV or
-   screen-share can't scroll, but has plenty of room to wrap into. */
+   once, as a real grid (column count set inline per-request from
+   $spectatorCols, see the Blade) rather than flex-wrap guessing how many
+   fit per row from card size alone -- that was the root cause of needing
+   to scroll past several screens' worth of players before this fix, see
+   docs/DEVLOG.md's Clear the Deck section. A TV or screen-share can't
+   scroll at all, so the grid has to get this right rather than merely
+   have room to wrap into. */
 .clear-the-deck-play .ctd-spectator-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: clamp(20px, 4vw, 48px);
+    display: grid;
     justify-content: center;
+    align-content: start;
+    column-gap: clamp(10px, 1.6vw, 28px);
+    row-gap: clamp(6px, 1.2vh, 18px);
 }
 
 .clear-the-deck-play .ctd-spectator-seat {
-    padding: 10px;
+    padding: 6px;
     border-radius: var(--radius-md);
     border: 2px solid transparent;
 }
@@ -2611,14 +2727,33 @@ body.scrollable.family-feud-play {
     color: var(--accent);
 }
 
+/* Spectator-only name/hand-count text -- deliberately larger than
+   .ctd-opponent-name's own (fixed above) modest in-hand-view size: this is
+   the TV-cast/screen-share case specifically (docs/concerns.md: "names and
+   hand size font are so small they are hard to read" when casting), where
+   there's no hand/columns section competing for room and legibility from
+   across a room matters more than compactness. */
+.clear-the-deck-play .ctd-spectator-name {
+    color: var(--ink);
+    font-weight: bold;
+    font-size: clamp(16px, 2.1vmin, 26px);
+    font-family: var(--font-sans);
+}
+
+.clear-the-deck-play .ctd-spectator-hand {
+    color: var(--ink);
+    opacity: 0.75;
+    font-size: clamp(13px, 1.7vmin, 20px);
+}
+
 /* Section headings ("On the table", "Your columns", "Your hand") --
    the same bold/bar-colored/letter-spaced treatment a panel heading
    gets elsewhere in this app, not plain body text. */
 .clear-the-deck-play .ctd-section-label {
     color: var(--bar);
     font-weight: bold;
-    letter-spacing: var(--tracking-label);
-    font-size: var(--text-label);
+    letter-spacing: 0.05em;
+    font-size: clamp(13px, 1.6vmin, 18px);
     text-align: center;
     line-height: 1.3;
 }
@@ -2635,6 +2770,20 @@ body.scrollable.family-feud-play {
     width: calc(var(--ctd-card-w) * 4.54);
     max-width: 100%;
     margin: clamp(24px, 6vh, 64px) auto;
+}
+
+/* Spectator view's own copy of the pile row (docs/DEVLOG.md's Clear the
+   Deck section) -- same content, much tighter margin: it now renders
+   *above* a whole seat grid rather than being the only thing below a
+   single opponents row, and is competing for the same fixed
+   no-scrolling vertical budget the grid itself is sized against. */
+.clear-the-deck-play .ctd-pile-row-spectator {
+    /* Overrides the base rule's space-between -- that's meant to push a
+       Submit button to the far side of a single label block, but the
+       spectator copy never renders one (never a spectator's own turn), so
+       with only one child space-between would otherwise left-align it. */
+    justify-content: center;
+    margin: clamp(2px, 1vh, 12px) auto;
 }
 
 .clear-the-deck-play .ctd-hand-grid {

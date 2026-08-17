@@ -1023,18 +1023,50 @@ new class extends Component
                     </div>
                 @endunless
 
-                <div class="farkle-scoreboard w-full bg-surface border-2 border-surface-border rounded-lg overflow-y-auto overflow-x-hidden {{ $gameOver ? 'farkle-final-scores' : '' }}">
-                    <div class="grid" style="grid-template-columns: 1fr auto;">
-                        @foreach ($players as $i => $player)
-                            <span wire:key="name-{{ $i }}" class="pl-6 pr-3 py-3 {{ $loop->first ? '' : 'border-t border-surface-border' }} {{ $gameOver ? '' : 'text-sm' }} {{ $i === $currentPlayer && ! $gameOver ? 'font-bold text-text' : 'text-text/80' }}">
-                                {{ $player['name'] }}{{ $i === $currentPlayer && ! $gameOver ? ' (current)' : '' }}
-                            </span>
-                            <span wire:key="score-{{ $i }}" class="pl-3 pr-6 py-3 {{ $loop->first ? '' : 'border-t border-surface-border' }} {{ $gameOver ? 'font-bold' : 'text-sm' }} text-text text-right">
-                                {{ $player['bankedScore'] }}
-                            </span>
-                        @endforeach
+                @if ($this->isSpectator && ! $gameOver)
+                    {{--
+                        docs/concerns.md's "advancing from one game to the
+                        next" item generalizes Clear the Deck's own
+                        no-scrolling-while-spectating fix to every game with
+                        a central spectator view -- Farkle's scoreboard
+                        below is a single tall column with a fixed
+                        min-height/overflow-y-auto, built for a seated
+                        player's own device (where scrolling to see the
+                        rest of the field is a normal, established
+                        interaction), but for a TV-cast/screen-share
+                        spectator that meant several players scrolled out
+                        of view entirely. This copy wraps into a grid
+                        instead, sized via container query units (cqh) --
+                        same technique Yahtzee's own scorecard already uses
+                        (see app.css) -- so name/score text shrinks to
+                        whatever fits .farkle-scoreboard's own actual
+                        rendered height rather than needing to scroll past
+                        it, regardless of player count.
+                    --}}
+                    <div class="farkle-scoreboard w-full bg-surface border-2 border-surface-border rounded-lg farkle-scoreboard-spectator">
+                        <div class="farkle-spectator-grid">
+                            @foreach ($players as $i => $player)
+                                <div wire:key="spectator-score-{{ $i }}" class="farkle-spectator-card {{ $i === $currentPlayer ? 'farkle-spectator-card-active' : '' }}">
+                                    <span class="farkle-spectator-name">{{ $player['name'] }}{{ $i === $currentPlayer ? ' (current)' : '' }}</span>
+                                    <span class="farkle-spectator-score">{{ $player['bankedScore'] }}</span>
+                                </div>
+                            @endforeach
+                        </div>
                     </div>
-                </div>
+                @else
+                    <div class="farkle-scoreboard w-full bg-surface border-2 border-surface-border rounded-lg overflow-y-auto overflow-x-hidden {{ $gameOver ? 'farkle-final-scores' : '' }}">
+                        <div class="grid" style="grid-template-columns: 1fr auto;">
+                            @foreach ($players as $i => $player)
+                                <span wire:key="name-{{ $i }}" class="pl-6 pr-3 py-3 {{ $loop->first ? '' : 'border-t border-surface-border' }} {{ $gameOver ? '' : 'text-sm' }} {{ $i === $currentPlayer && ! $gameOver ? 'font-bold text-text' : 'text-text/80' }}">
+                                    {{ $player['name'] }}{{ $i === $currentPlayer && ! $gameOver ? ' (current)' : '' }}
+                                </span>
+                                <span wire:key="score-{{ $i }}" class="pl-3 pr-6 py-3 {{ $loop->first ? '' : 'border-t border-surface-border' }} {{ $gameOver ? 'font-bold' : 'text-sm' }} text-text text-right">
+                                    {{ $player['bankedScore'] }}
+                                </span>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
             </div>
         </div>
 

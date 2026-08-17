@@ -8,6 +8,9 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 - Replaced the room hub's and game lobby's forced redirect on a host game-switch with a dismissible "Join" prompt, so other viewers aren't yanked into a new game mid-thought.
 - Added a global dismissible toast notification (in the navbar Rooms dropdown) when the host switches or starts a game in any room the current account belongs to.
 - Added a chevron to each room row in the navbar Rooms dropdown to make it read as a link.
+- Fixed Clear the Deck's spectator/TV-cast view requiring scrolling to see all players at high player counts, and moved the "On the table" pile above the seat grid in that view.
+- Fixed the same never-fits-without-scrolling bug in Farkle's and Yahtzee's own spectator/TV-cast views.
+- Fixed two CSS custom properties (`--text-label`, `--tracking-label`) that were never actually defined, silently leaving Clear the Deck's spectator names at an unstyled default size.
 
 ## 2026-08-16
 

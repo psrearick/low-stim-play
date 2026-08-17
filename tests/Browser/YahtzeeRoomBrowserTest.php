@@ -181,3 +181,30 @@ test('the scorecard actually scrolls horizontally on a narrow phone when there a
 
     expect($after)->toBeGreaterThan(0);
 });
+
+/**
+ * docs/concerns.md's "advancing from one game to the next" item
+ * generalizes Clear the Deck's own no-scrolling-while-spectating fix to
+ * every game with a central spectator view -- unlike the narrow-phone case
+ * just above (where horizontal scroll is the deliberate, tested design),
+ * --scorecard-player-width/-category-width used a flat ch-based floor at
+ * tablet-and-up too, so a real room with enough players still forced the
+ * same horizontal scrollbar on a TV/tablet-width viewport that has no way
+ * to scroll. Confirmed live at 8 players/1024px before fixing. Only the
+ * >=900px column-width override changed (app.css) -- this stays scoped to
+ * that same breakpoint, leaving the test just above untouched.
+ */
+test('the scorecard fits an 8-player game on a tablet-width viewport with no horizontal scrolling', function () {
+    [$room, , $users] = startedYahtzeeRoom(8);
+
+    $page = loginAsAndVisit($users->first(), "/yahtzee?room={$room->code}");
+    $page->resize(1024, 768);
+
+    $page->assertSee($users->first()->name);
+
+    $info = $page->script(
+        "(() => { const el = document.querySelector('.card-wrap'); return { scrollWidth: el.scrollWidth, clientWidth: el.clientWidth }; })()"
+    );
+
+    expect($info['scrollWidth'])->toBeLessThanOrEqual($info['clientWidth']);
+});

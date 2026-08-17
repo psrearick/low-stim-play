@@ -139,7 +139,7 @@ test('a spectator sees every seat\'s tableau at once, with the current turn outl
     // seat 1 (guest1) holds the turn in startedClearTheDeckRoom() -- only
     // that seat's wrapper should carry the active-turn outline.
     $info = $page->script(
-        "(() => { const seats = [...document.querySelectorAll('.ctd-spectator-seat')]; return seats.map(el => ({ active: el.classList.contains('ctd-spectator-seat-active'), name: el.querySelector('.ctd-opponent-name').textContent.trim() })); })()"
+        "(() => { const seats = [...document.querySelectorAll('.ctd-spectator-seat')]; return seats.map(el => ({ active: el.classList.contains('ctd-spectator-seat-active'), name: el.querySelector('.ctd-spectator-name').textContent.trim() })); })()"
     );
 
     $activeNames = collect($info)->where('active', true)->pluck('name')->all();
@@ -168,4 +168,90 @@ test('a seated player can toggle Watch only mid-turn to view read-only, and swit
 
     $page->assertVisible('#play-cards')
         ->assertSee('Your hand');
+});
+
+/**
+ * docs/concerns.md's Clear the Deck spectator item: at the game's own
+ * 10-player max (docs/specs/clear-the-deck.md), every seat's tableau used
+ * to only wrap 2-per-row (card size was picked from viewport width alone,
+ * with no idea how many seats needed to share it), pushing the page to
+ * several screens tall. $spectatorCols/$spectatorSize in the Blade now
+ * size cards from both viewport width and height, capped at 5 columns.
+ */
+test('the 10-player spectator grid fits a tablet-width viewport with no scrolling (docs/concerns.md)', function () {
+    $host = User::factory()->create();
+    $users = collect(range(0, 9))->map(fn ($i) => User::factory()->create(['name' => 'Player '.($i + 1)]));
+
+    $room = Room::factory()->active()->create(['host_user_id' => $host->id]);
+
+    $seats = [];
+    $seatTables = [];
+    $scores = [];
+    $roundsWonCounts = [];
+
+    foreach ($users as $i => $user) {
+        $seats[] = ['seatIndex' => $i, 'name' => $user->name];
+        $seatTables[$i] = ['handCount' => 8, 'tableFaceUp' => [3, 7], 'tableFaceDownCount' => 4];
+        $scores[$i] = 0;
+        $roundsWonCounts[$i] = 0;
+
+        RoomSeat::factory()->create([
+            'room_id' => $room->id,
+            'seat_index' => $i,
+            'user_id' => $user->id,
+            'hand' => range(1, 8),
+            'table_face_up' => [3, 7],
+            'table_face_down' => [1, 2, 4, 5],
+        ]);
+    }
+
+    $session = GameSession::factory()->create([
+        'type' => GameType::ClearTheDeck,
+        'mode' => GameMode::Online,
+        'settings' => ['round_target' => 1],
+        'state' => [
+            'roundTarget' => 1, 'currentRound' => 1, 'seats' => $seats, 'scores' => $scores,
+            'roundsWonCounts' => $roundsWonCounts, 'dealerSeatIndex' => 0, 'turnSeatIndex' => 1,
+            'centerStack' => [4, 4], 'phase' => ClearTheDeckPhase::Playing->value, 'lastMessage' => null,
+            'roundScores' => [], 'wentOutSeatIndex' => null, 'winnerName' => null, 'seatTables' => $seatTables,
+        ],
+    ]);
+
+    $room->update(['game_session_id' => $session->id]);
+
+    $spectator = User::factory()->create(['password' => bcrypt('password')]);
+    $page = loginAsAndVisitClearTheDeck($spectator, "/clear-the-deck?room={$room->code}");
+
+    $page->assertSee('Player 10');
+
+    // A realistic tightest-case tablet width, not a spacious desktop one --
+    // the case that actually used to require scrolling.
+    $page->resize(1024, 768)->wait(0.2);
+
+    $overflow = $page->script(
+        '({ x: document.documentElement.scrollWidth - window.innerWidth, y: document.documentElement.scrollHeight - window.innerHeight })'
+    );
+
+    expect($overflow['x'])->toBeLessThanOrEqual(0)
+        ->and($overflow['y'])->toBeLessThanOrEqual(0);
+});
+
+/**
+ * docs/concerns.md: "table cards should be at the top, not the bottom" --
+ * the pile row now renders before the seat grid specifically in spectator
+ * view (the playing view's own order, opponents row then pile, is
+ * unchanged, since a seated player already has their own hand/columns
+ * below the pile to read in sequence).
+ */
+test('the pile renders above the seat grid while spectating (docs/concerns.md)', function () {
+    [$room, , $users] = startedClearTheDeckRoom();
+    $spectator = User::factory()->create(['password' => bcrypt('password')]);
+
+    $page = loginAsAndVisitClearTheDeck($spectator, "/clear-the-deck?room={$room->code}");
+
+    $order = $page->script(
+        "(() => { const pile = document.querySelector('.ctd-pile-row'); const grid = document.querySelector('.ctd-spectator-grid'); return pile.compareDocumentPosition(grid) & Node.DOCUMENT_POSITION_FOLLOWING ? 'pile-first' : 'grid-first'; })()"
+    );
+
+    expect($order)->toBe('pile-first');
 });
