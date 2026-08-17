@@ -1,0 +1,2 @@
+- Can analytics include state, not just country
+- Can analytics include how long users stay on the website
