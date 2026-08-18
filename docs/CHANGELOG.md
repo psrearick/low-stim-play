@@ -4,6 +4,8 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 
 ## 2026-08-18
 
+- Reverted the "Home" → "Play" button rename from earlier today ("Dashboard" → "My Stats" stands); fixed the now-stale test this desynced.
+
 - Fixed `docker compose exec app php artisan test` failing/hanging: the Docker PHP image was missing `ext-sockets`, `ext-intl`, and JPEG support in `gd`, all added since the image was last rebuilt.
 - Changed Clear the Deck: a forced pickup now ends the turn immediately, passing to the next seat, instead of granting the acting player an extra turn.
 - Fixed Farkle: three-of-a-kind 1s now score 300, not a special-cased flat 1000 — as a side effect, four 1s now scores the flat four-of-a-kind value (1000) instead of 1100, matching every other face.

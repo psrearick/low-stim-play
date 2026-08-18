@@ -177,7 +177,7 @@ body.scrollable {
     /* Without this, flex's default align-items: stretch makes .left match
        .right's height whenever .right grows taller than one line (the
        many-buttons wrap below) -- and since .left's own direct-child
-       buttons (unlike Play, which is wrapped in an <a>) are themselves
+       buttons (unlike Home, which is wrapped in an <a>) are themselves
        flex items, they stretched into tall, narrow rectangles rather than
        staying their normal button height. Confirmed live via a real
        screenshot of a crowded online-room Farkle game. */
@@ -262,7 +262,7 @@ body.scrollable {
    this, the fixed-position bar's real height outgrows the page's fixed
    clamp(80px, 10vmin, 96px) reservation and the top of the page's content
    renders hidden underneath it. 108px is the real measured height for
-   Farkle's crowded online-room case (Play/Rules on one line, Rooms
+   Farkle's crowded online-room case (Home/Rules on one line, Rooms
    /Scores/Watch only/End Game/fullscreen-toggle wrapped below) at both
    375px and 320px wide, confirmed live via getBoundingClientRect() --
    125px leaves a real margin above that without reserving so much it
