@@ -217,6 +217,22 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // ---- Two-factor challenge: toggle between code and recovery-code forms ----
+    const twoFactorToggle = document.getElementById('two-factor-toggle-recovery');
+    const twoFactorCodeForm = document.getElementById('two-factor-code-form');
+    const twoFactorRecoveryForm = document.getElementById('two-factor-recovery-form');
+
+    if (twoFactorToggle && twoFactorCodeForm && twoFactorRecoveryForm) {
+        twoFactorToggle.addEventListener('click', () => {
+            twoFactorCodeForm.classList.toggle('hidden');
+            twoFactorRecoveryForm.classList.toggle('hidden');
+            twoFactorRecoveryForm.classList.toggle('flex');
+            twoFactorToggle.textContent = twoFactorRecoveryForm.classList.contains('hidden')
+                ? 'Use a recovery code instead'
+                : 'Use an authentication code instead';
+        });
+    }
+
     document.querySelectorAll('[data-passkey-login]').forEach((button) => {
         const errorEl = document.querySelector('[data-passkey-login-error]');
 
@@ -411,6 +427,198 @@ document.addEventListener('DOMContentLoaded', () => {
             passkeyPasswordDialog.showModal();
             passwordInput.focus();
         });
+
+        // ---- Two-factor authentication (enable/confirm/regenerate/disable) ----
+        // Reuses the same confirmPassword()/csrfHeaders() helpers defined
+        // above for passkey management -- Fortify's 2FA endpoints require
+        // password confirmation the same way (config/fortify.php's
+        // Features::twoFactorAuthentication(['confirmPassword' => true])),
+        // returning the same 423 status on an unconfirmed session.
+        const twoFactorEnableTrigger = document.getElementById('two-factor-enable-trigger');
+        const twoFactorSetupDialog = document.getElementById('two-factor-setup-dialog');
+        const twoFactorQrCode = document.getElementById('two-factor-qr-code');
+        const twoFactorConfirmForm = document.getElementById('two-factor-confirm-form');
+        const twoFactorConfirmCode = document.getElementById('two-factor-confirm-code');
+        const twoFactorConfirmError = document.getElementById('two-factor-confirm-error');
+        const twoFactorRecoveryCodesTrigger = document.getElementById('two-factor-recovery-codes-trigger');
+        const twoFactorRecoveryCodesDialog = document.getElementById('two-factor-recovery-codes-dialog');
+        const twoFactorRecoveryCodesList = document.getElementById('two-factor-recovery-codes-list');
+        const twoFactorRecoveryCodesError = document.getElementById('two-factor-recovery-codes-error');
+        const twoFactorRegenerateBtn = document.getElementById('two-factor-regenerate-recovery-codes');
+        const twoFactorDisableConfirmBtn = document.getElementById('two-factor-disable-confirm');
+
+        if (twoFactorSetupDialog && twoFactorRecoveryCodesDialog) {
+            const loadQrCode = async () => {
+                const response = await fetch('/user/two-factor-qr-code', {
+                    headers: { Accept: 'application/json' },
+                    credentials: 'same-origin',
+                });
+                const body = await response.json();
+                twoFactorQrCode.innerHTML = body.svg;
+            };
+
+            const loadRecoveryCodes = async () => {
+                const response = await fetch('/user/two-factor-recovery-codes', {
+                    headers: { Accept: 'application/json' },
+                    credentials: 'same-origin',
+                });
+                const codes = await response.json();
+                twoFactorRecoveryCodesList.innerHTML = '';
+                codes.forEach((code) => {
+                    const li = document.createElement('li');
+                    li.textContent = code;
+                    twoFactorRecoveryCodesList.append(li);
+                });
+            };
+
+            twoFactorEnableTrigger?.addEventListener('click', async () => {
+                twoFactorEnableTrigger.disabled = true;
+
+                try {
+                    const response = await fetch('/user/two-factor-authentication', {
+                        method: 'POST',
+                        headers: { Accept: 'application/json', ...csrfHeaders() },
+                        credentials: 'same-origin',
+                    });
+
+                    if (response.status === 423) {
+                        await confirmPassword();
+                        twoFactorEnableTrigger.disabled = false;
+                        twoFactorEnableTrigger.click();
+                        return;
+                    }
+
+                    if (!response.ok) {
+                        throw new Error('Could not enable two-factor authentication.');
+                    }
+
+                    await loadQrCode();
+                    twoFactorConfirmCode.value = '';
+                    twoFactorConfirmError.classList.add('hidden');
+                    twoFactorSetupDialog.showModal();
+                } catch (error) {
+                    if (error.message !== 'Password confirmation cancelled.') {
+                        alert(error.message ?? 'Could not enable two-factor authentication.');
+                    }
+                } finally {
+                    twoFactorEnableTrigger.disabled = false;
+                }
+            });
+
+            twoFactorConfirmForm?.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                twoFactorConfirmError.classList.add('hidden');
+
+                try {
+                    const response = await fetch('/user/confirmed-two-factor-authentication', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...csrfHeaders() },
+                        credentials: 'same-origin',
+                        body: JSON.stringify({ code: twoFactorConfirmCode.value }),
+                    });
+
+                    if (!response.ok) {
+                        const body = await response.json().catch(() => null);
+                        twoFactorConfirmError.textContent = body?.errors?.code?.[0] ?? body?.message ?? 'That code is invalid.';
+                        twoFactorConfirmError.classList.remove('hidden');
+                        return;
+                    }
+
+                    twoFactorSetupDialog.close();
+                    await loadRecoveryCodes();
+                    twoFactorRecoveryCodesError.classList.add('hidden');
+                    twoFactorRecoveryCodesDialog.showModal();
+                } catch {
+                    twoFactorConfirmError.textContent = 'Something went wrong confirming your code.';
+                    twoFactorConfirmError.classList.remove('hidden');
+                }
+            });
+
+            // Reloads once the recovery-codes dialog closes, whether via the
+            // "Done" button or a backdrop click -- the page's server-rendered
+            // "enabled"/"disabled" panel state (mount()'s $twoFactorEnabled)
+            // only reflects reality after a fresh load, the same reload
+            // pattern the passkey add/remove flows below already use.
+            twoFactorRecoveryCodesDialog.addEventListener('close', () => window.location.reload());
+
+            twoFactorRecoveryCodesTrigger?.addEventListener('click', async () => {
+                twoFactorRecoveryCodesTrigger.disabled = true;
+                twoFactorRecoveryCodesError.classList.add('hidden');
+
+                try {
+                    await loadRecoveryCodes();
+                    twoFactorRecoveryCodesDialog.showModal();
+                } catch {
+                    alert('Could not load recovery codes.');
+                } finally {
+                    twoFactorRecoveryCodesTrigger.disabled = false;
+                }
+            });
+
+            twoFactorRegenerateBtn?.addEventListener('click', async () => {
+                twoFactorRegenerateBtn.disabled = true;
+                twoFactorRecoveryCodesError.classList.add('hidden');
+
+                try {
+                    const response = await fetch('/user/two-factor-recovery-codes', {
+                        method: 'POST',
+                        headers: { Accept: 'application/json', ...csrfHeaders() },
+                        credentials: 'same-origin',
+                    });
+
+                    if (response.status === 423) {
+                        await confirmPassword();
+                        twoFactorRegenerateBtn.disabled = false;
+                        twoFactorRegenerateBtn.click();
+                        return;
+                    }
+
+                    if (!response.ok) {
+                        throw new Error('Could not generate new recovery codes.');
+                    }
+
+                    await loadRecoveryCodes();
+                } catch (error) {
+                    if (error.message !== 'Password confirmation cancelled.') {
+                        twoFactorRecoveryCodesError.textContent = error.message ?? 'Could not generate new recovery codes.';
+                        twoFactorRecoveryCodesError.classList.remove('hidden');
+                    }
+                } finally {
+                    twoFactorRegenerateBtn.disabled = false;
+                }
+            });
+
+            twoFactorDisableConfirmBtn?.addEventListener('click', async () => {
+                twoFactorDisableConfirmBtn.disabled = true;
+
+                try {
+                    const response = await fetch('/user/two-factor-authentication', {
+                        method: 'DELETE',
+                        headers: { Accept: 'application/json', ...csrfHeaders() },
+                        credentials: 'same-origin',
+                    });
+
+                    if (response.status === 423) {
+                        await confirmPassword();
+                        twoFactorDisableConfirmBtn.disabled = false;
+                        twoFactorDisableConfirmBtn.click();
+                        return;
+                    }
+
+                    if (!response.ok) {
+                        throw new Error('Could not disable two-factor authentication.');
+                    }
+
+                    window.location.reload();
+                } catch (error) {
+                    twoFactorDisableConfirmBtn.disabled = false;
+
+                    if (error.message !== 'Password confirmation cancelled.') {
+                        alert(error.message ?? 'Could not disable two-factor authentication.');
+                    }
+                }
+            });
+        }
 
         // ---- Add a passkey ----
         const nameForm = passkeyNameDialog.querySelector('[data-passkey-name-form]');

@@ -8,23 +8,18 @@ The Order of Work list is a separate, ordinary numbered list reflecting current 
 
 ## Order of Work
 
-1. [Task 2: Two-factor authentication toggle](#2-two-factor-authentication-toggle)
-2. [Task 5: Rename "Home"/"Dashboard"](#5-rename-homedashboard)
-3. [Task 3: Image avatars](#3-image-avatars)
-4. [Task 13: Privacy policy page](#13-privacy-policy-page)
-5. [Task 22: Farkle: three-of-a-kind 1s should score 300, not 1000](#22-farkle-three-of-a-kind-1s-should-score-300-not-1000)
-6. [Task 21: Clear the Deck: a forced pickup should end the turn immediately, not grant an extra turn](#21-clear-the-deck-a-forced-pickup-should-end-the-turn-immediately-not-grant-an-extra-turn)
-7. [Task 4: Friends activity](#4-friends-activity)
-8. [Task 8: Add Quartiles](#8-add-quartiles)
-9. [Task 10: Spec and build NYT-style puzzle games](#10-spec-and-build-nyt-style-puzzle-games)
-10. [Task 11: Shared puzzle-game infrastructure](#11-shared-puzzle-game-infrastructure)
-11. [Task 23: Farkle: add an optional "Spicy" variant toggle](#23-farkle-add-an-optional-spicy-variant-toggle)
+1. [Task 5: Rename "Home"/"Dashboard"](#5-rename-homedashboard)
+2. [Task 3: Image avatars](#3-image-avatars)
+3. [Task 13: Privacy policy page](#13-privacy-policy-page)
+4. [Task 22: Farkle: three-of-a-kind 1s should score 300, not 1000](#22-farkle-three-of-a-kind-1s-should-score-300-not-1000)
+5. [Task 21: Clear the Deck: a forced pickup should end the turn immediately, not grant an extra turn](#21-clear-the-deck-a-forced-pickup-should-end-the-turn-immediately-not-grant-an-extra-turn)
+6. [Task 4: Friends activity](#4-friends-activity)
+7. [Task 8: Add Quartiles](#8-add-quartiles)
+8. [Task 10: Spec and build NYT-style puzzle games](#10-spec-and-build-nyt-style-puzzle-games)
+9. [Task 11: Shared puzzle-game infrastructure](#11-shared-puzzle-game-infrastructure)
+10. [Task 23: Farkle: add an optional "Spicy" variant toggle](#23-farkle-add-an-optional-spicy-variant-toggle)
 
 ## Tasks
-
-### 2. Two-factor authentication toggle
-
-`Features::twoFactorAuthentication()` is currently disabled in `config/fortify.php`. Enable it so users can turn on 2FA manually.
 
 ### 3. Image avatars
 

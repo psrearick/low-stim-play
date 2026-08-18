@@ -17,6 +17,8 @@ new class extends Component
 
     public bool $statsCleared = false;
 
+    public bool $twoFactorEnabled = false;
+
     public function mount(): void
     {
         $user = $this->user();
@@ -24,6 +26,7 @@ new class extends Component
         $this->name = $user->name;
         $this->username = $user->username;
         $this->is_public = $user->is_public;
+        $this->twoFactorEnabled = $user->two_factor_confirmed_at !== null;
     }
 
     public function save(): void
@@ -147,6 +150,34 @@ new class extends Component
         <button type="button" data-passkey-add class="w-full">Add a Passkey</button>
     </x-panel>
 
+    <x-panel heading="Two-Factor Authentication">
+        @if ($twoFactorEnabled)
+            <p class="text-sm text-text/80 text-center">Two-factor authentication is enabled.</p>
+
+            <button type="button" id="two-factor-recovery-codes-trigger" class="w-full">View Recovery Codes</button>
+
+            <button type="button" id="two-factor-disable-trigger" data-dialog-open="two-factor-disable-confirm-dialog" class="w-full">
+                Disable Two-Factor Authentication
+            </button>
+
+            <x-confirm-dialog id="two-factor-disable-confirm-dialog" title="Disable two-factor authentication?"
+                message="You'll no longer need an authentication code to sign in.">
+                <x-slot:confirm>
+                    <button type="button" id="two-factor-disable-confirm" data-dialog-close
+                        class="flex-1 rounded px-6 py-2 font-bold tracking-wide bg-surface border-2 border-warn text-warn">
+                        Disable
+                    </button>
+                </x-slot:confirm>
+            </x-confirm-dialog>
+        @else
+            <p class="text-sm text-text/80 text-center">
+                Require an authentication code from an app like Google Authenticator, in addition to your password, when signing in.
+            </p>
+
+            <button type="button" id="two-factor-enable-trigger" class="w-full">Enable Two-Factor Authentication</button>
+        @endif
+    </x-panel>
+
     <x-panel heading="Danger Zone">
         @if ($statsCleared)
             <p class="text-sm text-text/80 text-center">Your stats have been cleared.</p>
@@ -246,7 +277,7 @@ new class extends Component
 
             <p data-passkey-password-error class="text-sm text-warn hidden"></p>
 
-            <button type="submit" class="rounded px-6 py-2 font-bold tracking-wide bg-surface border-2 border-surface-border text-text">
+            <button type="submit" id="passkey-password-submit" class="rounded px-6 py-2 font-bold tracking-wide bg-surface border-2 border-surface-border text-text">
                 Confirm
             </button>
         </form>
@@ -270,5 +301,59 @@ new class extends Component
                 Remove
             </button>
         </div>
+    </dialog>
+
+    <dialog class="passkey-dialog m-auto w-[min(94vw,420px)] rounded-lg border-2 border-surface-border bg-surface p-6 text-text backdrop:bg-black/50 focus:outline-none"
+        id="two-factor-setup-dialog" aria-labelledby="two-factor-setup-dialog-title">
+        <div class="flex items-center justify-between gap-3 mb-4">
+            <div class="text-bar font-bold tracking-wide text-lg" id="two-factor-setup-dialog-title">Set up two-factor authentication</div>
+            <button type="button" class="rounded px-2 py-0.5 text-lg font-bold leading-none hover:bg-surface-border/40"
+                data-passkey-dialog-close aria-label="Close">&times;</button>
+        </div>
+
+        <p class="text-sm text-text/80 text-center mb-4">
+            Scan this QR code with an authenticator app, then enter the six-digit code it shows you below.
+        </p>
+
+        <div id="two-factor-qr-code" class="w-full flex justify-center mb-4 [&_svg]:bg-white [&_svg]:p-2 [&_svg]:rounded"></div>
+
+        <form id="two-factor-confirm-form" class="w-full flex flex-col gap-4">
+            <div class="flex flex-col gap-1">
+                <label for="two-factor-confirm-code" class="text-sm text-text/80">Authentication code</label>
+                <input id="two-factor-confirm-code" type="text" inputmode="numeric" autocomplete="one-time-code" required
+                    class="rounded border-2 border-surface-border bg-bg text-text px-3 py-2">
+            </div>
+
+            <p id="two-factor-confirm-error" class="text-sm text-warn hidden"></p>
+
+            <button type="submit" id="two-factor-confirm-submit" class="rounded px-6 py-2 font-bold tracking-wide bg-surface border-2 border-surface-border text-text">
+                Confirm
+            </button>
+        </form>
+    </dialog>
+
+    <dialog class="passkey-dialog m-auto w-[min(94vw,420px)] rounded-lg border-2 border-surface-border bg-surface p-6 text-text backdrop:bg-black/50 focus:outline-none"
+        id="two-factor-recovery-codes-dialog" aria-labelledby="two-factor-recovery-codes-dialog-title">
+        <div class="flex items-center justify-between gap-3 mb-4">
+            <div class="text-bar font-bold tracking-wide text-lg" id="two-factor-recovery-codes-dialog-title">Recovery codes</div>
+            <button type="button" class="rounded px-2 py-0.5 text-lg font-bold leading-none hover:bg-surface-border/40"
+                data-passkey-dialog-close aria-label="Close">&times;</button>
+        </div>
+
+        <p class="text-sm text-text/80 text-center mb-4">
+            Store these somewhere safe. Each code can be used once to sign in if you lose access to your authenticator app.
+        </p>
+
+        <ul id="two-factor-recovery-codes-list" class="w-full flex flex-col gap-1 mb-4 font-mono text-sm text-text/90 text-center"></ul>
+
+        <p id="two-factor-recovery-codes-error" class="text-sm text-warn hidden mb-4"></p>
+
+        <div class="flex gap-3 w-full mb-4">
+            <button type="button" id="two-factor-regenerate-recovery-codes" class="flex-1 rounded px-6 py-2 font-bold tracking-wide bg-surface border-2 border-surface-border text-text">
+                Generate New Codes
+            </button>
+        </div>
+
+        <button type="button" id="two-factor-recovery-codes-done" data-passkey-dialog-close class="w-full">Done</button>
     </dialog>
 </div>

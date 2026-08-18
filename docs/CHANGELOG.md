@@ -4,6 +4,7 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 
 ## 2026-08-18
 
+- Enabled two-factor authentication: login challenge page, and an enable/confirm/view-recovery-codes/disable panel on the profile page.
 - Fixed Farkle's dice row silently over-growing past its intended size on a wide screen, the same `flex-grow` bug already fixed in Yahtzee's own dice row.
 - Audited every teleported button-bar action across all six games for real click-through test coverage (prompted by the Boggle bug below); added the 10 missing ones across Yahtzee, Farkle, Family Feud, Clear the Deck, and Best Match. All confirmed already working — no second hidden bug found.
 - Fixed the "New Game" button at the end of a solo Boggle game doing nothing at all; root cause was a missing wrapper div inside Boggle's `@teleport` block, the one game in the app missing a pattern every other game's own teleported button-bar content already used.
