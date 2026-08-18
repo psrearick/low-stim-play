@@ -833,8 +833,8 @@ new class extends Component
     <ul>
         <li>Each turn, roll all 6 dice. Bank ends your turn, automatically adding up every scoring die in the current roll (whether or not you've tapped it) &mdash; or tap specific dice and press Roll Again to lock just those in and reroll the rest.</li>
         <li>A single 1 scores 100; a single 5 scores 50.</li>
-        <li>Three of a kind scores by face value: three 1s = 1000, three of any other number <em>n</em> = <em>n</em> &times; 100 (e.g. three 4s = 400).</li>
-        <li>Four of a kind = 1000, five of a kind = 2000, six of a kind = 3000, regardless of which number is repeated &mdash; whichever way of scoring a roll is worth more is always used automatically (e.g. four 1s scores 1100, treating it as three 1s plus one leftover single 1, since that beats the flat 1000).</li>
+        <li>Three of a kind scores by face value: three 1s = 300, three of any other number <em>n</em> = <em>n</em> &times; 100 (e.g. three 4s = 400).</li>
+        <li>Four of a kind = 1000, five of a kind = 2000, six of a kind = 3000, regardless of which number is repeated &mdash; whichever way of scoring a roll is worth more is always used automatically.</li>
         <li>A straight (one each of 1&ndash;6) scores 1500. Three pairs (e.g. 2-2, 4-4, 6-6) scores 1500. Two separate triplets (e.g. three 2s and three 5s) scores 2500 &mdash; these three all use every one of the 6 dice in a single roll.</li>
         <li>If all 6 dice have scored during a turn (across one or more rolls), you get "hot dice" &mdash; roll all 6 again and keep adding to the same turn's total.</li>
         <li>A roll with no scoring dice at all is a bust: the turn ends immediately and everything banked so far <em>this turn</em> is lost (points already banked from earlier turns are safe).</li>

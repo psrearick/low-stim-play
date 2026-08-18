@@ -18,8 +18,8 @@ test('a lone die that is not a 1 or 5 is not a valid selection', function () {
         ->and($this->scorer->scoreSelection([2, 2]))->toBe(['score' => 0, 'valid' => false]);
 });
 
-test('three of a kind scores per the standard table, 1s as 1000', function () {
-    expect($this->scorer->scoreSelection([1, 1, 1]))->toBe(['score' => 1000, 'valid' => true])
+test('three of a kind scores per the standard table, 1s as 300 (docs/TODO.md\'s former #22)', function () {
+    expect($this->scorer->scoreSelection([1, 1, 1]))->toBe(['score' => 300, 'valid' => true])
         ->and($this->scorer->scoreSelection([2, 2, 2]))->toBe(['score' => 200, 'valid' => true])
         ->and($this->scorer->scoreSelection([3, 3, 3]))->toBe(['score' => 300, 'valid' => true])
         ->and($this->scorer->scoreSelection([4, 4, 4]))->toBe(['score' => 400, 'valid' => true])
@@ -35,11 +35,12 @@ test('four, five, and six of a kind are flat values regardless of face, per docs
 });
 
 test('four or five of a kind of 1s or 5s scores whichever interpretation is worth more', function () {
-    // Four 1s: three 1s (1000) + one leftover single 1 (100) = 1100, which
-    // beats the flat four-of-a-kind value of 1000.
-    expect($this->scorer->scoreSelection([1, 1, 1, 1]))->toBe(['score' => 1100, 'valid' => true])
+    // Four 1s: the flat four-of-a-kind value (1000) beats three 1s (300)
+    // plus one leftover single 1 (100) = 400, now that three 1s no longer
+    // has its own special-cased 1000 value (docs/TODO.md's former #22).
+    expect($this->scorer->scoreSelection([1, 1, 1, 1]))->toBe(['score' => 1000, 'valid' => true])
         // Five 1s: flat five-of-a-kind (2000) beats three 1s + two
-        // leftover singles (1000 + 200 = 1200).
+        // leftover singles (300 + 200 = 500).
         ->and($this->scorer->scoreSelection([1, 1, 1, 1, 1]))->toBe(['score' => 2000, 'valid' => true])
         // Four 5s: flat four-of-a-kind (1000) beats three 5s + one
         // leftover single 5 (500 + 50 = 550).

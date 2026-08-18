@@ -8,7 +8,7 @@ beforeEach(function () {
 });
 
 test('scoreSelection, hasAnyScoringDice, and scoreMaximal delegate to the Scorer', function () {
-    expect($this->engine->scoreSelection([1, 1, 1]))->toBe(['score' => 1000, 'valid' => true])
+    expect($this->engine->scoreSelection([1, 1, 1]))->toBe(['score' => 300, 'valid' => true])
         ->and($this->engine->hasAnyScoringDice([2, 2, 3, 3, 4, 6]))->toBeFalse()
         ->and($this->engine->scoreMaximal([4, 4, 4, 2, 1]))->toBe(500);
 });

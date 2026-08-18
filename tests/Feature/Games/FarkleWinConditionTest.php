@@ -34,12 +34,14 @@ function bankSixOfAKind(mixed $component): mixed
  * qualified this game needs at least the 500-point minimum entry for
  * bank() to actually do anything (see FarkleGameTest's own "banking
  * below the minimum entry score" test), so every helper here clears
- * that bar.
+ * that bar. Four of a kind, not three 1s (docs/TODO.md's former #22
+ * dropped three 1s from 1000 to 300, which alone would fall short of
+ * that same 500-point minimum).
  */
-function bankThreeOnes(mixed $component): mixed
+function bankFourSixes(mixed $component): mixed
 {
     return $component
-        ->set('dice', [1, 1, 1, 2, 3, 4]) // three 1s = 1000
+        ->set('dice', [6, 6, 6, 6, 2, 3]) // four 6s = 1000 flat, 2/3 unused
         ->call('bank');
 }
 
@@ -72,7 +74,7 @@ test('with the final round on, crossing the target gives every other player exac
 
     // Player 1's final turn -- doesn't cross the target themselves, game
     // continues to player 2.
-    bankThreeOnes($component)
+    bankFourSixes($component)
         ->assertSet('players.1.bankedScore', 1000)
         ->assertSet('finalRoundRemaining', 1)
         ->assertSet('gameOver', false)
@@ -80,7 +82,7 @@ test('with the final round on, crossing the target gives every other player exac
 
     // Player 2's final turn -- the last one; game ends here regardless of
     // whether they also cross the target.
-    bankThreeOnes($component)
+    bankFourSixes($component)
         ->assertSet('players.2.bankedScore', 1000)
         ->assertSet('gameOver', true);
 

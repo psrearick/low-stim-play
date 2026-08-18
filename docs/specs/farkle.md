@@ -20,16 +20,18 @@ against that existing system rather than as a one-off.
 ## 2. Design decisions
 
 - **Scoring, corrected 2026-08-05 per `docs/concerns.md` (supersedes the original
-  "doubling" variant this shipped with, which was wrong):**
+  "doubling" variant this shipped with, which was wrong), and three 1s corrected again
+  2026-08-18 per `docs/TODO.md`'s former #22:**
   - Single 1 = 100 points. Single 5 = 50 points.
-  - Three of a kind: 1s = 1000; any other number `n` = `n × 100` (e.g. three 4s = 400).
+  - Three of a kind: 1s = 300 (the same 100-per-die value as one or two 1s — there is no
+    special three-1s bonus); any other number `n` = `n × 100` (e.g. three 4s = 400).
   - Four of a kind = 1000, five of a kind = 2000, six of a kind = 3000 — **flat values,
     not scaled by which face is repeated** (four 4s = 1000, not 800; four 1s and four
     6s score the same 1000 base). Whichever way of scoring a given roll is worth more
-    is always used automatically: four 1s is scored as three 1s (1000) plus one
-    leftover single 1 (100) = 1100, since that beats the flat four-of-a-kind value of
-    1000; four 5s is scored as the flat 1000, since that beats three 5s (500) plus one
-    leftover single 5 (550).
+    is always used automatically: four 4s is scored as the flat 1000, since that beats
+    three 4s (400) plus one leftover "single" 4 (0, only 1s/5s score individually);
+    four 1s is likewise scored as the flat 1000, since that now beats three 1s (300)
+    plus one leftover single 1 (100) = 400.
   - **Three more special patterns, each using all 6 dice in a single roll**: a straight
     (one each of 1–6) = 1500; three pairs (e.g. 2-2, 4-4, 6-6) = 1500; two separate
     triplets (e.g. three 2s and three 5s) = 2500. These replace the normal per-face

@@ -4,6 +4,7 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 
 ## 2026-08-18
 
+- Fixed Farkle: three-of-a-kind 1s now score 300, not a special-cased flat 1000 — as a side effect, four 1s now scores the flat four-of-a-kind value (1000) instead of 1100, matching every other face.
 - Added a `/privacy` page (linked from the site footer) covering account data, cookies, analytics (the drafted copy from `docs/specs/analytics.md`), and the third-party services this app uses.
 - Added image avatars: upload a picture (stored on a real S3-compatible bucket) or remove it, from the profile page; `<x-avatar>` renders it wherever avatars already appeared.
 - Renamed the persistent "Home" button to "Play" and "Dashboard" to "My Stats" everywhere they appear (top bar, sidebar, page title).

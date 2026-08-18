@@ -8,13 +8,12 @@ The Order of Work list is a separate, ordinary numbered list reflecting current 
 
 ## Order of Work
 
-1. [Task 22: Farkle: three-of-a-kind 1s should score 300, not 1000](#22-farkle-three-of-a-kind-1s-should-score-300-not-1000)
-2. [Task 21: Clear the Deck: a forced pickup should end the turn immediately, not grant an extra turn](#21-clear-the-deck-a-forced-pickup-should-end-the-turn-immediately-not-grant-an-extra-turn)
-3. [Task 4: Friends activity](#4-friends-activity)
-4. [Task 8: Add Quartiles](#8-add-quartiles)
-5. [Task 10: Spec and build NYT-style puzzle games](#10-spec-and-build-nyt-style-puzzle-games)
-6. [Task 11: Shared puzzle-game infrastructure](#11-shared-puzzle-game-infrastructure)
-7. [Task 23: Farkle: add an optional "Spicy" variant toggle](#23-farkle-add-an-optional-spicy-variant-toggle)
+1. [Task 21: Clear the Deck: a forced pickup should end the turn immediately, not grant an extra turn](#21-clear-the-deck-a-forced-pickup-should-end-the-turn-immediately-not-grant-an-extra-turn)
+2. [Task 4: Friends activity](#4-friends-activity)
+3. [Task 8: Add Quartiles](#8-add-quartiles)
+4. [Task 10: Spec and build NYT-style puzzle games](#10-spec-and-build-nyt-style-puzzle-games)
+5. [Task 11: Shared puzzle-game infrastructure](#11-shared-puzzle-game-infrastructure)
+6. [Task 23: Farkle: add an optional "Spicy" variant toggle](#23-farkle-add-an-optional-spicy-variant-toggle)
 
 ## Tasks
 
@@ -40,12 +39,6 @@ Currently, per `docs/DEVLOG.md`'s Clear the Deck section ("Turn resolution is fo
 
 Requested change: a forced pickup should end the current player's turn immediately instead, passing to the next seat the same way an ordinary non-set-completing play already does. This reverses part of the turn-resolution rule the game was originally built against — one of the "design decisions resolved collaboratively before any code was written" listed at the top of that same DEVLOG section — not a bug fix, so treat it as a deliberate rule change to already-shipped, tested turn logic (`playCards()` in `pages::clear-the-deck.play`) rather than a simple tweak. Update the existing turn-resolution test coverage in `tests/Feature/Games/ClearTheDeckRoomTest.php` (which currently asserts a pickup grants an extra turn) to match the new rule, not just add new tests alongside the old, now-wrong ones.
 
-### 22. Farkle: three-of-a-kind 1s should score 300, not 1000
-
-`App\Services\Farkle\Scorer::bestScoreForFace()` currently special-cases a bare three-of-a-kind of 1s at a flat 1000 points (`$threeValue = $face === 1 ? 1000 : $face * 100;`), carried over from the 2026-08-06 scoring correction (`docs/DEVLOG.md`'s Farkle section, "Scoring table was wrong and got corrected"). Change three 1s specifically to score 300 — i.e., the same flat `100`-per-die value already used for one or two 1s (`count < 3`) — while leaving every other face's three-of-a-kind value (three of any face 2–6 = face × 100) and every four/five/six-of-a-kind tier untouched. Both `scoreSelection()` (a manual selection during `rollAgain()`) and `scoreMaximal()` (Bank's auto-detection of every scoring die) share this same private method, so a single change there covers both call sites. Update `tests/Unit/Farkle/ScorerTest.php`'s existing three-1s assertions to the new value rather than leaving them asserting the old one.
-
-This is also a prerequisite for Task 23's Spicy variant, whose own doubling math is written against this corrected 300 value, not the current 1000.
-
 ### 23. Farkle: add an optional "Spicy" variant toggle
 
 A new, fully-specified optional Farkle variant, host-configurable as an additional toggle alongside the existing target-score/final-round settings (see `docs/specs/farkle.md`'s own precedent for how those are exposed). Rules as given:
@@ -58,5 +51,5 @@ A new, fully-specified optional Farkle variant, host-configurable as an addition
 - Default target score for a Spicy game is 25,000, not the normal mode's 10,000 (still host-configurable via the existing target-score setting, just a different default when Spicy is on).
 - Rolling all six dice as spicy in a single roll is an instant win, regardless of the score reached.
 
-Depends on Task 22 (the plain three-1s scoring fix) landing first — the doubling math above is written against that corrected value. Needs the same spec-first treatment `docs/specs/clear-the-deck.md` got (`docs/DEVLOG.md`'s Clear the Deck section) before building starts: the rules above are already fairly complete, but haven't been reviewed for edge cases the way that spec-writing process caught for Clear the Deck (e.g. how a spicy die interacts with the three six-dice-only special patterns — straight, three pairs, two triplets — or with hot dice re-rolling a fresh six mid-turn).
+The plain three-1s scoring fix this depended on has landed (`docs/DEVLOG.md`'s Farkle section, 2026-08-18) — the doubling math above is written against that corrected 300 value. Needs the same spec-first treatment `docs/specs/clear-the-deck.md` got (`docs/DEVLOG.md`'s Clear the Deck section) before building starts: the rules above are already fairly complete, but haven't been reviewed for edge cases the way that spec-writing process caught for Clear the Deck (e.g. how a spicy die interacts with the three six-dice-only special patterns — straight, three pairs, two triplets — or with hot dice re-rolling a fresh six mid-turn).
 

@@ -15,16 +15,18 @@ class Scorer
      * Scores a chosen subset of a roll (the dice the player is setting
      * aside this roll), per docs/concerns.md's corrected scoring table:
      * single 1s/5s score individually (100/50); three of a kind scores by
-     * face (1s = 1000, others = face x 100); four/five/six of a kind are
-     * flat values (1000/2000/3000) *regardless of face* -- not a
-     * per-face-scaled multiplier. Whichever interpretation of a given
-     * count actually scores higher wins automatically (see
-     * `bestScoreForFace()` -- e.g. four 1s scores 1100 by treating it as
-     * three 1s (1000) plus one leftover single 1 (100), which beats the
-     * flat four-of-a-kind value of 1000). Three special six-dice-only
-     * patterns score their own flat bonus instead of decomposing by face
-     * at all: a straight (one of each face), three pairs, or two
-     * triplets.
+     * face (1s = 300, i.e. the same 100-per-die value as one/two 1s,
+     * others = face x 100); four/five/six of a kind are flat values
+     * (1000/2000/3000) *regardless of face* -- not a per-face-scaled
+     * multiplier. Whichever interpretation of a given count actually
+     * scores higher wins automatically (see `bestScoreForFace()` -- e.g.
+     * four 2s scores 1000 (the flat four-of-a-kind value) rather than 700
+     * (three 2s at 200 plus a leftover "single" 2, which isn't a real
+     * scoring value at all), and four 1s scores the same flat 1000 rather
+     * than 400 (three 1s at 300 plus one leftover single 1 at 100) since
+     * 1000 is higher either way). Three special six-dice-only patterns
+     * score their own flat bonus instead of decomposing by face at all: a
+     * straight (one of each face), three pairs, or two triplets.
      *
      * `valid` is false if *any* selected die doesn't contribute to the
      * score at all (e.g. a lone 3, or two 2s with nothing else) -- Farkle
@@ -129,13 +131,14 @@ class Scorer
 
     /**
      * The higher-scoring of every valid way to score `$count` dice of the
-     * same `$face` -- e.g. four 1s can be scored as a flat four-of-a-kind
-     * (1000) or as three 1s (1000) plus one leftover single 1 (100); the
-     * latter is worth more, so that's what's returned. For a count under
-     * 3, this is just the leftover-single value (1/5 only; anything else
-     * scores 0, meaning "not usable," not "invalid" -- that distinction
-     * is the caller's job, since scoreMaximal() treats 0 as "left out"
-     * while scoreSelection() treats it as illegal).
+     * same `$face` -- e.g. four 2s can be scored as a flat four-of-a-kind
+     * (1000) or as three 2s (200) plus one leftover "single" 2 (0, since
+     * only 1s/5s ever score individually); the former is worth more, so
+     * that's what's returned. For a count under 3, this is just the
+     * leftover-single value (1/5 only; anything else scores 0, meaning
+     * "not usable," not "invalid" -- that distinction is the caller's
+     * job, since scoreMaximal() treats 0 as "left out" while
+     * scoreSelection() treats it as illegal).
      */
     private function bestScoreForFace(int $face, int $count): int
     {
@@ -153,7 +156,7 @@ class Scorer
             return $count * $singleValue;
         }
 
-        $threeValue = $face === 1 ? 1000 : $face * 100;
+        $threeValue = $face === 1 ? 3 * 100 : $face * 100;
 
         $candidates = [$threeValue + ($count - 3) * $singleValue];
 
