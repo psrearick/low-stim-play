@@ -133,6 +133,7 @@
 
         <footer class="site-footer">
             <a href="{{ route('about') }}">About</a>
+            <a href="{{ route('privacy') }}">Privacy Policy</a>
             <a href="https://ko-fi.com/philliprearick" target="_blank" rel="noopener">Support Me</a>
             <button type="button" data-theme-toggle class="theme-toggle" aria-label="Switch to light theme">Light Theme</button>
         </footer>

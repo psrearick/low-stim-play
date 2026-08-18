@@ -5,7 +5,7 @@
 
 Everything lives inside the host app under `app/Analytics/`. Do not build this as a composer package.
 
-> **Implemented.** This app is actually Laravel 13 + Livewire 4, and several specifics below were deliberately adapted rather than followed literally — Livewire 4 single-file "page" components instead of Livewire 3, an inline SVG chart instead of Chart.js, a MaxMind-only geo driver (no `header` driver), and an `ANALYTICS_ADMIN_EMAILS` env allow-list instead of an `is_admin` column. See `docs/DEVLOG.md`'s "Analytics" section for the full list of deviations and why, and `docs/TODO.md` for what's still outstanding (a real deploy-time verification pass, MaxMind credentials, and a privacy-policy page to hold section 12's copy).
+> **Implemented.** This app is actually Laravel 13 + Livewire 4, and several specifics below were deliberately adapted rather than followed literally — Livewire 4 single-file "page" components instead of Livewire 3, an inline SVG chart instead of Chart.js, a MaxMind-only geo driver (no `header` driver), and an `ANALYTICS_ADMIN_EMAILS` env allow-list instead of an `is_admin` column. See `docs/DEVLOG.md`'s "Analytics" section for the full list of deviations and why. The real deploy-time verification pass, MaxMind credentials, and section 12's privacy-policy page (`/privacy`, `docs/TODO.md`'s former #13) are all done too — the copy below now lives there verbatim.
 
 ---
 

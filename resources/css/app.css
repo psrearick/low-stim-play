@@ -912,6 +912,16 @@ button.option.active {
     line-height: 1.6;
 }
 
+/* Privacy policy page reuses .about-content's own container/paragraph
+   styling verbatim (same width, gap, text color) -- this is the only
+   addition it needs on top of that, since it's the only page with real
+   subheadings breaking its prose into sections. */
+.about-content h2 {
+    color: var(--ink);
+    font-weight: bold;
+    font-size: 1.1em;
+}
+
 /* =====================================================================
    Home page, ported from legacy/index.html's own <style> block.
    ===================================================================== */

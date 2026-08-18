@@ -20,6 +20,8 @@ Route::livewire('/analytics', 'pages::analytics')
 
 Route::livewire('/about', 'pages::about')->name('about');
 
+Route::livewire('/privacy', 'pages::privacy')->name('privacy');
+
 Route::livewire('/dashboard', 'pages::dashboard')
     ->middleware(['auth', 'verified'])
     ->name('dashboard');
