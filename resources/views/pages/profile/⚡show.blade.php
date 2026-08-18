@@ -37,7 +37,7 @@ new class extends Component
 
 <div class="flex flex-col items-center gap-6 w-full max-w-2xl">
     <div class="flex items-center gap-4 w-full">
-        <x-avatar :name="$user->name" size="w-16 h-16 text-2xl" />
+        <x-avatar :name="$user->name" :avatar-url="$user->avatarUrl()" size="w-16 h-16 text-2xl" />
         <div class="flex flex-col">
             <p class="font-bold text-xl text-text">{{ $user->name }}</p>
             <p class="text-text/65">&commat;{{ $user->username }}</p>

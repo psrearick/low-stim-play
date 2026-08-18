@@ -1,12 +1,18 @@
 <?php
 
 use App\Models\User;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Livewire\Attributes\Validate;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 
 new class extends Component
 {
+    use WithFileUploads;
+
     public string $name = '';
 
     public ?string $username = null;
@@ -19,6 +25,11 @@ new class extends Component
 
     public bool $twoFactorEnabled = false;
 
+    public ?string $avatarUrl = null;
+
+    #[Validate('nullable|image|max:2048')]
+    public ?UploadedFile $avatarUpload = null;
+
     public function mount(): void
     {
         $user = $this->user();
@@ -27,6 +38,54 @@ new class extends Component
         $this->username = $user->username;
         $this->is_public = $user->is_public;
         $this->twoFactorEnabled = $user->two_factor_confirmed_at !== null;
+        $this->avatarUrl = $user->avatarUrl();
+    }
+
+    /**
+     * Deletes any previous image first (so changing file extensions -- a
+     * .png replaced by a .jpg -- doesn't leave the old object orphaned in
+     * the bucket) and stores under a fresh random name each time, which
+     * also naturally cache-busts the URL shown right after uploading.
+     */
+    public function uploadAvatar(): void
+    {
+        $this->validate();
+
+        if ($this->avatarUpload === null) {
+            return;
+        }
+
+        $user = $this->user();
+
+        if ($user->avatar_path) {
+            Storage::disk('s3')->delete($user->avatar_path);
+        }
+
+        $path = $this->avatarUpload->store(path: 'avatars', options: ['disk' => 's3', 'visibility' => 'public']);
+
+        if ($path === false) {
+            $this->addError('avatarUpload', 'Could not upload that image. Please try again.');
+
+            return;
+        }
+
+        $user->update(['avatar_path' => $path]);
+
+        $this->avatarUpload = null;
+        $this->avatarUrl = $user->avatarUrl();
+    }
+
+    public function removeAvatar(): void
+    {
+        $user = $this->user();
+
+        if ($user->avatar_path) {
+            Storage::disk('s3')->delete($user->avatar_path);
+        }
+
+        $user->update(['avatar_path' => null]);
+
+        $this->avatarUrl = null;
     }
 
     public function save(): void
@@ -101,6 +160,33 @@ new class extends Component
         @if ($saved)
             <p class="text-sm text-text/80 text-center">Profile saved.</p>
         @endif
+
+        <div class="flex items-center gap-4 w-full">
+            @if ($avatarUpload && $avatarUpload->isPreviewable())
+                <img src="{{ $avatarUpload->temporaryUrl() }}" alt="Avatar preview" class="w-16 h-16 rounded-full object-cover shrink-0">
+            @else
+                <x-avatar :name="$name" :avatar-url="$avatarUrl" size="w-16 h-16 text-2xl" />
+            @endif
+
+            <div class="flex flex-col gap-2 flex-1">
+                <input type="file" id="avatar-upload-input" wire:model="avatarUpload" accept="image/*"
+                    class="text-sm text-text/80 file:mr-3 file:rounded file:border-2 file:border-surface-border file:bg-surface file:px-3 file:py-1 file:text-text">
+                @error('avatarUpload')
+                    <p class="text-sm text-warn">{{ $message }}</p>
+                @enderror
+
+                <div class="flex gap-3">
+                    @if ($avatarUpload)
+                        <button type="button" id="avatar-upload-save" wire:click="uploadAvatar" wire:loading.attr="disabled" wire:target="avatarUpload,uploadAvatar">
+                            Save Avatar
+                        </button>
+                    @endif
+                    @if ($avatarUrl)
+                        <button type="button" id="avatar-upload-remove" wire:click="removeAvatar">Remove Avatar</button>
+                    @endif
+                </div>
+            </div>
+        </div>
 
         <form wire:submit="save" class="w-full flex flex-col gap-4">
             <div class="flex flex-col gap-1">

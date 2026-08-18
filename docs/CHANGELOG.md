@@ -4,6 +4,7 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 
 ## 2026-08-18
 
+- Added image avatars: upload a picture (stored on a real S3-compatible bucket) or remove it, from the profile page; `<x-avatar>` renders it wherever avatars already appeared.
 - Renamed the persistent "Home" button to "Play" and "Dashboard" to "My Stats" everywhere they appear (top bar, sidebar, page title).
 - Enabled two-factor authentication: login challenge page, and an enable/confirm/view-recovery-codes/disable panel on the profile page.
 - Fixed Farkle's dice row silently over-growing past its intended size on a wide screen, the same `flex-grow` bug already fixed in Yahtzee's own dice row.

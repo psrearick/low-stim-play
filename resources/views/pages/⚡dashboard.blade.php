@@ -23,7 +23,7 @@ new class extends Component
 
 <div class="flex flex-col items-center gap-6 w-full max-w-2xl">
     <div class="flex items-center gap-4 w-full">
-        <x-avatar :name="auth()->user()->name" />
+        <x-avatar :name="auth()->user()->name" :avatar-url="auth()->user()->avatarUrl()" />
         <div class="flex flex-col">
             <p class="font-bold text-text">{{ auth()->user()->name }}</p>
             @if (auth()->user()->username)

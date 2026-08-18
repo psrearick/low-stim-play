@@ -71,6 +71,20 @@
         -->
         <env name="ANALYTICS_DISPATCH" value="queue"/>
         <env name="SESSION_DRIVER" value="array"/>
+        <!--
+            Storage::disk('s3')->url() (avatar images) calls straight through
+            to the AWS SDK's own getObjectUrl() when config('filesystems.
+            disks.s3.url') is unset, which throws (a real
+            InvalidArgumentException, not a Laravel one) on an empty bucket
+            name, confirmed live via tinker before adding this. Setting
+            AWS_URL here (matching what a real deploy also needs to set)
+            makes AwsS3V3Adapter::url() take its early-return branch instead,
+            which never touches the SDK/network at all, exactly what
+            Storage::fake('s3') tests need regardless of whether this
+            machine's own .env has real bucket credentials.
+        -->
+        <env name="AWS_URL" value="https://example-bucket.test"/>
+        <env name="AWS_BUCKET" value="testing-bucket"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>

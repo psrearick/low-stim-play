@@ -8,21 +8,16 @@ The Order of Work list is a separate, ordinary numbered list reflecting current 
 
 ## Order of Work
 
-1. [Task 3: Image avatars](#3-image-avatars)
-2. [Task 13: Privacy policy page](#13-privacy-policy-page)
-3. [Task 22: Farkle: three-of-a-kind 1s should score 300, not 1000](#22-farkle-three-of-a-kind-1s-should-score-300-not-1000)
-4. [Task 21: Clear the Deck: a forced pickup should end the turn immediately, not grant an extra turn](#21-clear-the-deck-a-forced-pickup-should-end-the-turn-immediately-not-grant-an-extra-turn)
-5. [Task 4: Friends activity](#4-friends-activity)
-6. [Task 8: Add Quartiles](#8-add-quartiles)
-7. [Task 10: Spec and build NYT-style puzzle games](#10-spec-and-build-nyt-style-puzzle-games)
-8. [Task 11: Shared puzzle-game infrastructure](#11-shared-puzzle-game-infrastructure)
-9. [Task 23: Farkle: add an optional "Spicy" variant toggle](#23-farkle-add-an-optional-spicy-variant-toggle)
+1. [Task 13: Privacy policy page](#13-privacy-policy-page)
+2. [Task 22: Farkle: three-of-a-kind 1s should score 300, not 1000](#22-farkle-three-of-a-kind-1s-should-score-300-not-1000)
+3. [Task 21: Clear the Deck: a forced pickup should end the turn immediately, not grant an extra turn](#21-clear-the-deck-a-forced-pickup-should-end-the-turn-immediately-not-grant-an-extra-turn)
+4. [Task 4: Friends activity](#4-friends-activity)
+5. [Task 8: Add Quartiles](#8-add-quartiles)
+6. [Task 10: Spec and build NYT-style puzzle games](#10-spec-and-build-nyt-style-puzzle-games)
+7. [Task 11: Shared puzzle-game infrastructure](#11-shared-puzzle-game-infrastructure)
+8. [Task 23: Farkle: add an optional "Spicy" variant toggle](#23-farkle-add-an-optional-spicy-variant-toggle)
 
 ## Tasks
-
-### 3. Image avatars
-
-`<x-avatar>` currently renders a generated initial-letter badge. Allow users to upload an image, or integrate Gravatar, as an alternative.
 
 ### 4. Friends activity
 

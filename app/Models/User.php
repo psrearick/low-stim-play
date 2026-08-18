@@ -11,12 +11,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Laravel\Fortify\Contracts\PasskeyUser;
 use Laravel\Fortify\PasskeyAuthenticatable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 
-#[Fillable(['name', 'email', 'password', 'username', 'is_public', 'is_guest'])]
+#[Fillable(['name', 'email', 'password', 'username', 'is_public', 'is_guest', 'avatar_path'])]
 #[Hidden(['password', 'remember_token', 'two_factor_recovery_codes', 'two_factor_secret'])]
 class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
 {
@@ -41,6 +42,15 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     public function gameParticipants(): HasMany
     {
         return $this->hasMany(GameParticipant::class);
+    }
+
+    /**
+     * Null when no image has been uploaded -- `<x-avatar>` falls back to
+     * the generated initial-letter badge in that case.
+     */
+    public function avatarUrl(): ?string
+    {
+        return $this->avatar_path ? Storage::disk('s3')->url($this->avatar_path) : null;
     }
 
     /**
