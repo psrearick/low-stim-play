@@ -18,7 +18,7 @@
             @if ($linkable && $statsRoute) href="{{ route($statsRoute) }}" @endif
             class="flex flex-col items-center gap-2 bg-surface border-2 border-surface-border rounded-lg p-5 flex-1 basis-40"
         >
-            <p class="text-bar font-bold tracking-wide">{{ $stat['type']->label() }}</p>
+            <p class="text-bar font-bold tracking-wide text-center">{{ $stat['type']->label() }}</p>
             <p class="text-2xl font-bold text-text">{{ $stat['gamesPlayed'] }}</p>
             <p class="text-xs text-text/65">games played</p>
             <p class="text-sm text-text/80">{{ $stat['winRate'] }}% win rate</p>

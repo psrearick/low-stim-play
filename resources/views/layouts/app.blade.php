@@ -44,7 +44,7 @@
     <body class="scrollable{{ isset($bodyClass) ? ' '.$bodyClass : '' }}">
         <div class="button-bar{{ isset($manyButtons) ? ' many-buttons' : '' }}">
             <div class="left">
-                <a href="{{ url('/') }}"><button type="button">Play</button></a>
+                <a href="{{ url('/') }}"><button type="button">Home</button></a>
                 @isset($sidebar)
                     <button type="button" id="sidebar-menu-toggle" aria-label="Open navigation menu">Menu</button>
                 @endisset
