@@ -265,3 +265,22 @@ test('the pile renders above the seat grid while spectating (docs/concerns.md)',
 
     expect($order)->toBe('pile-first');
 });
+
+/**
+ * Coverage audit gap (see docs/DEVLOG.md's Boggle "New Game" bug root
+ * cause): tests/Browser/ButtonBarOverflowTest.php already covers this
+ * button's on-screen *position* at game end, but never actually clicks
+ * it -- mirrors tests/Browser/FarkleBackToRoomTest.php's own real click +
+ * assertPathIs pattern.
+ */
+test('Back to room actually navigates to the room hub once the game is over', function () {
+    [$room, $session, $users] = startedClearTheDeckRoom();
+
+    $session->update(['state' => [...$session->state, 'phase' => ClearTheDeckPhase::GameEnd->value]]);
+
+    $page = loginAsAndVisitClearTheDeck($users->first(), "/clear-the-deck?room={$room->code}");
+
+    $page->assertSee('Back to room')
+        ->click('Back to room')
+        ->assertPathIs('/room/'.$room->code);
+});

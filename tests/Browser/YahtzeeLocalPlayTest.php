@@ -32,6 +32,18 @@ it('plays a full solo game from setup through game over', function () {
     }
 
     $page->assertSee('Game Over');
+
+    // Coverage audit gap (docs/DEVLOG.md's Boggle "New Game" bug): the
+    // teleported New Game button at the end of a local game had never
+    // actually been clicked in a real browser -- only asserted visible.
+    // Reuses this test's own already-completed game rather than playing
+    // a second one from scratch just to reach this button. Unlike
+    // Boggle's own New Game (straight back into a fresh, already-started
+    // game), Yahtzee's newGame() returns to the local setup screen --
+    // confirmed by reading the method, not assumed.
+    $page->click('New Game')
+        ->assertDontSee('Game Over')
+        ->assertVisible('button[wire\\:click="startGame"]');
 });
 
 it('keeps a die visually marked across a re-roll', function () {

@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\FamilyFeudPhase;
 use App\Enums\GameMode;
 use App\Enums\GameType;
 use App\Models\FamilyFeudQuestion;
@@ -293,4 +294,23 @@ test('the host can start the round from the team-assignment screen with a real c
         ->assertSee('Team 1')
         ->assertSee('Team 2')
         ->assertVisible('.guess-form');
+});
+
+/**
+ * Coverage audit gap (see docs/DEVLOG.md's Boggle "New Game" bug root
+ * cause): an online game's "Back to room" button (shown once the phase
+ * reaches GameEnd) had never actually been clicked in a real browser --
+ * mirrors tests/Browser/FarkleBackToRoomTest.php's own real click +
+ * assertPathIs pattern.
+ */
+test('Back to room actually navigates to the room hub once the game is over', function () {
+    [$room, $session, $users] = startedFeudRoom();
+
+    $session->update(['state' => [...$session->state, 'phase' => FamilyFeudPhase::GameEnd->value]]);
+
+    $page = loginAsAndVisitFeud($users->first(), "/survey-says?room={$room->code}");
+
+    $page->assertSee('Back to room')
+        ->click('Back to room')
+        ->assertPathIs('/room/'.$room->code);
 });

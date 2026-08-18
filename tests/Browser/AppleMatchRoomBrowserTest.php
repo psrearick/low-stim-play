@@ -213,3 +213,21 @@ test('every seat is visible with no scrolling needed on a short, wide TV-cast vi
 
     expect($overflow['scrollHeight'])->toBeLessThanOrEqual($overflow['innerHeight']);
 });
+
+/**
+ * Coverage audit gap (see docs/DEVLOG.md's Boggle "New Game" bug root
+ * cause): Best Match's own "Back to room" button had zero test coverage
+ * at all -- mirrors tests/Browser/FarkleBackToRoomTest.php's own real
+ * click + assertPathIs pattern.
+ */
+test('Back to room actually navigates to the room hub once the game is over', function () {
+    [$room, $session, $users] = startedAppleMatchRoom();
+
+    $session->update(['state' => [...$session->state, 'phase' => AppleMatchPhase::GameEnd->value]]);
+
+    $page = loginAsAndVisitAppleMatch($users->first(), "/apple-match?room={$room->code}");
+
+    $page->assertSee('Back to room')
+        ->click('Back to room')
+        ->assertPathIs('/room/'.$room->code);
+});

@@ -115,4 +115,13 @@ test('confirming End Game shows the New Game button', function () {
 
     $page->assertDontSee('End the game?')
         ->assertSee('New Game');
+
+    // Coverage audit gap (docs/DEVLOG.md's Boggle "New Game" bug): the
+    // button itself had never actually been clicked, only asserted
+    // visible. newGame() returns to the local setup screen (confirmed by
+    // reading the method, same shape as Yahtzee's/Farkle's own), not
+    // straight into a fresh round.
+    $page->click('New Game')
+        ->assertDontSee('New Game')
+        ->assertVisible('button[wire\\:click="startGame"]');
 });

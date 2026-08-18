@@ -106,4 +106,13 @@ it('ends the game via the End Game button and shows final scores', function () {
         ->assertSee('End the game?')
         ->click('#end-game-confirm')
         ->assertSee('Game Over');
+
+    // Coverage audit gap (docs/DEVLOG.md's Boggle "New Game" bug): the
+    // teleported New Game button had never actually been clicked in a
+    // real browser -- only asserted visible. newGame() returns to the
+    // local setup screen (confirmed by reading the method, same shape
+    // as Yahtzee's own), not straight into a fresh roll.
+    $page->click('New Game')
+        ->assertDontSee('Game Over')
+        ->assertVisible('button[wire\\:click="startGame"]');
 });

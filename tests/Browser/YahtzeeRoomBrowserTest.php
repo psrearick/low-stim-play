@@ -130,6 +130,51 @@ test('the current seat can roll and score a category from a real browser', funct
     $page->assertPresent('.score-cell.filled');
 });
 
+/**
+ * Coverage audit gap (see docs/DEVLOG.md's Boggle "New Game" bug root
+ * cause for why this app now audits every teleported button-bar action
+ * for a real click, not just an assertSee): a seated player's own
+ * "Watch only"/"Player view" toggle -- the exact pattern this app then
+ * copied into Farkle's and Clear the Deck's own play pages -- had never
+ * actually been clicked in a real browser for Yahtzee, only for Clear
+ * the Deck. Mirrors that file's own test almost exactly.
+ */
+test('a seated player can toggle Watch only mid-turn to view read-only, and switch back', function () {
+    [$room, , $users] = startedYahtzeeRoom();
+
+    $page = loginAsAndVisit($users->first(), "/yacht?room={$room->code}");
+
+    $page->assertVisible('#rollBtn')
+        ->click('Watch only')
+        ->wait(0.3);
+
+    $page->assertMissing('#rollBtn')
+        ->assertSee('Player view');
+
+    $page->click('Player view')->wait(0.3);
+
+    $page->assertVisible('#rollBtn')
+        ->assertSee('Watch only');
+});
+
+/**
+ * Coverage audit gap: an online game's "Back to room" button (shown once
+ * $gameOver is true) had never actually been clicked in a real browser --
+ * mirrors tests/Browser/FarkleBackToRoomTest.php's own real click +
+ * assertPathIs pattern, the one other game that already had this.
+ */
+test('Back to room actually navigates to the room hub once the game is over', function () {
+    [$room, $session, $users] = startedYahtzeeRoom();
+
+    $session->update(['state' => [...$session->state, 'gameOver' => true]]);
+
+    $page = loginAsAndVisit($users->first(), "/yacht?room={$room->code}");
+
+    $page->assertSee('Back to room')
+        ->click('Back to room')
+        ->assertPathIs('/room/'.$room->code);
+});
+
 test('an unseated visitor gets the read-only spectator view, not turn controls', function () {
     [$room] = startedYahtzeeRoom();
     $spectator = User::factory()->create(['password' => bcrypt('password')]);
