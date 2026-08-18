@@ -946,7 +946,7 @@ new class extends Component
     });
 
     // Online rooms can show up to 2 right-side buttons at once (Watch
-    // only/Player view, New Game/Back to room) on top of Home/Rules on
+    // only/Player view, New Game/Back to room) on top of Play/Rules on
     // the left -- .many-buttons' existing compact padding/gap (see
     // app.css, already used by welcome.blade.php for its own 3-button
     // case) is what keeps that from crowding the fullscreen toggle off a

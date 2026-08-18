@@ -1,6 +1,6 @@
 @php
     $links = [
-        ['id' => 'dashboard', 'label' => 'Dashboard', 'routes' => ['dashboard']],
+        ['id' => 'dashboard', 'label' => 'My Stats', 'routes' => ['dashboard']],
         ['id' => 'all-games', 'label' => 'All Games', 'routes' => ['profile.games']],
         ['id' => 'boggle-stats', 'label' => \App\Enums\GameType::Boggle->label().' Stats', 'routes' => ['profile.boggle', 'profile.boggle.show']],
         ['id' => 'yahtzee-stats', 'label' => \App\Enums\GameType::Yahtzee->label().' Stats', 'routes' => ['profile.yahtzee', 'profile.yahtzee.show']],

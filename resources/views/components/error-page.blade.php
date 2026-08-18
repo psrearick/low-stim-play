@@ -8,7 +8,7 @@
 
     @component('layouts.app'), the same pattern welcome.blade.php uses for
     a static (non-Livewire) page -- gets the real dark-mode-by-default
-    color tokens and the layout's own persistent "Home" button in the
+    color tokens and the layout's own persistent "Play" button in the
     button-bar for free, so the requirement is met without duplicating
     that chrome here.
 --}}
@@ -18,6 +18,6 @@
     <div class="flex flex-col items-center gap-4 text-center px-4">
         <div class="heading">{{ $heading }}</div>
         <p class="status-line">{{ $message }}</p>
-        <a href="{{ url('/') }}"><button type="button">Go to Home</button></a>
+        <a href="{{ url('/') }}"><button type="button">Go to Play</button></a>
     </div>
 @endcomponent

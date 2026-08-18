@@ -4,6 +4,7 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 
 ## 2026-08-18
 
+- Renamed the persistent "Home" button to "Play" and "Dashboard" to "My Stats" everywhere they appear (top bar, sidebar, page title).
 - Enabled two-factor authentication: login challenge page, and an enable/confirm/view-recovery-codes/disable panel on the profile page.
 - Fixed Farkle's dice row silently over-growing past its intended size on a wide screen, the same `flex-grow` bug already fixed in Yahtzee's own dice row.
 - Audited every teleported button-bar action across all six games for real click-through test coverage (prompted by the Boggle bug below); added the 10 missing ones across Yahtzee, Farkle, Family Feud, Clear the Deck, and Best Match. All confirmed already working — no second hidden bug found.

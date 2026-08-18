@@ -10,17 +10,17 @@ test('guests see sign in and create account links in the top bar', function () {
         ->assertOk()
         ->assertSee('Sign In')
         ->assertSee('Create an Account')
-        ->assertDontSee('Dashboard')
+        ->assertDontSee('My Stats')
         ->assertDontSee('Log Out');
 });
 
-test('authenticated users see dashboard and log out links in the top bar', function () {
+test('authenticated users see my stats and log out links in the top bar', function () {
     $user = User::factory()->create();
 
     $this->actingAs($user)
         ->get('/')
         ->assertOk()
-        ->assertSee('Dashboard')
+        ->assertSee('My Stats')
         ->assertSee('Log Out')
         ->assertDontSee('Sign In')
         ->assertDontSee('Create an Account');

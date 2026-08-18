@@ -46,8 +46,8 @@ it('keeps room membership after visiting Home, and resumes the same seat from th
     $page = visit('/room/'.$room->code);
     $page->assertSee('Resume your seat');
 
-    // Leave to Home.
-    $page->click('Home')->wait(0.3);
+    // Leave to Play.
+    $page->click('Play')->wait(0.3);
     $page->assertPathIs('/');
 
     // Still a member -- the room hub still renders instead of 404ing or

@@ -15,11 +15,11 @@ test('a 404 uses the app\'s real layout, not the stock Laravel error page', func
     $this->get('/this-route-does-not-exist-at-all')
         ->assertStatus(404)
         ->assertSee('Page Not Found')
-        ->assertSee('Go to Home')
-        // The layout's own persistent top-bar Home button/link, present on
+        ->assertSee('Go to Play')
+        // The layout's own persistent top-bar Play button/link, present on
         // every page via layouts/app.blade.php -- confirms this rendered
         // through the real app shell, not a standalone view.
-        ->assertSeeInOrder(['Home', 'Page Not Found'])
+        ->assertSeeInOrder(['Play', 'Page Not Found'])
         ->assertDontSee('Whoops');
 });
 
@@ -28,7 +28,7 @@ test('every error view renders through the app layout with a working home link',
 
     $html = view("errors.{$code}")->render();
 
-    expect($html)->toContain('Go to Home')
+    expect($html)->toContain('Go to Play')
         ->and($html)->toContain(url('/'))
         ->and($html)->toContain('class="heading"');
 })->with(['403', '404', '419', '429', '500', '503']);

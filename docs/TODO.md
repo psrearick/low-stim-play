@@ -8,16 +8,15 @@ The Order of Work list is a separate, ordinary numbered list reflecting current 
 
 ## Order of Work
 
-1. [Task 5: Rename "Home"/"Dashboard"](#5-rename-homedashboard)
-2. [Task 3: Image avatars](#3-image-avatars)
-3. [Task 13: Privacy policy page](#13-privacy-policy-page)
-4. [Task 22: Farkle: three-of-a-kind 1s should score 300, not 1000](#22-farkle-three-of-a-kind-1s-should-score-300-not-1000)
-5. [Task 21: Clear the Deck: a forced pickup should end the turn immediately, not grant an extra turn](#21-clear-the-deck-a-forced-pickup-should-end-the-turn-immediately-not-grant-an-extra-turn)
-6. [Task 4: Friends activity](#4-friends-activity)
-7. [Task 8: Add Quartiles](#8-add-quartiles)
-8. [Task 10: Spec and build NYT-style puzzle games](#10-spec-and-build-nyt-style-puzzle-games)
-9. [Task 11: Shared puzzle-game infrastructure](#11-shared-puzzle-game-infrastructure)
-10. [Task 23: Farkle: add an optional "Spicy" variant toggle](#23-farkle-add-an-optional-spicy-variant-toggle)
+1. [Task 3: Image avatars](#3-image-avatars)
+2. [Task 13: Privacy policy page](#13-privacy-policy-page)
+3. [Task 22: Farkle: three-of-a-kind 1s should score 300, not 1000](#22-farkle-three-of-a-kind-1s-should-score-300-not-1000)
+4. [Task 21: Clear the Deck: a forced pickup should end the turn immediately, not grant an extra turn](#21-clear-the-deck-a-forced-pickup-should-end-the-turn-immediately-not-grant-an-extra-turn)
+5. [Task 4: Friends activity](#4-friends-activity)
+6. [Task 8: Add Quartiles](#8-add-quartiles)
+7. [Task 10: Spec and build NYT-style puzzle games](#10-spec-and-build-nyt-style-puzzle-games)
+8. [Task 11: Shared puzzle-game infrastructure](#11-shared-puzzle-game-infrastructure)
+9. [Task 23: Farkle: add an optional "Spicy" variant toggle](#23-farkle-add-an-optional-spicy-variant-toggle)
 
 ## Tasks
 
@@ -28,10 +27,6 @@ The Order of Work list is a separate, ordinary numbered list reflecting current 
 ### 4. Friends activity
 
 The original app plan mentioned a friends-activity feed on the dashboard once, but no friends/social-graph table (follow requests? mutual-only follows?) exists anywhere in the schema. Needs an actual design decision — what "friends" means here — before any building starts.
-
-### 5. Rename "Home"/"Dashboard"
-
-The navigation redesign (see `docs/DEVLOG.md`'s "Navigation" section) deliberately deferred this — it only makes sense once the new sidebar's structure clarifies each page's actual role, which it now does. "Home" (`/`, the public game-picker page) and "Dashboard" (`/dashboard`, the signed-in stats/nav hub) still read as near-synonyms. Needs actual new names, not just a decision that they should change.
 
 ### 8. Add Quartiles
 

@@ -12,7 +12,7 @@
             <a href="{{ route('login') }}"><button type="button">Sign In</button></a>
             <a href="{{ route('register') }}"><button type="button">Create an Account</button></a>
         @else
-            <a href="{{ route('dashboard') }}"><button type="button">Dashboard</button></a>
+            <a href="{{ route('dashboard') }}"><button type="button">My Stats</button></a>
             <form method="POST" action="{{ route('logout') }}">
                 @csrf
                 <button type="submit">Log Out</button>

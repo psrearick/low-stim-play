@@ -18,7 +18,7 @@ new class extends Component
 };
 ?>
 
-<x-slot:title>Dashboard — Low Stim Play</x-slot>
+<x-slot:title>My Stats — Low Stim Play</x-slot>
 <x-slot:sidebar>1</x-slot:sidebar>
 
 <div class="flex flex-col items-center gap-6 w-full max-w-2xl">
