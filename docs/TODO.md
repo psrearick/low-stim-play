@@ -8,12 +8,11 @@ The Order of Work list is a separate, ordinary numbered list reflecting current 
 
 ## Order of Work
 
-1. [Task 21: Clear the Deck: a forced pickup should end the turn immediately, not grant an extra turn](#21-clear-the-deck-a-forced-pickup-should-end-the-turn-immediately-not-grant-an-extra-turn)
-2. [Task 4: Friends activity](#4-friends-activity)
-3. [Task 8: Add Quartiles](#8-add-quartiles)
-4. [Task 10: Spec and build NYT-style puzzle games](#10-spec-and-build-nyt-style-puzzle-games)
-5. [Task 11: Shared puzzle-game infrastructure](#11-shared-puzzle-game-infrastructure)
-6. [Task 23: Farkle: add an optional "Spicy" variant toggle](#23-farkle-add-an-optional-spicy-variant-toggle)
+1. [Task 4: Friends activity](#4-friends-activity)
+2. [Task 8: Add Quartiles](#8-add-quartiles)
+3. [Task 10: Spec and build NYT-style puzzle games](#10-spec-and-build-nyt-style-puzzle-games)
+4. [Task 11: Shared puzzle-game infrastructure](#11-shared-puzzle-game-infrastructure)
+5. [Task 23: Farkle: add an optional "Spicy" variant toggle](#23-farkle-add-an-optional-spicy-variant-toggle)
 
 ## Tasks
 
@@ -32,12 +31,6 @@ Add Wordle, Pips, Spelling Bee, Strands, and Connections. All need daily/random 
 ### 11. Shared puzzle-game infrastructure
 
 A cross-cutting set of features for the app's puzzle-style games (Boggle/Word Grid, Quartiles once built, and the NYT-style games in Task 10 once built): give each individual puzzle a unique code so it can be shared and replayed identically by someone else; once Friends activity (Task 4) exists, surface that code there too — e.g. a "Challenge a Friend" button at the end of a game, possibly emailing an invite; and add daily puzzles (one fixed puzzle per game per day, distinct from the existing random ones) with an archive of past days' puzzles. Depends on Task 4 for the friend-sharing piece, and on the relevant puzzle games actually existing.
-
-### 21. Clear the Deck: a forced pickup should end the turn immediately, not grant an extra turn
-
-Currently, per `docs/DEVLOG.md`'s Clear the Deck section ("Turn resolution is four cases, checked in order"), a pickup — playing a card lower than the center stack's current top, which forces the acting seat to take the entire stack plus their attempted cards into their own hand — is grouped with the wild-Ten and completed-run cases as one of the three outcomes that "grant the same player an extra turn." Only the fourth case (an unremarkable legal play that doesn't complete a set) currently passes the turn to the next seat.
-
-Requested change: a forced pickup should end the current player's turn immediately instead, passing to the next seat the same way an ordinary non-set-completing play already does. This reverses part of the turn-resolution rule the game was originally built against — one of the "design decisions resolved collaboratively before any code was written" listed at the top of that same DEVLOG section — not a bug fix, so treat it as a deliberate rule change to already-shipped, tested turn logic (`playCards()` in `pages::clear-the-deck.play`) rather than a simple tweak. Update the existing turn-resolution test coverage in `tests/Feature/Games/ClearTheDeckRoomTest.php` (which currently asserts a pickup grants an extra turn) to match the new rule, not just add new tests alongside the old, now-wrong ones.
 
 ### 23. Farkle: add an optional "Spicy" variant toggle
 

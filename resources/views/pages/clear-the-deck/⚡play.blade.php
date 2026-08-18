@@ -620,13 +620,35 @@ new class extends Component
             $seat->save();
             $this->centerStack = [];
             $this->lastMessage = "{$name} played too high and picked up ".count($pickedUp).' cards.';
-            $this->finishTurnWithExtraTurn();
+            // Ends the turn immediately, same as an ordinary non-set-
+            // completing play below -- docs/TODO.md's former #21, a
+            // deliberate rule change from the original design (a pickup
+            // used to grant an extra turn alongside the Wild Ten/completed-
+            // run cases above). A pickup always adds cards to the seat's
+            // own hand, so it can never itself trigger hasGoneOut() --
+            // finishTurnAdvancingToNextSeat()'s own check is still run for
+            // consistency with the identical call below, not because this
+            // path can actually reach it.
+            $this->finishTurnAdvancingToNextSeat($seat, $seatIndex);
 
             return;
         }
 
         $this->centerStack = [...$this->centerStack, ...$playedValues];
         $this->lastMessage = "{$name} played {$count} \u{d7} {$label}".($count > 1 ? 's' : '').'.';
+        $this->finishTurnAdvancingToNextSeat($seat, $seatIndex);
+    }
+
+    private function finishTurnWithExtraTurn(): void
+    {
+        // turnSeatIndex intentionally unchanged -- the acting seat gets an
+        // additional turn, per the appendix's "Play"/"Wild" sections.
+        $this->syncOnlineState();
+        $this->reloadMyHand();
+    }
+
+    private function finishTurnAdvancingToNextSeat(RoomSeat $seat, int $seatIndex): void
+    {
         $this->turnSeatIndex = ($this->turnSeatIndex + 1) % count($this->seats);
 
         if ($this->hasGoneOut($seat)) {
@@ -635,14 +657,6 @@ new class extends Component
             return;
         }
 
-        $this->syncOnlineState();
-        $this->reloadMyHand();
-    }
-
-    private function finishTurnWithExtraTurn(): void
-    {
-        // turnSeatIndex intentionally unchanged -- the acting seat gets an
-        // additional turn, per the appendix's "Play"/"Wild" sections.
         $this->syncOnlineState();
         $this->reloadMyHand();
     }
@@ -855,7 +869,7 @@ new class extends Component
     <ul>
         <li>Every player joins from their own device -- there's no shared/host screen, since hands and face-down cards are private.</li>
         <li>On your turn, select cards of the same value from your hand and/or your own face-up table cards, and choose how many of your own remaining face-down cards to flip and add in -- then play.</li>
-        <li>Four or more matching cards clears the shared pile and gives you another turn. Playing higher than the pile's current top card makes you pick the whole pile up into your hand, but you also get another turn. Otherwise, play passes to the next player.</li>
+        <li>Four or more matching cards clears the shared pile and gives you another turn. Playing higher than the pile's current top card makes you pick the whole pile up into your hand, and play passes to the next player. Otherwise, play also passes to the next player.</li>
         <li>Tens are wild -- playing one always clears the pile.</li>
     </ul>
 

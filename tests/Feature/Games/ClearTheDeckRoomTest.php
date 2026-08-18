@@ -243,7 +243,7 @@ test('a wild Ten always clears the deck, even over a lower top card, bypassing t
     expect($seat2->hand)->toBe([6]);
 });
 
-test('playing higher than the stack forces a pickup of the whole pile, with an extra turn', function () {
+test('playing higher than the stack forces a pickup of the whole pile and ends the turn immediately (docs/TODO.md\'s former #21)', function () {
     $host = User::factory()->create();
     $p1 = User::factory()->create();
     $p2 = User::factory()->create();
@@ -261,7 +261,11 @@ test('playing higher than the stack forces a pickup of the whole pile, with an e
         ->set('selectedHandIndices', [0])
         ->call('playCards')
         ->assertSet('playError', null)
-        ->assertSet('turnSeatIndex', 2)
+        // A forced pickup now passes the turn to the next seat, the same
+        // as an ordinary non-set-completing play -- reversed from the
+        // original design (docs/DEVLOG.md's Clear the Deck section), which
+        // this test used to assert stayed on seat 2 as an extra turn.
+        ->assertSet('turnSeatIndex', 0)
         ->assertSet('centerStack', []);
 
     $seat2 = RoomSeat::where('room_id', $room->id)->where('seat_index', 2)->first();

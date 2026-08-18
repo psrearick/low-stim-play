@@ -162,20 +162,24 @@ of questions):
   action, e.g. "Alice cleared the deck with four 7s!"), and (RoundEnd only)
   `roundScores` (this round's per-seat point total, cleared on `nextRound()`).
 - **Turn resolution after a valid same-value play of card value `V`** (see section 3
-  for how a play's cards are chosen/validated):
+  for how a play's cards are chosen/validated). Rule changed 2026-08-18
+  (`docs/TODO.md`'s former #21): a forced pickup (case 3) now ends the turn immediately
+  instead of granting an extra one — the original design below is kept as a record of
+  what shipped first, not as the current behavior for that case.
   1. `V === 10`: deck clears unconditionally (extra turn, same player).
   2. Otherwise, `runLength` = however many trailing `centerStack` entries already equal
      `V`, plus however many cards were just played. If `runLength >= 4`: deck clears
      (extra turn, same player).
   3. Otherwise, if `V` is greater than `centerStack`'s current top value (non-empty
      stack only): the entire existing `centerStack`, plus the cards just played, all
-     move into the acting seat's own hand (persisted to `RoomSeat.hand`); extra turn,
-     same player.
+     move into the acting seat's own hand (persisted to `RoomSeat.hand`); turn passes to
+     the next seat, same as case 4 below (not an extra turn, as originally shipped).
   4. Otherwise (a legal equal-or-lesser play that didn't complete a set): the played
      cards join `centerStack`; turn passes to the next seat.
   - "Going out" (hand and both table bags all empty) is checked after any of the above
-    — it can only actually happen after case 4, since 1–3 all keep cards with the
-    acting seat.
+    — in practice it can only actually happen after case 4, since a pickup (case 3)
+    always adds cards to the acting seat's hand, and cases 1–2 also keep cards with
+    them.
 - **Round end**: triggered the instant any seat goes out. Every other seat's remaining
   cards (hand + `table_face_up` + `table_face_down`, revealing face-down values now that
   the round is over) are scored (Ace=1, 2–9 face value, Jack=11, Queen=12, King=13,
