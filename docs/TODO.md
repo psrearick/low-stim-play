@@ -8,18 +8,17 @@ The Order of Work list is a separate, ordinary numbered list reflecting current 
 
 ## Order of Work
 
-1. [Task 20: Farkle's dice row over-grows past its intended size on a wide screen](#20-farkles-dice-row-over-grows-past-its-intended-size-on-a-wide-screen)
-2. [Task 2: Two-factor authentication toggle](#2-two-factor-authentication-toggle)
-3. [Task 5: Rename "Home"/"Dashboard"](#5-rename-homedashboard)
-4. [Task 3: Image avatars](#3-image-avatars)
-5. [Task 13: Privacy policy page](#13-privacy-policy-page)
-6. [Task 22: Farkle: three-of-a-kind 1s should score 300, not 1000](#22-farkle-three-of-a-kind-1s-should-score-300-not-1000)
-7. [Task 21: Clear the Deck: a forced pickup should end the turn immediately, not grant an extra turn](#21-clear-the-deck-a-forced-pickup-should-end-the-turn-immediately-not-grant-an-extra-turn)
-8. [Task 4: Friends activity](#4-friends-activity)
-9. [Task 8: Add Quartiles](#8-add-quartiles)
-10. [Task 10: Spec and build NYT-style puzzle games](#10-spec-and-build-nyt-style-puzzle-games)
-11. [Task 11: Shared puzzle-game infrastructure](#11-shared-puzzle-game-infrastructure)
-12. [Task 23: Farkle: add an optional "Spicy" variant toggle](#23-farkle-add-an-optional-spicy-variant-toggle)
+1. [Task 2: Two-factor authentication toggle](#2-two-factor-authentication-toggle)
+2. [Task 5: Rename "Home"/"Dashboard"](#5-rename-homedashboard)
+3. [Task 3: Image avatars](#3-image-avatars)
+4. [Task 13: Privacy policy page](#13-privacy-policy-page)
+5. [Task 22: Farkle: three-of-a-kind 1s should score 300, not 1000](#22-farkle-three-of-a-kind-1s-should-score-300-not-1000)
+6. [Task 21: Clear the Deck: a forced pickup should end the turn immediately, not grant an extra turn](#21-clear-the-deck-a-forced-pickup-should-end-the-turn-immediately-not-grant-an-extra-turn)
+7. [Task 4: Friends activity](#4-friends-activity)
+8. [Task 8: Add Quartiles](#8-add-quartiles)
+9. [Task 10: Spec and build NYT-style puzzle games](#10-spec-and-build-nyt-style-puzzle-games)
+10. [Task 11: Shared puzzle-game infrastructure](#11-shared-puzzle-game-infrastructure)
+11. [Task 23: Farkle: add an optional "Spicy" variant toggle](#23-farkle-add-an-optional-spicy-variant-toggle)
 
 ## Tasks
 
@@ -54,10 +53,6 @@ A cross-cutting set of features for the app's puzzle-style games (Boggle/Word Gr
 ### 13. Privacy policy page
 
 This app has no privacy policy page anywhere. `docs/specs/analytics.md` section 12 has drafted disclosure copy for the analytics system specifically (also reproduced in `docs/DEVLOG.md`'s "Analytics" section) that's ready to use once a real page exists — deliberately not built as part of the analytics work itself, since creating the app's first privacy-policy page is a bigger scope decision (where does it link from, what else does it need to cover) than implementing analytics.
-
-### 20. Farkle's dice row over-grows past its intended size on a wide screen
-
-The same bug already found and fixed in Yahtzee's own `.yahtzee-play .row` (`docs/DEVLOG.md`'s Yahtzee section — a positive `flex-grow` on a `flex: 1 1 auto` grid inflates it, and the aspect-ratio-square dice with it, well past its intended `min(56vw, 42vh, 720px)` cap) is confirmed present in `.farkle-play .row` too: measured live at 1920×1080, it rendered 1600px wide against an intended ~454px cap. Not fixed alongside Yahtzee's own — Farkle's landscape-layout work (see that section) already documented a real, verified *need* for `flex: 1 1 auto` in its own narrow `.farkle-dice-column` context, so the identical `flex: 0 1 auto` swap needs the same live-viewport verification Yahtzee's own fix got (confirm the landscape/portrait narrow-column cases still work, not just the wide-desktop case) before landing it, rather than assumed safe to copy over.
 
 ### 21. Clear the Deck: a forced pickup should end the turn immediately, not grant an extra turn
 

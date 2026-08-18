@@ -92,6 +92,31 @@ it('renders banked dice below the main dice row, one row per roll of up to six',
     expect($info['anyOverflow'])->toBeFalse();
 });
 
+/**
+ * docs/TODO.md's former #20: the same bug already found and fixed in
+ * Yahtzee's own .yahtzee-play .row (see YahtzeeRoomBrowserTest's own
+ * "short, wide TV-cast viewport" test) was confirmed present in
+ * .farkle-play .row too -- a positive flex-grow on the flex: 1 1 auto
+ * six-die grid inflated it (and, since dice are aspect-ratio: 1/1,
+ * .dice-area's height along with it) well past its intended
+ * min(56vw, 42vh, 720px) cap. Confirmed live at 1920x1080 before the fix:
+ * .row rendered 1600px wide against a ~454px intended cap.
+ */
+it('keeps the dice row capped at its intended width on a wide desktop viewport', function () {
+    $page = visit('/10000')->resize(1920, 1080);
+
+    $page->click('Start Game')->assertSee('Roll');
+
+    $width = $page->script(
+        "document.querySelector('.farkle-play .row').getBoundingClientRect().width"
+    );
+
+    // Intended cap is min(56vw, 42vh, 720px) -- at 1920x1080 that's
+    // 42vh = 453.6px. Allow a little slack for gap/border rounding while
+    // still clearly rejecting the pre-fix ~1600px blowout.
+    expect($width)->toBeLessThan(500);
+});
+
 it('does not overlap the dice with the roll button in a narrow portrait viewport', function () {
     $page = visit('/10000')->resize(390, 844);
 

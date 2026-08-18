@@ -1457,7 +1457,17 @@ body.scrollable.farkle-play.in-game {
     grid-template-columns: repeat(6, 1fr);
     gap: clamp(4px, 0.8vh, 12px);
     width: min(56vw, 42vh, 720px);
-    flex: 1 1 auto;
+    /* flex-grow: 0, not 1 -- same bug and same fix as .yahtzee-play .row
+       above (docs/TODO.md's former #20): a positive flex-grow inflates
+       this square-aspect-ratio grid past its intended min(56vw, 42vh,
+       720px) cap to fill whatever's left in .dice-area's flex row.
+       Confirmed live at 1920x1080: rendered 1600px wide against the
+       intended ~454px cap. The portrait and landscape media queries below
+       both already pin .row to an explicit width of their own (landscape
+       goes further and sets flex: 0 0 auto directly), so this base-rule
+       change doesn't affect either of those narrow-viewport cases --
+       reverified live after the change regardless. */
+    flex: 0 1 auto;
     min-width: 0;
 }
 
