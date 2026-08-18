@@ -673,13 +673,37 @@ new class extends Component
         than a layout $barRight slot -- this button's label depends on
         $ended, which changes after the page's first render, and a layout
         slot only ever captures its content once, at that first render.
+
+        Wrapped in a `display: contents` div (every other game's own
+        @teleport block already does this -- Boggle's was the one
+        exception, and paid for it) rather than @teleport-ing the two
+        buttons directly as siblings: found live that Alpine's x-teleport
+        (what @teleport compiles to) only ever moves a template's *first*
+        root child to the target, silently dropping a second sibling
+        entirely, so an "always render both, toggle a hidden class"
+        version of this never teleported the New Game button at all, on
+        any render. And swapping which single <button> exists via
+        @unless/@else with no wrapper (the original shape here) hit a
+        *different* real bug: the newly-swapped-in element's wire:click
+        came back completely unbound (zero network requests fire on
+        click, confirmed via a raw fetch/XHR intercept) -- an Alpine/
+        Livewire morph+teleport interop gap in how the teleport target's
+        content gets re-patched, not something wire:key or this app's own
+        code can control. Keeping the teleport's own root element (this
+        div) stable and letting the two buttons swap as its *children*
+        sidesteps both: teleport only ever has the one div to move, and
+        the button swap goes through Livewire's ordinary (non-teleport)
+        child-morphing, the same well-tested path every other game's own
+        teleported button-bar content already relies on.
     --}}
     @teleport('#game-actions')
-        @unless ($ended)
-            <button type="button" id="end-game-btn" wire:click="endGame">End Game</button>
-        @else
-            <button type="button" wire:click="resetGame" @if($isSharedSession) disabled @endif>New Game</button>
-        @endunless
+        <div style="display: contents;">
+            @unless ($ended)
+                <button type="button" id="end-game-btn" wire:click="endGame">End Game</button>
+            @else
+                <button type="button" wire:click="resetGame" @if($isSharedSession) disabled @endif>New Game</button>
+            @endunless
+        </div>
     @endteleport
 
     <div id="game" class="{{ $ended ? 'with-list' : '' }}">

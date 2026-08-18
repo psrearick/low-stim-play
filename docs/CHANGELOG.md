@@ -2,6 +2,10 @@
 
 A terse, commit-by-commit record of what changed, newest first. No rationale or decisions here — see `docs/DEVLOG.md` for the *why* behind anything listed here, organized by feature instead of by commit. See `docs/TODO.md` for what's still outstanding.
 
+## 2026-08-18
+
+- Fixed the "New Game" button at the end of a solo Boggle game doing nothing at all; root cause was a missing wrapper div inside Boggle's `@teleport` block, the one game in the app missing a pattern every other game's own teleported button-bar content already used.
+
 ## 2026-08-17
 
 - Fixed Boggle recording a solo game to stats when "End Game" was clicked to stop a timed game early, before its own clock ran out; untimed games and naturally-expired timed games still record as before. Reveal screen now shows a "not saved" message for an early-ended game.
