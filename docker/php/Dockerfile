@@ -1,12 +1,19 @@
 FROM php:8.4-fpm-alpine
 
 # Install system dependencies
+# linux-headers is needed to compile the sockets extension below --
+# sockets.c includes linux/sock_diag.h, which isn't present in Alpine's
+# base image otherwise (a missing header, not a missing compiler --
+# gcc/make are already available for the other extensions here).
 RUN apk add --no-cache \
     bash \
     curl \
     git \
+    icu-dev \
+    libjpeg-turbo-dev \
     libpng-dev \
     libzip-dev \
+    linux-headers \
     mariadb-client \
     nodejs \
     npm \
@@ -14,15 +21,29 @@ RUN apk add --no-cache \
     unzip \
     zip
 
+# gd needs an explicit --with-jpeg configure step -- without it, gd builds
+# with only the PNG support libpng-dev (above) provides, and any code
+# calling imagejpeg() (e.g. Illuminate\Http\Testing\FileFactory, behind
+# UploadedFile::fake()->image('*.jpg')) throws a LogicException at runtime,
+# not a build-time failure -- confirmed live via a real failing test before
+# assuming this was the cause.
+RUN docker-php-ext-configure gd --with-jpeg
+
 # Install PHP extensions
+# sockets is required by pestphp/pest-plugin-browser (its Playwright driver
+# talks over a raw websocket connection) -- missing here even though it's
+# present on the host, since this image was built before that plugin was
+# ever added as a dependency.
 RUN docker-php-ext-install \
     bcmath \
     gd \
+    intl \
     mbstring \
     opcache \
     pcntl \
     pdo \
     pdo_mysql \
+    sockets \
     zip
 
 # Install Redis extension via PECL. docker-php-ext-install (above) installs
