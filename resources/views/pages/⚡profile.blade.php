@@ -153,7 +153,6 @@ new class extends Component
 ?>
 
 <x-slot:title>Profile — Low Stim Play</x-slot>
-<x-slot:sidebar>1</x-slot:sidebar>
 
 <div class="flex flex-col items-center gap-6 w-full">
     <x-panel heading="Profile">

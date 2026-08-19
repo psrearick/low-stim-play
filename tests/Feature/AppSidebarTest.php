@@ -39,11 +39,11 @@ function assertHasSidebar(TestCase $test, string $path): void
         ->not->toContain('Log Out');
 }
 
-test('the sidebar appears on every Dashboard/Profile/Stats page', function () {
+test('the sidebar appears on every Dashboard/Stats page', function () {
     $user = User::factory()->create();
     $this->actingAs($user);
 
-    foreach (['/dashboard', '/profile', '/profile/word-grid', '/profile/yacht', '/profile/survey-says', '/profile/10000', '/profile/games'] as $path) {
+    foreach (['/dashboard', '/profile/word-grid', '/profile/yacht', '/profile/survey-says', '/profile/10000', '/profile/games'] as $path) {
         assertHasSidebar($this, $path);
     }
 });
@@ -53,6 +53,19 @@ test('the sidebar does not appear on the homepage', function () {
 
     $this->actingAs($user)
         ->get('/')
+        ->assertDontSee('id="app-sidebar"', false);
+});
+
+/**
+ * Edit Profile is reached via the navbar's own avatar dropdown now, not
+ * a sidebar entry (see tests/Feature/UserMenuTest.php) -- the sidebar is
+ * stats navigation only, so this page shouldn't render one either.
+ */
+test('the sidebar does not appear on the Edit Profile page', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->get('/profile')
         ->assertDontSee('id="app-sidebar"', false);
 });
 
