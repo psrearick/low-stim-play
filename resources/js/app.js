@@ -171,6 +171,41 @@ document.addEventListener('DOMContentLoaded', () => {
     registerNavbarDropdown('rooms-menu-toggle', 'rooms-menu-panel');
     registerNavbarDropdown('user-menu-toggle', 'user-menu-panel');
 
+    // ---- Avatar toggle height sync (navbar, every page) --------------------
+    // <x-user-menu>'s avatar toggle needs to visually match the Rooms
+    // button's own height, but that height comes from clamp(vmin)
+    // padding/font-size (see app.css's base `button` rule), not a fixed px
+    // value. A pure-CSS version of this (align-self: stretch + aspect-
+    // ratio on the toggle, <x-avatar> filling it with w-full/h-full) was
+    // tried first and confirmed live *not* to work reliably -- a
+    // percentage-height child of a flex-stretched, aspect-ratio-sized
+    // parent collapsed to a single line's height instead of actually
+    // stretching. Measuring the real Rooms button and copying its height
+    // directly is simpler and actually correct at every viewport, the
+    // same "measure it, don't guess it in CSS" approach already used for
+    // the dropdown panels' own position above. Re-run on resize (the
+    // clamp(vmin) button height genuinely changes with viewport) and once
+    // web fonts finish loading (font-display: swap means the fallback
+    // font's metrics at first paint can differ slightly from the real
+    // one, which would otherwise leave the avatar sized against a
+    // momentarily-wrong button height).
+    const syncAvatarToggleSize = () => {
+        const roomsToggle = document.getElementById('rooms-menu-toggle');
+        const avatarToggle = document.getElementById('user-menu-toggle');
+
+        if (!roomsToggle || !avatarToggle) {
+            return;
+        }
+
+        const size = `${roomsToggle.getBoundingClientRect().height}px`;
+        avatarToggle.style.width = size;
+        avatarToggle.style.height = size;
+    };
+
+    syncAvatarToggleSize();
+    window.addEventListener('resize', syncAvatarToggleSize);
+    document.fonts?.ready?.then(syncAvatarToggleSize);
+
     // ---- Generic low-stim dialogs (<x-dialog>/<x-confirm-dialog>) --------
     // Delegated on `document`, not bound per-element like the Rules dialog
     // above, because these dialogs and their trigger buttons commonly live

@@ -16,10 +16,31 @@
     rather than reinvented.
 --}}
 @auth
-    <div class="relative inline-flex">
+    {{--
+        ml-2 -- a little extra room on top of .button-bar .right's own
+        10px flex gap, so the avatar doesn't read as glued to the Rooms
+        button next to it.
+
+        w-9/h-9 here is only a static fallback (in case app.js hasn't run
+        yet, or ever) -- the real sizing is set in JS. The Rooms button's
+        own height is font-size/padding-driven via clamp(vmin) (see
+        app.css's base `button` rule), not a fixed px value, so a fixed
+        size class could only ever match it by coincidence at one
+        specific viewport. A pure-CSS version of this (align-self:
+        stretch + aspect-ratio, letting <x-avatar> fill it with w-full/
+        h-full) was tried first and confirmed live *not* to work
+        reliably -- the percentage-height child of a flex-stretched,
+        aspect-ratio-sized parent collapsed to a single line's height
+        instead of actually stretching. resources/js/app.js's
+        syncAvatarToggleSize() measures the real Rooms button and copies
+        its height directly instead, the same "measure it, don't guess
+        it in CSS" approach this navbar already uses for the dropdown
+        panels' own position (see registerNavbarDropdown()'s docblock).
+    --}}
+    <div class="relative inline-flex ml-2">
         <button type="button" id="user-menu-toggle" aria-haspopup="true" aria-expanded="false"
-            aria-label="Account menu" class="p-0 border-none bg-transparent rounded-full">
-            <x-avatar :name="auth()->user()->name" :avatar-url="auth()->user()->avatarUrl()" size="w-9 h-9 text-sm" />
+            aria-label="Account menu" class="p-0 border-none bg-transparent rounded-full w-9 h-9">
+            <x-avatar :name="auth()->user()->name" :avatar-url="auth()->user()->avatarUrl()" size="w-full h-full text-sm" />
         </button>
 
         {{--
