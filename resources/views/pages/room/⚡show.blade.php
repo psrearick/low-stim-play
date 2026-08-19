@@ -223,9 +223,22 @@ new class extends Component
     @if ($this->activeGameType !== null)
         <div class="setup w-full">
             <p class="status-line">Playing {{ $this->activeGameType->label() }} right now.</p>
-            <a href="{{ route($this->activeGameType->playRoute(), ['room' => $room->code]) }}">
-                <button type="button">{{ $this->mySeatIndex !== null ? 'Resume your seat' : 'Watch' }}</button>
-            </a>
+            @if ($this->mySeatIndex !== null)
+                <a href="{{ route($this->activeGameType->playRoute(), ['room' => $room->code]) }}">
+                    <button type="button">Resume your seat</button>
+                </a>
+            @elseif ($this->activeGameType->supportsSpectating())
+                <a href="{{ route($this->activeGameType->playRoute(), ['room' => $room->code]) }}">
+                    <button type="button">Watch</button>
+                </a>
+            @else
+                {{-- No RoomSeat/spectator concept for this game (Boggle) --
+                     joining mid-game would actually start a fresh
+                     playthrough, not watch the one in progress, so no link
+                     is offered at all (see GameType::supportsSpectating()'s
+                     own docblock). --}}
+                <p class="status-line">No spectating for {{ $this->activeGameType->label() }} -- check back once this game finishes to join the next one.</p>
+            @endif
         </div>
     @elseif ($this->pendingGameType !== null)
         <div class="setup w-full">

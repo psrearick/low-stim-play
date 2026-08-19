@@ -111,6 +111,31 @@ test('shows a link into the active game, distinguishing a seated member from a s
         ->assertDontSee('Resume your seat');
 });
 
+test('offers no join/watch link for a game with no spectating, just a wait message', function () {
+    // Boggle has no RoomSeat/spectator concept at all -- joining mid-game
+    // would actually start a fresh playthrough, not watch the one already
+    // in progress, so GameType::supportsSpectating() is false for it and
+    // this banner must never offer a link into it for a seatless visitor.
+    $host = User::factory()->create();
+    $visitor = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+    $session = GameSession::create([
+        'type' => GameType::Boggle,
+        'mode' => GameMode::Online,
+        'settings' => ['size' => 4, 'seed' => 1, 'minutes' => 3],
+        'started_at' => now(),
+    ]);
+    $room->update(['status' => RoomStatus::Active, 'game_session_id' => $session->id]);
+    $room->addMember($visitor);
+
+    Livewire::actingAs($visitor)
+        ->test('pages::room.show', ['code' => $room->code])
+        ->assertSee('Playing Word Grid right now.')
+        ->assertSee('No spectating')
+        ->assertDontSee('Watch')
+        ->assertDontSee('Resume your seat');
+});
+
 test('shows no active-game link once the room has finished', function () {
     $host = User::factory()->create();
     $room = Room::factory()->create(['host_user_id' => $host->id, 'status' => RoomStatus::Finished]);

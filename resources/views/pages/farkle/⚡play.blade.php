@@ -1132,6 +1132,10 @@ new class extends Component
     </ul>
 </x-slot:rules>
 <div class="flex flex-col items-center w-full flex-1 min-h-0">
+    @if ($room !== null)
+        <livewire:room-new-game-notice :room-code="$room" :current-game="GameType::Farkle" :my-game-session-id="$gameSessionId" wire:key="room-new-game-notice" />
+    @endif
+
     @if ($started)
         @teleport('#game-actions')
             <div style="display: contents;">

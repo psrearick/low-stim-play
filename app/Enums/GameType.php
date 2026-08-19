@@ -70,4 +70,26 @@ enum GameType: string
             self::ClearTheDeck => 'clear-the-deck.play',
         };
     }
+
+    /**
+     * Whether a room member with no `RoomSeat` of their own can still open
+     * this game's play page mid-game as a read-only watcher, rather than
+     * being offered nothing at all. True for every seat-based room game
+     * (Yahtzee/FamilyFeud/Farkle/AppleMatch/ClearTheDeck all already treat
+     * a seatless viewer as an implicit spectator -- some with an explicit
+     * `$spectate` toggle, some just by gating every action behind
+     * `$mySeatIndex !== null` and rendering read-only otherwise). False
+     * only for Boggle, which has no seats or shared live board at all --
+     * each player's play-through is its own independent Livewire instance
+     * that would actually start a fresh playthrough on "join," not watch
+     * one, so joining mid-game has to be withheld entirely rather than
+     * mislabeled as spectating. Used by pages::room.show's active-game
+     * banner and the shared `<livewire:room-new-game-notice>` component so
+     * neither ever offers a "Watch"/"Join" link into a game that can't
+     * actually honor it.
+     */
+    public function supportsSpectating(): bool
+    {
+        return $this !== self::Boggle;
+    }
 }

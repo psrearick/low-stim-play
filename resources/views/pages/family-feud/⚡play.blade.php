@@ -904,6 +904,10 @@ new class extends Component
     </ul>
 </x-slot:rules>
 <div>
+    @if ($room !== null)
+        <livewire:room-new-game-notice :room-code="$room" :current-game="GameType::FamilyFeud" :my-game-session-id="$gameSessionId" wire:key="room-new-game-notice" />
+    @endif
+
     {{--
         Teleported (see layouts/app.blade.php's #game-actions anchor) rather
         than a layout $barRight slot -- these buttons depend on $started/

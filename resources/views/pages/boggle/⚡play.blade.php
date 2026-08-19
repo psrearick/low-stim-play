@@ -668,6 +668,10 @@ new class extends Component
     </ul>
 </x-slot:rules>
 <div class="flex flex-col items-center w-full">
+    @if ($room !== null)
+        <livewire:room-new-game-notice :room-code="$room" :current-game="GameType::Boggle" :my-game-session-id="$gameSessionId" wire:key="room-new-game-notice" />
+    @endif
+
     {{--
         Teleported (see layouts/app.blade.php's #game-actions anchor) rather
         than a layout $barRight slot -- this button's label depends on
@@ -700,8 +704,19 @@ new class extends Component
         <div style="display: contents;">
             @unless ($ended)
                 <button type="button" id="end-game-btn" wire:click="endGame">End Game</button>
+            @elseif ($room !== null)
+                {{-- resetGame() is a no-op for any shared session (docs/
+                     concerns.md) -- a room's board is fixed for the whole
+                     room, not reroll-able per player, so there's nothing
+                     "New Game" could ever do here. Only one real way back
+                     exists (the room hub's own "Start a new game" flow),
+                     so that's what this points at directly instead of
+                     rendering a button that looks clickable but isn't. --}}
+                <a href="{{ route('room.show', ['code' => $room]) }}"><button type="button">Back to room</button></a>
+            @elseif ($challenge !== null)
+                <a href="{{ route('boggle.lobby') }}"><button type="button">Back home</button></a>
             @else
-                <button type="button" wire:click="resetGame" @if($isSharedSession) disabled @endif>New Game</button>
+                <button type="button" wire:click="resetGame">New Game</button>
             @endunless
         </div>
     @endteleport
@@ -804,11 +819,14 @@ new class extends Component
                 </div>
             @endif
 
-            @if ($room !== null)
-                <a href="{{ route('room.show', ['code' => $room]) }}"><button type="button">Back to room</button></a>
-            @elseif ($challenge !== null)
-                <a href="{{ route('boggle.lobby') }}"><button type="button">Back home</button></a>
-            @elseif ($gameSessionId !== null)
+            {{--
+                "Back to room"/"Back home" moved up into the teleported
+                button bar above (docs/DEVLOG.md) rather than duplicated
+                here too -- this box is now only ever the solo "Challenge a
+                friend" share link, gated the same way the button bar's own
+                New Game button is (truly solo: no room, no challenge).
+            --}}
+            @if ($room === null && $challenge === null && $gameSessionId !== null)
                 <div class="flex gap-2 w-full">
                     <input type="text" readonly value="{{ route('boggle.share', ['gameSession' => $gameSessionId]) }}"
                         onclick="this.select()" style="flex: 1;">
