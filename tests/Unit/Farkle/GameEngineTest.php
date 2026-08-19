@@ -22,3 +22,17 @@ test('a turn under the minimum entry only meets it once the player has already q
     expect($this->engine->meetsMinimumEntry(false, 450))->toBeFalse()
         ->and($this->engine->meetsMinimumEntry(true, 450))->toBeTrue();
 });
+
+test('scoreSelection and scoreMaximal pass Spicy flags through to the Scorer', function () {
+    expect($this->engine->scoreSelection([4, 4, 4], [false, false, true]))->toBe(['score' => 800, 'valid' => true])
+        // Three 4s doubled (800) plus the single 1 (100, not spicy) = 900.
+        ->and($this->engine->scoreMaximal([4, 4, 4, 2, 1], [false, false, true, false, false]))->toBe(900);
+});
+
+test('isInstantWin is true only when every one of a full six-die roll is spicy', function () {
+    expect($this->engine->isInstantWin([true, true, true, true, true, true]))->toBeTrue()
+        ->and($this->engine->isInstantWin([true, true, true, true, true, false]))->toBeFalse()
+        // A partial reroll of fewer than 6 can never satisfy "all six".
+        ->and($this->engine->isInstantWin([true, true, true]))->toBeFalse()
+        ->and($this->engine->isInstantWin([]))->toBeFalse();
+});

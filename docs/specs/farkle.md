@@ -122,3 +122,170 @@ No new accessibility decisions expected here beyond applying the existing system
   minimally.
 - `docs/DEVLOG.md`/`docs/TODO.md`/`docs/CHANGELOG.md` updated per this repo's standing
   documentation convention.
+
+## 6. Spicy variant (optional toggle) — added 2026-08-19, see `docs/TODO.md`'s former #23
+
+Rules as given (verbatim from the TODO entry):
+
+- Each of the 6 dice has one face marked in red — a distinct number, one per die, so
+  there's exactly one red ("spicy") side for each of the numbers 1 through 6 across the
+  six dice.
+- Rolling a spicy die doubles the score of whatever scoring combination it's part of.
+  E.g. `[4, 4, spicy 4]` scores 800, not the normal 400 for three 4s.
+- Multiple spicy dice within the same combination each double it again:
+  `[4, spicy 4, spicy 4]` scores 1600, not 400.
+- A spicy die's doubling applies only to the combination it's rolled as part of in that
+  specific roll — it does not retroactively apply to dice already locked in/frozen from
+  an earlier roll this turn.
+- **High Stakes** (a separate, additional toggle, independent of Spicy — can be on or
+  off regardless of whether Spicy itself is enabled): a player may open their turn by
+  rolling the *previous* player's own non-frozen dice, instead of a fresh six. If they
+  score on that first roll, the points are added to the previous player's own turn
+  score (not a fresh turn total), and they may continue rolling if they choose. This
+  inheritance is available even if the previous player ended their turn by banking with
+  all six dice already used, not only if they stopped mid-turn with dice still unused.
+- Default target score for a Spicy game is 25,000, not the normal mode's 10,000 (still
+  host-configurable via the existing target-score setting, just a different default
+  when Spicy is on).
+- Rolling all six dice as spicy in a single roll is an instant win, regardless of the
+  score reached.
+
+### 6.1 Digital-equivalent for "one red face per die"
+
+There's no real per-physical-die identity anywhere in the current model — `DiceRoller`
+just returns `N` independent `random_int(1, 6)` values, and `Scorer` only ever sees
+face *counts*, never which specific die produced which face. Reusing that same
+"anonymous dice" model doesn't work here: a spicy face is a property of a specific
+physical die (die A's red face is always "1", die B's is always "2", etc.), and once a
+player starts setting some dice aside mid-turn, "is this face spicy on this reroll?"
+depends on *which* physical dice are still in the cup, not just how many.
+
+Digital equivalent (no open question — this is just how six real dice map onto data,
+same as Clear the Deck's own deck-count translation in §2 above): number the six
+physical dice 1–6 and fix die *N*'s red face at value *N* (die 1's red face is "1", die
+2's red face is "2", …). This is an arbitrary but harmless labeling — real dice are
+otherwise interchangeable and every face is equally likely regardless of which die
+shows it, so this fixed assignment is statistically identical to any other 1-to-1
+mapping. A die is spicy on a given roll exactly when its rolled value equals its own
+label.
+
+State needed: an `activeDieSlots` list (the labels, 1–6, of dice not yet held/scored
+this turn — starts as `[1,2,3,4,5,6]` at turn start, shrinks as dice are set aside,
+resets to a full `[1,2,3,4,5,6]` on hot dice, exactly mirroring where `heldDiceCount`
+already resets today). Each roll only rolls the currently-active slots; a die's spicy
+flag for that roll is `value === slot`. This directly satisfies "doesn't retroactively
+apply to frozen dice" for free — a held die's slot has already left `activeDieSlots`,
+so it's never re-evaluated for spiciness again.
+
+### 6.2 Doubling and the existing scoring shapes
+
+"Combination" means whatever group of dice a face's score actually comes from:
+
+- A lone scoring 1 or 5 (not part of a 3+ group) is its own one-die combination —
+  spicy doubles just that single value (100→200, 50→100).
+- Three-of-a-kind through six-of-a-kind: the *whole* matched group is one combination
+  (this app's existing four/five/six-of-a-kind values are already flat, not per-die —
+  see §2's scoring bullet — so this isn't a new concept, just a new multiplier on top).
+  Every spicy die anywhere in that group counts toward the doubling, applied as
+  `2 ^ (spicy dice in the group)`.
+- The three six-dice-only special patterns (straight, three pairs, two triplets) are
+  explicitly "one combination" already per §2 ("these replace the normal per-face
+  decomposition entirely") — doubling is `2 ^ (spicy dice among all 6)`, same rule,
+  just applied to the flat 1500/1500/2500 base instead of a per-face value.
+- `bestScoreForFace()` already tries multiple candidate decompositions for a face count
+  and takes whichever scores higher (e.g. four 1s as flat 1000 vs. three 1s + a leftover
+  single). With doubling added, the flat multi-of-a-kind candidate provably always wins
+  whenever it already would have without spicy: it captures *every* spicy die in the
+  group under one multiplier, while any split candidate can only apply each spicy die's
+  multiplier to whichever smaller piece it lands in. So no new per-die placement search
+  is needed inside a face's candidates — computing every candidate's own doubling from
+  the same "total spicy dice for this face" count and taking `max()` (the existing
+  logic) still always picks the correct winner.
+
+### 6.3 Hot dice mid-turn
+
+No special interaction: hot dice already means "every one of the 6 dice has scored, so
+`activeDieSlots` resets to all six and the player rolls a fresh set." That fresh roll is
+scored exactly like any other 6-die roll — freshly re-evaluated for spiciness against
+the (now-reset) slot labels, same as turn-opening roll. The "doesn't retroactively
+apply to frozen dice" rule already covers this: dice scored *before* the hot-dice reset
+keep whatever score they already locked in, unaffected by what's spicy on the new roll.
+
+### 6.4 Instant win — six-spicy roll
+
+By construction (§6.1), a die is only spicy when it shows its own label, and the six
+labels are exactly 1–6. So "all six dice spicy in one roll" can only happen when the
+roll's values are exactly `{1,2,3,4,5,6}` arranged so each die lands on its own label —
+i.e. a specific arrangement of the already-existing straight pattern. This is
+compatible with the rule as given ("regardless of the score reached") since it's checked
+as its own condition before/independent of normal scoring, and short-circuits the whole
+game: the rolling player wins immediately, full stop — this does **not** trigger a
+"final round" for everyone else the way normally crossing the target score does (that
+toggle only governs the normal target-crossing path); every other player is simply
+recorded as a loss. Checked on any full 6-die roll (`activeDieSlots` has all six labels
+at roll time), whether that's the turn-opening roll or a later hot-dice reroll — never
+on a partial reroll of fewer than 6, since "all six" can't be satisfied by fewer dice.
+
+### 6.5 High Stakes — resolved semantics (clarified by the user, 2026-08-19)
+
+Only triggers off a **Bank**, never off a Farkle bust — the rule text only ever
+contrasts "banking with dice unused" against "banking with all six already used," never
+mentions a bust, and a bust already wipes the turn's dice/score entirely with nothing
+meaningful left to hand off. So: a Farkle-ended turn always leaves the next player with
+a fresh six, High Stakes or not.
+
+When a turn ends via Bank, record what's available to inherit:
+- **The dice**: whichever `activeDieSlots` were still un-held at the moment of banking
+  (e.g. banked with 4 of 6 dice already held → 2 slots remain). If all six were already
+  held (a hot-dice-fully-used bank), the "remaining" set is a fresh six, per the rule's
+  own explicit "even if...all six dice already used" carve-out (hot dice already resets
+  slot eligibility to all six, so this falls out of the same mechanism, not a special
+  case).
+- **The amount**: the *entire* turn score that just got banked (not just the value of
+  the leftover dice) — confirmed by the user: "you also inherit all of the player's
+  points, not just from those four dice but all their points from that turn —
+  essentially the amount they banked becomes your starting amount."
+
+If the next player (High Stakes enabled) chooses to take this over instead of a fresh
+six: their own turn score *starts* at the inherited amount (not the previous player's
+permanent total — that was already safely banked to them regardless of what happens
+next), and their first roll uses only the inherited leftover dice count, rerolled fresh
+(new random values — "rolling the previous player's own non-frozen dice" means the die
+*pool size* carries over, not the literal prior pips: "if they bank four dice, you start
+with those four dice already select[ed] and roll the two remaining dice fresh
+randomized rolls"). From there it's a completely normal turn: score on this first roll
+adds to that starting amount same as any other roll would, continuing to roll/bank/bust
+as usual. Busting this turn loses the *entire* current turn score, including the
+inherited head start — none of that risk touches the previous player's already-banked
+total, which is unaffected either way. This is the actual "stakes" of High Stakes: a
+free head start with real risk of losing all of it, not a windfall for the previous
+player.
+
+Offered as a per-turn choice (present only when High Stakes is on and the previous turn
+ended in a Bank), not automatic — "a player *may* open their turn" this way. The
+inherited-state record only lives long enough to be offered once, to the very next
+player: whether taken or declined, it's cleared the moment that next turn starts (their
+own turn's eventual ending — bank or bust — determines whatever is or isn't on offer
+after that).
+
+### 6.6 Data model additions
+
+- `spicyEnabled: bool` and `highStakesEnabled: bool`, both default `false`, set at setup
+  time (pass-and-play) or by the room host (online) — same toggle-button shape as the
+  existing "Final Round" on/off pair.
+- Toggling `spicyEnabled` resets `targetScore` to that mode's own default (10,000 /
+  25,000) rather than leaving whatever was previously selected, mirroring how other
+  setup fields already reset dependent state on change (e.g. `setPlayerCount()` already
+  re-pads `playerNames`).
+- Per-turn: `activeDieSlots` (`list<int>`, the still-live 1–6 labels) alongside the
+  existing `dice`/`selected`, plus a parallel `dieSpicy` (`list<bool>`) for the current
+  roll only.
+- Game-level (survives across turns, not per-turn): `lastBankInheritance` —
+  `null | array{turnScore: int, remainingSlots: list<int>}`, set whenever a turn ends by
+  Bank (cleared on a Farkle bust), consumed/cleared the instant the next turn starts
+  regardless of whether it was used.
+- None of this exists, and none of these fields need to be present, when
+  `spicyEnabled`/`highStakesEnabled` are both off — the normal (non-Spicy) turn flow is
+  unchanged, including its existing state shape and scoring behavior.
+
+Status: **ready to build from.**

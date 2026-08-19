@@ -250,6 +250,10 @@ test('a roll with no scoring dice at all busts the turn, losing its points and a
             ->call('setPlayerCount', 2)
             ->call('startGame')
             ->set('heldDiceCount', 5)
+            // activeDieSlots' length is what performRoll() actually rolls
+            // against (docs/specs/farkle.md §6.1) -- kept in lockstep with
+            // heldDiceCount here too, or roll() would roll a fresh 6.
+            ->set('activeDieSlots', [1])
             ->call('roll');
 
         $farkled = $component->get('dice') === [];
@@ -274,6 +278,7 @@ test('a bust loses only this turn\'s points, not points already banked in earlie
             ->call('toggleSelect', 0)->call('toggleSelect', 1)->call('toggleSelect', 2)->call('toggleSelect', 3)
             ->call('bank') // banks 2000, turn wraps back to player 0 (only 1 player)
             ->set('heldDiceCount', 5)
+            ->set('activeDieSlots', [1]) // see the sibling test above
             ->call('roll');
 
         $farkled = $component->get('dice') === [];

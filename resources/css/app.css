@@ -1498,6 +1498,17 @@ body.scrollable.farkle-play.in-game {
     background: var(--die-kept);
 }
 
+/* Spicy variant (docs/specs/farkle.md §6) -- a static border-color change,
+   not an animation/glow, matching this app's no-flashing/no-bouncing
+   design system (see the "Accessibility" section of that spec and
+   docs/DEVLOG.md's "Site-wide design system & chrome"). Reuses the
+   existing --warn token (already this app's one "pay attention" color,
+   e.g. .farkle-message-bust) rather than introducing a new bright red. */
+.farkle-play .die.spicy {
+    border-color: var(--warn);
+    box-shadow: 2px 4px 10px var(--die-shadow), 0 0 0 2px var(--warn) inset;
+}
+
 .farkle-play .number {
     font-size: clamp(18px, 5vmin, 72px);
     font-weight: bold;

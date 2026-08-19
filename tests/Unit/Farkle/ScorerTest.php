@@ -115,3 +115,58 @@ test('three pairs of non-1/5 faces still counts as having scoring dice', functio
     // like a bust without the six-dice special-pattern check.
     expect($this->scorer->hasAnyScoringDice([2, 2, 3, 3, 4, 4]))->toBeTrue();
 });
+
+// Spicy variant (docs/specs/farkle.md §6.2) -- omitting the $spicy
+// parameter entirely (every test above) must keep scoring identical to
+// the non-Spicy game; these tests cover what changes once it's supplied.
+
+test('a lone spicy 1 or 5 doubles its own single value', function () {
+    expect($this->scorer->scoreSelection([1], [true]))->toBe(['score' => 200, 'valid' => true])
+        ->and($this->scorer->scoreSelection([5], [true]))->toBe(['score' => 100, 'valid' => true])
+        // Only the flagged die doubles -- the other 1 here is not spicy.
+        ->and($this->scorer->scoreSelection([1, 1], [true, false]))->toBe(['score' => 300, 'valid' => true]);
+});
+
+test('example from docs/TODO.md: one spicy die doubles a three-of-a-kind, two spicy dice double it twice', function () {
+    expect($this->scorer->scoreSelection([4, 4, 4], [false, false, true]))->toBe(['score' => 800, 'valid' => true])
+        ->and($this->scorer->scoreSelection([4, 4, 4], [false, true, true]))->toBe(['score' => 1600, 'valid' => true]);
+});
+
+test('a spicy die doubles the flat value of four/five/six of a kind, capturing every spicy die in the group', function () {
+    expect($this->scorer->scoreSelection([2, 2, 2, 2], [false, true, false, false]))->toBe(['score' => 2000, 'valid' => true])
+        ->and($this->scorer->scoreSelection([2, 2, 2, 2, 2], [false, false, false, false, true]))->toBe(['score' => 4000, 'valid' => true])
+        ->and($this->scorer->scoreSelection([2, 2, 2, 2, 2, 2], [true, false, false, false, false, false]))->toBe(['score' => 6000, 'valid' => true]);
+});
+
+test('spicy still picks the flat four-of-a-kind over three-plus-leftover for 1s, now doubled', function () {
+    // Flat 1000 doubled (2000) beats any split of three-1s+leftover
+    // doubled -- see Scorer::bestScoreForFace()'s docblock proof.
+    expect($this->scorer->scoreSelection([1, 1, 1, 1], [true, false, false, false]))->toBe(['score' => 2000, 'valid' => true]);
+});
+
+test('a spicy die doubles a straight/three-pairs/two-triplets as one combination', function () {
+    expect($this->scorer->scoreSelection([1, 2, 3, 4, 5, 6], [false, false, true, false, false, false]))->toBe(['score' => 3000, 'valid' => true])
+        ->and($this->scorer->scoreSelection([2, 2, 3, 3, 4, 4], [true, true, false, false, false, false]))->toBe(['score' => 6000, 'valid' => true])
+        ->and($this->scorer->scoreSelection([2, 2, 2, 5, 5, 5], [false, false, false, true, false, false]))->toBe(['score' => 5000, 'valid' => true]);
+});
+
+test('scoreMaximal applies the same spicy doubling as scoreSelection', function () {
+    expect($this->scorer->scoreMaximal([4, 4, 4, 2, 1], [false, false, true, false, true]))->toBe(1000);
+    // (three 4s doubled = 800) + (one 1 doubled = 200) + dead 2 = 1000.
+});
+
+test('nonScoringIndices reports exactly the dice contributing nothing to scoreMaximal', function () {
+    expect($this->scorer->nonScoringIndices([4, 4, 4, 2, 1]))->toBe([3])
+        ->and($this->scorer->nonScoringIndices([2, 2, 3, 6]))->toBe([0, 1, 2, 3])
+        ->and($this->scorer->nonScoringIndices([1, 5, 6, 6, 6, 6]))->toBe([]);
+});
+
+test('nonScoringIndices is empty when a six-dice special pattern applies, since every die contributes', function () {
+    expect($this->scorer->nonScoringIndices([1, 2, 3, 4, 5, 6]))->toBe([])
+        ->and($this->scorer->nonScoringIndices([2, 2, 3, 3, 4, 4]))->toBe([]);
+});
+
+test('spicy has no effect on a non-scoring selection or an empty one', function () {
+    expect($this->scorer->scoreSelection([3], [true]))->toBe(['score' => 0, 'valid' => false])
+        ->and($this->scorer->scoreSelection([], []))->toBe(['score' => 0, 'valid' => false]);
+});

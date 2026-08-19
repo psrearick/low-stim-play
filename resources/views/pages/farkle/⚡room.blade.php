@@ -8,6 +8,7 @@ use App\Models\GameSession;
 use App\Models\Room;
 use App\Models\RoomSeat;
 use App\Models\User;
+use App\Services\Farkle\DiceRoller;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 
@@ -21,14 +22,38 @@ new class extends Component
      * pages::farkle.play's own setup screen for the pass-and-play
      * equivalent of these same two options.
      */
-    public int $targetScore = 10000;
+    public int $targetScore = self::NORMAL_DEFAULT_TARGET_SCORE;
 
     public bool $withFinalRound = true;
+
+    public bool $spicyEnabled = false;
+
+    public bool $highStakesEnabled = false;
 
     /**
      * @var list<int>
      */
     public const TARGET_SCORE_OPTIONS = [5000, 7500, 10000, 15000];
+
+    /**
+     * @var list<int>
+     */
+    public const SPICY_TARGET_SCORE_OPTIONS = [15000, 25000, 35000, 50000];
+
+    public const NORMAL_DEFAULT_TARGET_SCORE = 10000;
+
+    public const SPICY_DEFAULT_TARGET_SCORE = 25000;
+
+    /**
+     * See pages::farkle.play's identical setSpicyEnabled() -- resets
+     * $targetScore to whichever mode's own default rather than leaving a
+     * previously-picked value in place (docs/specs/farkle.md §6.6).
+     */
+    public function setSpicyEnabled(bool $enabled): void
+    {
+        $this->spicyEnabled = $enabled;
+        $this->targetScore = $enabled ? self::SPICY_DEFAULT_TARGET_SCORE : self::NORMAL_DEFAULT_TARGET_SCORE;
+    }
 
     public function mount(string $code): void
     {
@@ -109,11 +134,16 @@ new class extends Component
                 'currentSeat' => 0,
                 'dice' => [],
                 'selected' => [],
+                'dieSpicy' => [],
+                'activeDieSlots' => range(1, DiceRoller::DICE_COUNT),
+                'lastBankInheritance' => null,
                 'bankedDiceThisTurn' => [],
                 'turnScore' => 0,
                 'heldDiceCount' => 0,
                 'targetScore' => $this->targetScore,
                 'withFinalRound' => $this->withFinalRound,
+                'spicyEnabled' => $this->spicyEnabled,
+                'highStakesEnabled' => $this->highStakesEnabled,
                 'finalRoundActive' => false,
                 'finalRoundRemaining' => null,
                 'gameOver' => false,
@@ -128,6 +158,8 @@ new class extends Component
                     'player_count' => count($seats),
                     'target_score' => $this->targetScore,
                     'with_final_round' => $this->withFinalRound,
+                    'spicy_enabled' => $this->spicyEnabled,
+                    'high_stakes_enabled' => $this->highStakesEnabled,
                 ],
                 'state' => $state,
                 'started_at' => now(),
@@ -183,7 +215,7 @@ new class extends Component
             <div class="setup-row">
                 <div class="label">Target Score</div>
                 <div class="option-group">
-                    @foreach (self::TARGET_SCORE_OPTIONS as $option)
+                    @foreach ($spicyEnabled ? self::SPICY_TARGET_SCORE_OPTIONS : self::TARGET_SCORE_OPTIONS as $option)
                         <button type="button" id="target-score-{{ $option }}" class="option {{ $targetScore === $option ? 'active' : '' }}" wire:click="$set('targetScore', {{ $option }})">
                             {{ number_format($option) }}
                         </button>
@@ -196,6 +228,22 @@ new class extends Component
                 <div class="option-group">
                     <button type="button" id="final-round-on" class="option {{ $withFinalRound ? 'active' : '' }}" wire:click="$set('withFinalRound', true)">On</button>
                     <button type="button" id="final-round-off" class="option {{ ! $withFinalRound ? 'active' : '' }}" wire:click="$set('withFinalRound', false)">Off</button>
+                </div>
+            </div>
+
+            <div class="setup-row">
+                <div class="label">Spicy</div>
+                <div class="option-group">
+                    <button type="button" id="spicy-on" class="option {{ $spicyEnabled ? 'active' : '' }}" wire:click="setSpicyEnabled(true)">On</button>
+                    <button type="button" id="spicy-off" class="option {{ ! $spicyEnabled ? 'active' : '' }}" wire:click="setSpicyEnabled(false)">Off</button>
+                </div>
+            </div>
+
+            <div class="setup-row">
+                <div class="label">High Stakes</div>
+                <div class="option-group">
+                    <button type="button" id="high-stakes-on" class="option {{ $highStakesEnabled ? 'active' : '' }}" wire:click="$set('highStakesEnabled', true)">On</button>
+                    <button type="button" id="high-stakes-off" class="option {{ ! $highStakesEnabled ? 'active' : '' }}" wire:click="$set('highStakesEnabled', false)">Off</button>
                 </div>
             </div>
         </div>

@@ -12,8 +12,7 @@ The Order of Work list is a separate, ordinary numbered list reflecting current 
 2. [Task 8: Add Quartiles](#8-add-quartiles)
 3. [Task 10: Spec and build NYT-style puzzle games](#10-spec-and-build-nyt-style-puzzle-games)
 4. [Task 11: Shared puzzle-game infrastructure](#11-shared-puzzle-game-infrastructure)
-5. [Task 23: Farkle: add an optional "Spicy" variant toggle](#23-farkle-add-an-optional-spicy-variant-toggle)
-6. [Task 24: Move Edit Profile/Log Out into a navbar avatar dropdown, trim the sidebar](#24-move-edit-profilelog-out-into-a-navbar-avatar-dropdown-trim-the-sidebar)
+5. [Task 24: Move Edit Profile/Log Out into a navbar avatar dropdown, trim the sidebar](#24-move-edit-profilelog-out-into-a-navbar-avatar-dropdown-trim-the-sidebar)
 
 ## Tasks
 
@@ -32,20 +31,6 @@ Add Wordle, Pips, Spelling Bee, Strands, and Connections. All need daily/random 
 ### 11. Shared puzzle-game infrastructure
 
 A cross-cutting set of features for the app's puzzle-style games (Boggle/Word Grid, Quartiles once built, and the NYT-style games in Task 10 once built): give each individual puzzle a unique code so it can be shared and replayed identically by someone else; once Friends activity (Task 4) exists, surface that code there too — e.g. a "Challenge a Friend" button at the end of a game, possibly emailing an invite; and add daily puzzles (one fixed puzzle per game per day, distinct from the existing random ones) with an archive of past days' puzzles. Depends on Task 4 for the friend-sharing piece, and on the relevant puzzle games actually existing.
-
-### 23. Farkle: add an optional "Spicy" variant toggle
-
-A new, fully-specified optional Farkle variant, host-configurable as an additional toggle alongside the existing target-score/final-round settings (see `docs/specs/farkle.md`'s own precedent for how those are exposed). Rules as given:
-
-- Each of the 6 dice has one face marked in red — a distinct number, one per die, so there's exactly one red ("spicy") side for each of the numbers 1 through 6 across the six dice.
-- Rolling a spicy die doubles the score of whatever scoring combination it's part of. E.g. `[4, 4, spicy 4]` scores 800, not the normal 400 for three 4s.
-- Multiple spicy dice within the same combination each double it again: `[4, spicy 4, spicy 4]` scores 1600, not 400.
-- A spicy die's doubling applies only to the combination it's rolled as part of in that specific roll — it does not retroactively apply to dice already locked in/frozen from an earlier roll this turn.
-- **High Stakes** (a separate, additional toggle, independent of Spicy — can be on or off regardless of whether Spicy itself is enabled): a player may open their turn by rolling the *previous* player's own non-frozen dice, instead of a fresh six. If they score on that first roll, the points are added to the previous player's own turn score (not a fresh turn total), and they may continue rolling if they choose. This inheritance is available even if the previous player ended their turn by banking with all six dice already used, not only if they stopped mid-turn with dice still unused.
-- Default target score for a Spicy game is 25,000, not the normal mode's 10,000 (still host-configurable via the existing target-score setting, just a different default when Spicy is on).
-- Rolling all six dice as spicy in a single roll is an instant win, regardless of the score reached.
-
-The plain three-1s scoring fix this depended on has landed (`docs/DEVLOG.md`'s Farkle section, 2026-08-18) — the doubling math above is written against that corrected 300 value. Needs the same spec-first treatment `docs/specs/clear-the-deck.md` got (`docs/DEVLOG.md`'s Clear the Deck section) before building starts: the rules above are already fairly complete, but haven't been reviewed for edge cases the way that spec-writing process caught for Clear the Deck (e.g. how a spicy die interacts with the three six-dice-only special patterns — straight, three pairs, two triplets — or with hot dice re-rolling a fresh six mid-turn).
 
 ### 24. Move Edit Profile/Log Out into a navbar avatar dropdown, trim the sidebar
 

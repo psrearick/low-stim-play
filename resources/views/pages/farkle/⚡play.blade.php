@@ -30,6 +30,20 @@ new class extends Component
      */
     public const TARGET_SCORE_OPTIONS = [5000, 7500, 10000, 15000];
 
+    /**
+     * Shown instead of TARGET_SCORE_OPTIONS whenever Spicy is on -- see
+     * docs/specs/farkle.md §6.6: "Default target score for a Spicy game
+     * is 25,000, not the normal mode's 10,000," still a host-configurable
+     * button choice like the normal set, just scaled up to match.
+     *
+     * @var list<int>
+     */
+    public const SPICY_TARGET_SCORE_OPTIONS = [15000, 25000, 35000, 50000];
+
+    public const NORMAL_DEFAULT_TARGET_SCORE = 10000;
+
+    public const SPICY_DEFAULT_TARGET_SCORE = 25000;
+
     public int $playerCount = 2;
 
     /**
@@ -43,9 +57,25 @@ new class extends Component
      * room's game settings need to be visible/agreed on before anyone
      * plays, not just to whoever happens to load this page first.
      */
-    public int $targetScore = 10000;
+    public int $targetScore = self::NORMAL_DEFAULT_TARGET_SCORE;
 
     public bool $withFinalRound = true;
+
+    /**
+     * The Spicy variant toggle (docs/specs/farkle.md §6) -- doubles
+     * scoring combinations that include a spicy die and enables the
+     * instant-win six-spicy roll. Independent of $highStakesEnabled.
+     */
+    public bool $spicyEnabled = false;
+
+    /**
+     * The High Stakes toggle (docs/specs/farkle.md §6.5) -- independent
+     * of $spicyEnabled, can be on or off regardless of it. Lets the
+     * player opening a turn take over the previous player's leftover
+     * dice and banked turn amount instead of a fresh six, when the
+     * previous turn ended by banking (see $lastBankInheritance).
+     */
+    public bool $highStakesEnabled = false;
 
     public bool $started = false;
 
@@ -73,6 +103,43 @@ new class extends Component
      * @var list<bool>
      */
     public array $selected = [];
+
+    /**
+     * Which of the currently-rolled $dice are spicy this roll -- parallel
+     * to $dice/$selected, meaningless (always false) unless
+     * $spicyEnabled. See docs/specs/farkle.md §6.1.
+     *
+     * @var list<bool>
+     */
+    public array $dieSpicy = [];
+
+    /**
+     * The still-un-held die "labels" (1-6, docs/specs/farkle.md §6.1) for
+     * the current turn -- always maintained, even when Spicy/High Stakes
+     * are both off, since it's what every roll actually asks
+     * DiceRoller::rollSlots() for. Its *length* always equals
+     * `DICE_COUNT - $heldDiceCount` (kept in lockstep everywhere
+     * $heldDiceCount changes); its labels only matter when $spicyEnabled
+     * (they decide which rolled values come back spicy) or
+     * $highStakesEnabled (a bank at the end of a turn hands this list's
+     * current length to the next player as how many dice they can take
+     * over -- see $lastBankInheritance).
+     *
+     * @var list<int>
+     */
+    public array $activeDieSlots = [];
+
+    /**
+     * Set by bankTurnScore() whenever $highStakesEnabled and a turn ends
+     * by banking (never by busting -- see docs/specs/farkle.md §6.5);
+     * null otherwise. Offered as a choice to the very next player's own
+     * turn-opening roll only, then cleared by roll()/rollTakeOver()
+     * regardless of which they pick -- it never survives past that one
+     * decision.
+     *
+     * @var null|array{turnScore: int, remainingSlots: list<int>}
+     */
+    public ?array $lastBankInheritance = null;
 
     /**
      * Every die value locked in so far *this turn*, across every roll --
@@ -199,11 +266,23 @@ new class extends Component
         $this->currentPlayer = $state['currentSeat'];
         $this->dice = $state['dice'];
         $this->selected = $state['selected'];
+        // ?? on these: a room's GameSession.state predating the Spicy
+        // variant (docs/specs/farkle.md §6) won't have them yet, and an
+        // in-progress old game reconnecting shouldn't hard-error.
+        // activeDieSlots' own fallback derives a same-length (if not
+        // necessarily same-label) stand-in from heldDiceCount, since
+        // every roll depends on its *length* regardless of Spicy.
+        $this->dieSpicy = $state['dieSpicy'] ?? [];
+        $this->activeDieSlots = $state['activeDieSlots']
+            ?? range(1, self::DICE_COUNT - $state['heldDiceCount']);
+        $this->lastBankInheritance = $state['lastBankInheritance'] ?? null;
         $this->bankedDiceThisTurn = $state['bankedDiceThisTurn'];
         $this->turnScore = $state['turnScore'];
         $this->heldDiceCount = $state['heldDiceCount'];
         $this->targetScore = $state['targetScore'];
         $this->withFinalRound = $state['withFinalRound'];
+        $this->spicyEnabled = $state['spicyEnabled'] ?? false;
+        $this->highStakesEnabled = $state['highStakesEnabled'] ?? false;
         $this->finalRoundActive = $state['finalRoundActive'];
         $this->finalRoundRemaining = $state['finalRoundRemaining'];
         $this->gameOver = $state['gameOver'];
@@ -232,11 +311,16 @@ new class extends Component
             'currentSeat' => $this->currentPlayer,
             'dice' => $this->dice,
             'selected' => $this->selected,
+            'dieSpicy' => $this->dieSpicy,
+            'activeDieSlots' => $this->activeDieSlots,
+            'lastBankInheritance' => $this->lastBankInheritance,
             'bankedDiceThisTurn' => $this->bankedDiceThisTurn,
             'turnScore' => $this->turnScore,
             'heldDiceCount' => $this->heldDiceCount,
             'targetScore' => $this->targetScore,
             'withFinalRound' => $this->withFinalRound,
+            'spicyEnabled' => $this->spicyEnabled,
+            'highStakesEnabled' => $this->highStakesEnabled,
             'finalRoundActive' => $this->finalRoundActive,
             'finalRoundRemaining' => $this->finalRoundRemaining,
             'gameOver' => $this->gameOver,
@@ -301,6 +385,18 @@ new class extends Component
         }
     }
 
+    /**
+     * Resets $targetScore to whichever mode's own default (10,000 /
+     * 25,000) rather than leaving a previously-picked value in place --
+     * see docs/specs/farkle.md §6.6, and setPlayerCount() above for the
+     * same "toggling a setting resets dependent state" pattern.
+     */
+    public function setSpicyEnabled(bool $enabled): void
+    {
+        $this->spicyEnabled = $enabled;
+        $this->targetScore = $enabled ? self::SPICY_DEFAULT_TARGET_SCORE : self::NORMAL_DEFAULT_TARGET_SCORE;
+    }
+
     public function startGame(): void
     {
         $this->players = array_map(
@@ -330,6 +426,37 @@ new class extends Component
         if ($this->gameOver || $this->dice !== []) {
             return;
         }
+
+        // Declining an offered High Stakes take-over still forfeits it --
+        // see $lastBankInheritance's own docblock. Harmless no-op when
+        // nothing was on offer.
+        $this->lastBankInheritance = null;
+
+        $this->performRoll($diceRoller);
+        $this->syncOnlineStateIfNeeded();
+    }
+
+    /**
+     * The High Stakes alternative to roll() (docs/specs/farkle.md §6.5):
+     * instead of a fresh six, opens the turn with the previous player's
+     * entire banked turn score as a starting head start and rerolls only
+     * however many dice they'd left un-held -- fresh random values, not
+     * their literal prior pips (the *count* carries over, not the dice
+     * themselves). That head start is now fully this player's own turn
+     * score, at risk the same as anything else they roll this turn.
+     */
+    public function rollTakeOver(DiceRoller $diceRoller): void
+    {
+        abort_unless($this->room === null || $this->mySeatIndex === $this->currentPlayer, 403);
+
+        if ($this->gameOver || ! $this->canTakeOverValue()) {
+            return;
+        }
+
+        $this->turnScore = $this->lastBankInheritance['turnScore'];
+        $this->activeDieSlots = $this->lastBankInheritance['remainingSlots'];
+        $this->heldDiceCount = self::DICE_COUNT - count($this->activeDieSlots);
+        $this->lastBankInheritance = null;
 
         $this->performRoll($diceRoller);
         $this->syncOnlineStateIfNeeded();
@@ -390,9 +517,22 @@ new class extends Component
         // after anyway (see startTurn(), called from advanceTurn()),
         // so there's no render where showing these dice as "banked"
         // separately from the scoreboard update would ever matter.
-        $this->turnScore += $this->engine->scoreMaximal($this->dice);
+        $this->turnScore += $this->engine->scoreMaximal($this->dice, $this->activeDieSpicy());
+
+        // bank() never asks the player to select anything (every scoring
+        // die in $dice is auto-included regardless), so this is the only
+        // place that finds out which of this final roll's dice *didn't*
+        // score -- exactly the ones High Stakes (docs/specs/farkle.md
+        // §6.5) can hand off to the next player as still "non-frozen".
+        $nonScoringSlots = array_map(
+            fn (int $i) => $this->activeDieSlots[$i],
+            $this->engine->nonScoringIndices($this->dice),
+        );
+        $this->activeDieSlots = $nonScoringSlots;
+
         $this->dice = [];
         $this->selected = [];
+        $this->dieSpicy = [];
         $this->bankTurnScore();
         $this->syncOnlineStateIfNeeded();
     }
@@ -416,17 +556,41 @@ new class extends Component
         $this->syncOnlineStateIfNeeded();
     }
 
+    /**
+     * Always rolls via DiceRoller::rollSlots() against $activeDieSlots
+     * (docs/specs/farkle.md §6.1), even in a plain non-Spicy game --
+     * $activeDieSlots' *length* always equals however many dice are left
+     * to roll (kept in lockstep with $heldDiceCount everywhere both
+     * change), so this is just as correct a source of "how many dice"
+     * as the old `DICE_COUNT - $heldDiceCount` arithmetic was, and it
+     * means every roll (Spicy or not) goes through one code path. The
+     * resulting spicy flags are simply never looked at when
+     * !$spicyEnabled -- $dieSpicy stays all-false, doubling nothing.
+     */
     private function performRoll(DiceRoller $diceRoller): void
     {
-        $rolled = $diceRoller->roll(self::DICE_COUNT - $this->heldDiceCount);
+        $rolled = $diceRoller->rollSlots($this->activeDieSlots);
+        $values = $rolled['values'];
+        $spicy = $this->spicyEnabled ? $rolled['spicy'] : array_fill(0, count($values), false);
 
-        if (! $this->engine->hasAnyScoringDice($rolled)) {
+        if ($this->spicyEnabled && $this->engine->isInstantWin($spicy)) {
+            $this->dice = $values;
+            $this->dieSpicy = $spicy;
+            $this->selected = array_fill(0, count($values), false);
+            $this->winInstantly();
+
+            return;
+        }
+
+        if (! $this->engine->hasAnyScoringDice($values)) {
             $name = $this->players[$this->currentPlayer]['name'];
             $this->players[$this->currentPlayer]['farkleCount']++;
             $this->turnScore = 0;
             $this->heldDiceCount = 0;
+            $this->activeDieSlots = range(1, self::DICE_COUNT);
             $this->dice = [];
             $this->selected = [];
+            $this->dieSpicy = [];
             $this->message = "{$name} busted — the turn's points are lost.";
             $this->messageType = 'bust';
             $this->advanceTurn();
@@ -434,8 +598,9 @@ new class extends Component
             return;
         }
 
-        $this->dice = $rolled;
-        $this->selected = array_fill(0, count($rolled), false);
+        $this->dice = $values;
+        $this->dieSpicy = $spicy;
+        $this->selected = array_fill(0, count($values), false);
         $this->message = null;
         $this->messageType = null;
     }
@@ -449,27 +614,65 @@ new class extends Component
      */
     private function applySelection(): void
     {
+        $dieSpicy = $this->activeDieSpicy();
         $values = [];
+        $spicy = [];
+        $heldSlots = [];
 
         foreach ($this->dice as $i => $value) {
             if ($this->selected[$i] ?? false) {
                 $values[] = $value;
+                $spicy[] = $dieSpicy[$i] ?? false;
+                $heldSlots[] = $this->activeDieSlots[$i];
             }
         }
 
-        $result = $this->engine->scoreSelection($values);
+        $result = $this->engine->scoreSelection($values, $spicy);
 
         $this->turnScore += $result['score'];
         $this->heldDiceCount += count($values);
         $this->bankedDiceThisTurn = [...$this->bankedDiceThisTurn, ...$values];
+        $this->activeDieSlots = array_values(array_diff($this->activeDieSlots, $heldSlots));
 
         if ($this->heldDiceCount === self::DICE_COUNT) {
             $this->heldDiceCount = 0;
+            $this->activeDieSlots = range(1, self::DICE_COUNT);
             $this->players[$this->currentPlayer]['hotDiceCount']++;
         }
 
         $this->dice = [];
         $this->selected = [];
+        $this->dieSpicy = [];
+    }
+
+    /**
+     * The Spicy variant's instant-win condition (docs/specs/farkle.md
+     * §6.4) -- ends the whole game right now, crediting the rolling
+     * player a win regardless of their current banked score, and
+     * *without* triggering a final round for everyone else the way
+     * normally crossing $targetScore does.
+     */
+    private function winInstantly(): void
+    {
+        $this->message = null;
+        $this->messageType = null;
+        $this->finishGame($this->currentPlayer);
+    }
+
+    /**
+     * $dieSpicy itself, but forced all-false whenever $spicyEnabled is
+     * off -- real gameplay never populates $dieSpicy with a true flag
+     * unless $spicyEnabled (see performRoll()), but this guards every
+     * call site that feeds it to the engine against stale/hand-set state
+     * disagreeing with the toggle (e.g. a room reconnecting mid-flight,
+     * or a test forcing $dice/$dieSpicy directly) ever silently doubling
+     * a non-Spicy game's score.
+     *
+     * @return list<bool>
+     */
+    private function activeDieSpicy(): array
+    {
+        return $this->spicyEnabled ? $this->dieSpicy : array_fill(0, count($this->dice), false);
     }
 
     private function bankTurnScore(): void
@@ -479,6 +682,18 @@ new class extends Component
         $player['hasQualified'] = $player['hasQualified'] || $this->turnScore >= Scorer::MINIMUM_ENTRY_SCORE;
         $player['bestTurnScore'] = max($player['bestTurnScore'], $this->turnScore);
         $this->players[$this->currentPlayer] = $player;
+
+        // Offered to the very next player's turn only -- see
+        // $lastBankInheritance's own docblock and
+        // docs/specs/farkle.md §6.5. $activeDieSlots defaults to a full
+        // six when empty (a hot-dice-fully-used bank), per the rule's own
+        // "even if...all six dice already used" carve-out.
+        if ($this->highStakesEnabled) {
+            $this->lastBankInheritance = [
+                'turnScore' => $this->turnScore,
+                'remainingSlots' => $this->activeDieSlots !== [] ? $this->activeDieSlots : range(1, self::DICE_COUNT),
+            ];
+        }
 
         $this->message = "{$player['name']} banked {$this->turnScore}.";
         $this->messageType = 'banked';
@@ -540,9 +755,11 @@ new class extends Component
     {
         $this->dice = [];
         $this->selected = [];
+        $this->dieSpicy = [];
         $this->bankedDiceThisTurn = [];
         $this->turnScore = 0;
         $this->heldDiceCount = 0;
+        $this->activeDieSlots = range(1, self::DICE_COUNT);
     }
 
     private function syncOnlineStateIfNeeded(): void
@@ -552,17 +769,32 @@ new class extends Component
         }
     }
 
-    private function finishGame(): void
+    /**
+     * Ends the game. `$forcedWinnerIndex` is only set by winInstantly()
+     * (docs/specs/farkle.md §6.4) -- when present, that player wins
+     * outright regardless of any banked score, and everyone else is a
+     * plain loss (no draws possible), bypassing the normal
+     * highest-bankedScore comparison entirely.
+     */
+    private function finishGame(?int $forcedWinnerIndex = null): void
     {
         $this->gameOver = true;
         $this->dice = [];
         $this->selected = [];
+        $this->dieSpicy = [];
         $this->bankedDiceThisTurn = [];
         $this->turnScore = 0;
         $this->heldDiceCount = 0;
+        $this->activeDieSlots = [];
+        $this->lastBankInheritance = null;
 
-        $topScore = collect($this->players)->max('bankedScore');
-        $winners = collect($this->players)->where('bankedScore', $topScore)->count();
+        if ($forcedWinnerIndex !== null) {
+            $topScore = $this->players[$forcedWinnerIndex]['bankedScore'];
+            $winners = 1;
+        } else {
+            $topScore = collect($this->players)->max('bankedScore');
+            $winners = collect($this->players)->where('bankedScore', $topScore)->count();
+        }
 
         if ($this->room !== null) {
             $session = GameSession::findOrFail($this->gameSessionId);
@@ -591,6 +823,8 @@ new class extends Component
                     'player_count' => count($this->players),
                     'target_score' => $this->targetScore,
                     'with_final_round' => $this->withFinalRound,
+                    'spicy_enabled' => $this->spicyEnabled,
+                    'high_stakes_enabled' => $this->highStakesEnabled,
                 ],
                 'started_at' => now(),
                 'ended_at' => now(),
@@ -599,7 +833,13 @@ new class extends Component
         }
 
         foreach ($this->players as $i => $player) {
+            // With a forced winner (an instant win), bankedScore doesn't
+            // decide anything -- another player's total could coincidentally
+            // equal $topScore without being the winner, so this checks the
+            // seat index directly rather than falling through to the normal
+            // score-comparison branches below.
             $result = match (true) {
+                $forcedWinnerIndex !== null => $i === $forcedWinnerIndex ? GameResult::Win : GameResult::Loss,
                 $player['bankedScore'] !== $topScore => GameResult::Loss,
                 $winners > 1 => GameResult::Draw,
                 default => GameResult::Win,
@@ -628,14 +868,20 @@ new class extends Component
             ]);
         }
 
-        $winnerName = collect($this->players)
-            ->filter(fn ($player) => $player['bankedScore'] === $topScore)
-            ->pluck('name')
-            ->first();
+        if ($forcedWinnerIndex !== null) {
+            $winnerName = $this->players[$forcedWinnerIndex]['name'];
+            $this->message = "Game Over — {$winnerName} rolled an instant win (all six dice spicy)!";
+        } else {
+            $winnerName = collect($this->players)
+                ->filter(fn ($player) => $player['bankedScore'] === $topScore)
+                ->pluck('name')
+                ->first();
 
-        $this->message = $winners > 1
-            ? "Game Over — It's a tie at {$topScore}!"
-            : "Game Over — {$winnerName} wins with {$topScore}!";
+            $this->message = $winners > 1
+                ? "Game Over — It's a tie at {$topScore}!"
+                : "Game Over — {$winnerName} wins with {$topScore}!";
+        }
+
         $this->messageType = 'gameOver';
     }
 
@@ -653,6 +899,7 @@ new class extends Component
         $this->meIndex = null;
         $this->finalRoundActive = false;
         $this->finalRoundRemaining = null;
+        $this->lastBankInheritance = null;
     }
 
     /**
@@ -680,15 +927,18 @@ new class extends Component
      */
     private function selectionScoreValue(): array
     {
+        $dieSpicy = $this->activeDieSpicy();
         $values = [];
+        $spicy = [];
 
         foreach ($this->dice as $i => $value) {
             if ($this->selected[$i] ?? false) {
                 $values[] = $value;
+                $spicy[] = $dieSpicy[$i] ?? false;
             }
         }
 
-        return $this->engine->scoreSelection($values);
+        return $this->engine->scoreSelection($values, $spicy);
     }
 
     /**
@@ -740,7 +990,7 @@ new class extends Component
      */
     private function bankableAmountValue(): int
     {
-        return $this->turnScore + $this->engine->scoreMaximal($this->dice);
+        return $this->turnScore + $this->engine->scoreMaximal($this->dice, $this->activeDieSpicy());
     }
 
     public function getBankableAmountProperty(): int
@@ -754,7 +1004,7 @@ new class extends Component
             return false;
         }
 
-        if ($this->engine->scoreMaximal($this->dice) <= 0) {
+        if ($this->engine->scoreMaximal($this->dice, $this->activeDieSpicy()) <= 0) {
             return false;
         }
 
@@ -766,6 +1016,29 @@ new class extends Component
     public function getCanBankProperty(): bool
     {
         return $this->canBankValue();
+    }
+
+    /**
+     * Whether the High Stakes choice (docs/specs/farkle.md §6.5) should
+     * be offered right now instead of the plain Roll button -- only at
+     * the true start of a turn (nothing rolled or held yet this turn),
+     * with High Stakes on and something actually left to inherit from
+     * the previous turn's bank.
+     */
+    private function canTakeOverValue(): bool
+    {
+        if ($this->dice !== [] || $this->gameOver || $this->isSpectatorValue() || ! $this->isMyTurnValue()) {
+            return false;
+        }
+
+        return $this->highStakesEnabled
+            && $this->lastBankInheritance !== null
+            && $this->bankedDiceThisTurn === [];
+    }
+
+    public function getCanTakeOverProperty(): bool
+    {
+        return $this->canTakeOverValue();
     }
 
     public function getCanEndGameManuallyProperty(): bool
@@ -842,6 +1115,21 @@ new class extends Component
         <li>The game plays to a target score (10,000 by default), shown at the top of the page once it starts. With the final round option on, once someone banks a turn that reaches the target, every other player gets exactly one more turn (announced on screen) before the game ends and the highest total wins (ties are possible). With it off, the game ends the instant anyone reaches the target.</li>
         <li>A host (or, in local pass-and-play, any player) can end the game early from the button bar instead of playing to the target.</li>
     </ul>
+
+    <h3>Spicy Variant (optional)</h3>
+    <ul>
+        <li>Each of the 6 dice has one number, 1&ndash;6, marked as its own "spicy" face &mdash; shown with a highlighted border whenever a die lands on its own number.</li>
+        <li>A spicy die doubles the score of whatever combination it's part of (e.g. three 4s with one spicy 4 scores 800, not 400). Multiple spicy dice in the same combination double it again each time.</li>
+        <li>Rolling all 6 dice spicy at once is an instant win, ending the game immediately for everyone regardless of anyone's current score.</li>
+        <li>Spicy games default to a 25,000 target score instead of 10,000, still adjustable at setup.</li>
+    </ul>
+
+    <h3>High Stakes Variant (optional, independent of Spicy)</h3>
+    <ul>
+        <li>Whenever the previous player ends their turn by banking, the next player can choose to take over instead of rolling a fresh six: their turn starts with the previous player's <em>entire</em> banked turn score already as their own turn score, plus however many dice that player hadn't held yet (freshly rerolled, not the same values).</li>
+        <li>That head start is now fully at risk &mdash; busting this turn loses all of it, same as any other turn score. It never reduces the previous player's own total either way.</li>
+        <li>Only available right after a bank, never after a bust, and only for the very next player &mdash; declining it (rolling fresh instead) forfeits it for good.</li>
+    </ul>
 </x-slot:rules>
 <div class="flex flex-col items-center w-full flex-1 min-h-0">
     @if ($started)
@@ -917,7 +1205,7 @@ new class extends Component
             <div class="setup-row">
                 <div class="label">Target Score</div>
                 <div class="option-group">
-                    @foreach (self::TARGET_SCORE_OPTIONS as $option)
+                    @foreach ($spicyEnabled ? self::SPICY_TARGET_SCORE_OPTIONS : self::TARGET_SCORE_OPTIONS as $option)
                         <button type="button" id="target-score-{{ $option }}" class="option {{ $targetScore === $option ? 'active' : '' }}" wire:click="$set('targetScore', {{ $option }})">
                             {{ number_format($option) }}
                         </button>
@@ -930,6 +1218,22 @@ new class extends Component
                 <div class="option-group">
                     <button type="button" id="final-round-on" class="option {{ $withFinalRound ? 'active' : '' }}" wire:click="$set('withFinalRound', true)">On</button>
                     <button type="button" id="final-round-off" class="option {{ ! $withFinalRound ? 'active' : '' }}" wire:click="$set('withFinalRound', false)">Off</button>
+                </div>
+            </div>
+
+            <div class="setup-row">
+                <div class="label">Spicy</div>
+                <div class="option-group">
+                    <button type="button" id="spicy-on" class="option {{ $spicyEnabled ? 'active' : '' }}" wire:click="setSpicyEnabled(true)">On</button>
+                    <button type="button" id="spicy-off" class="option {{ ! $spicyEnabled ? 'active' : '' }}" wire:click="setSpicyEnabled(false)">Off</button>
+                </div>
+            </div>
+
+            <div class="setup-row">
+                <div class="label">High Stakes</div>
+                <div class="option-group">
+                    <button type="button" id="high-stakes-on" class="option {{ $highStakesEnabled ? 'active' : '' }}" wire:click="$set('highStakesEnabled', true)">On</button>
+                    <button type="button" id="high-stakes-off" class="option {{ ! $highStakesEnabled ? 'active' : '' }}" wire:click="$set('highStakesEnabled', false)">Off</button>
                 </div>
             </div>
 
@@ -993,7 +1297,7 @@ new class extends Component
                         <div class="dice-area">
                             <div class="row">
                                 @for ($i = 0; $i < self::DICE_COUNT - $heldDiceCount; $i++)
-                                    <div class="die {{ ($selected[$i] ?? false) ? 'selected' : '' }}" @if ($this->isMyTurn && ! $this->isSpectator && $dice !== []) wire:click="toggleSelect({{ $i }})" @endif>
+                                    <div class="die {{ ($selected[$i] ?? false) ? 'selected' : '' }} {{ ($dieSpicy[$i] ?? false) ? 'spicy' : '' }}" @if ($this->isMyTurn && ! $this->isSpectator && $dice !== []) wire:click="toggleSelect({{ $i }})" @endif>
                                         <span class="number">{{ $dice[$i] ?? '' }}</span>
                                     </div>
                                 @endfor
@@ -1002,7 +1306,14 @@ new class extends Component
                             <div class="controls">
                                 @if ($this->isMyTurn && ! $this->isSpectator)
                                     @if ($dice === [])
-                                        <button type="button" id="rollBtn" wire:click="roll" @disabled($gameOver)>Roll</button>
+                                        @if ($this->canTakeOver)
+                                            <button type="button" id="rollFreshBtn" wire:click="roll">Roll Fresh Six</button>
+                                            <button type="button" id="rollTakeOverBtn" wire:click="rollTakeOver">
+                                                Take Over ({{ number_format($lastBankInheritance['turnScore']) }} + {{ count($lastBankInheritance['remainingSlots']) }} dice)
+                                            </button>
+                                        @else
+                                            <button type="button" id="rollBtn" wire:click="roll" @disabled($gameOver)>Roll</button>
+                                        @endif
                                     @else
                                         <button type="button" id="rollAgainBtn" wire:click="rollAgain" @disabled(! $this->canRollAgain)>Roll Again</button>
                                         <button type="button" id="bankBtn" wire:click="bank" @disabled(! $this->canBank)>Bank {{ $this->bankableAmount }}</button>
