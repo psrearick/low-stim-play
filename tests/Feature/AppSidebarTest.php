@@ -14,16 +14,29 @@ uses(RefreshDatabase::class);
  */
 function assertHasSidebar(TestCase $test, string $path): void
 {
-    $test->get($path)
+    // "Edit Profile"/"Log Out" moved out of the sidebar entirely, into the
+    // navbar's own avatar dropdown (see tests/Feature/UserMenuTest.php) --
+    // docs/TODO.md's former #24. The per-game labels also dropped their
+    // " Stats" suffix as part of the same change -- checked against just
+    // the <aside> fragment, not the whole page, since e.g. pages::profile.
+    // boggle.index's own <h1>/title legitimately still says "Word Grid
+    // Stats" (out of scope here, untouched), which a page-wide
+    // assertDontSee would otherwise collide with.
+    $response = $test->get($path)
         ->assertSee('id="app-sidebar"', false)
         ->assertSee('My Stats')
         ->assertSee('All Games')
-        ->assertSee('Word Grid Stats')
-        ->assertSee('Yacht Stats')
-        ->assertSee('Survey Says Stats')
-        ->assertSee('10,000 Stats')
-        ->assertSee('Edit Profile')
-        ->assertSee('Log Out');
+        ->assertSee('Word Grid')
+        ->assertSee('Yacht')
+        ->assertSee('Survey Says')
+        ->assertSee('10,000');
+
+    preg_match('#<aside.*?</aside>#s', $response->getContent(), $matches);
+    expect($matches[0] ?? null)
+        ->not->toBeNull()
+        ->not->toContain('Word Grid Stats')
+        ->not->toContain('Edit Profile')
+        ->not->toContain('Log Out');
 }
 
 test('the sidebar appears on every Dashboard/Profile/Stats page', function () {

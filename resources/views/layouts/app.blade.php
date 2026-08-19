@@ -61,6 +61,7 @@
                     round trip of their own for a teleport to react to.
                 --}}
                 <livewire:rooms-menu />
+                <x-user-menu />
                 {{--
                     A stable teleport target (see Livewire's @teleport
                     directive), not a slot -- game-specific right-side

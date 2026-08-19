@@ -105,62 +105,71 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // ---- Rooms menu (navbar, every page) ----------------------------------
+    // ---- Navbar dropdowns (Rooms menu, Account menu -- every page) --------
     // Delegated, not bound directly like the sidebar toggle above -- unlike
     // the sidebar, <livewire:rooms-menu>'s own root re-renders on every
     // action it takes (joinByCode's error message, for one), and a direct
-    // binding would silently stop working the first time that happens.
-    // The toggle button and panel themselves carry wire:ignore.self so
-    // Livewire's morph never resets the open/closed state JS manages here
-    // out from under a re-render -- the same fix class as the scoreboard-
+    // binding would silently stop working the first time that happens. The
+    // Account menu (<x-user-menu>) isn't a Livewire component at all and
+    // so never actually needs this, but it shares the exact same open/
+    // close/position behavior, so it reuses this same delegated setup
+    // rather than a second, near-identical direct-binding version.
+    // <livewire:rooms-menu>'s own toggle/panel carry wire:ignore.self so
+    // Livewire's morph never resets the open/closed state managed here out
+    // from under a re-render -- the same fix class as the scoreboard-
     // drawer's dialog[open] bug documented in docs/DEVLOG.md, applied
     // proactively here instead of after the fact.
-    document.addEventListener('click', (event) => {
-        const toggle = event.target.closest('#rooms-menu-toggle');
-        const panel = document.getElementById('rooms-menu-panel');
+    const registerNavbarDropdown = (toggleId, panelId) => {
+        document.addEventListener('click', (event) => {
+            const toggle = event.target.closest(`#${toggleId}`);
+            const panel = document.getElementById(panelId);
 
-        if (!panel) {
-            return;
-        }
-
-        if (toggle) {
-            const willOpen = panel.hasAttribute('hidden');
-            panel.toggleAttribute('hidden', !willOpen);
-            toggle.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
-
-            // Positioned in JS, not left to the CSS right-0/top-full
-            // classes alone -- those assume the toggle button sits at
-            // the screen's right edge, which is only true when
-            // .button-bar .right fits on one line. On a narrow viewport
-            // it wraps, the button can land anywhere on that second
-            // line, and a fixed right-0 offset then pushed the panel
-            // partly off the left edge of the screen entirely (confirmed
-            // live: negative getBoundingClientRect().left). Measuring the
-            // toggle's real position and clamping the panel to the
-            // viewport works regardless of where wrapping puts it.
-            if (willOpen) {
-                const toggleRect = toggle.getBoundingClientRect();
-                const margin = 8;
-                const panelWidth = panel.offsetWidth;
-                const left = Math.max(
-                    margin,
-                    Math.min(toggleRect.right - panelWidth, window.innerWidth - panelWidth - margin),
-                );
-
-                panel.style.position = 'fixed';
-                panel.style.top = `${toggleRect.bottom + margin}px`;
-                panel.style.left = `${left}px`;
-                panel.style.right = 'auto';
+            if (!panel) {
+                return;
             }
 
-            return;
-        }
+            if (toggle) {
+                const willOpen = panel.hasAttribute('hidden');
+                panel.toggleAttribute('hidden', !willOpen);
+                toggle.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
 
-        if (!panel.hasAttribute('hidden') && !panel.contains(event.target)) {
-            panel.setAttribute('hidden', '');
-            document.getElementById('rooms-menu-toggle')?.setAttribute('aria-expanded', 'false');
-        }
-    });
+                // Positioned in JS, not left to the CSS right-0/top-full
+                // classes alone -- those assume the toggle button sits at
+                // the screen's right edge, which is only true when
+                // .button-bar .right fits on one line. On a narrow viewport
+                // it wraps, the button can land anywhere on that second
+                // line, and a fixed right-0 offset then pushed the panel
+                // partly off the left edge of the screen entirely (confirmed
+                // live: negative getBoundingClientRect().left). Measuring the
+                // toggle's real position and clamping the panel to the
+                // viewport works regardless of where wrapping puts it.
+                if (willOpen) {
+                    const toggleRect = toggle.getBoundingClientRect();
+                    const margin = 8;
+                    const panelWidth = panel.offsetWidth;
+                    const left = Math.max(
+                        margin,
+                        Math.min(toggleRect.right - panelWidth, window.innerWidth - panelWidth - margin),
+                    );
+
+                    panel.style.position = 'fixed';
+                    panel.style.top = `${toggleRect.bottom + margin}px`;
+                    panel.style.left = `${left}px`;
+                    panel.style.right = 'auto';
+                }
+
+                return;
+            }
+
+            if (!panel.hasAttribute('hidden') && !panel.contains(event.target)) {
+                panel.setAttribute('hidden', '');
+                document.getElementById(toggleId)?.setAttribute('aria-expanded', 'false');
+            }
+        });
+    };
+
+    registerNavbarDropdown('rooms-menu-toggle', 'rooms-menu-panel');
+    registerNavbarDropdown('user-menu-toggle', 'user-menu-panel');
 
     // ---- Generic low-stim dialogs (<x-dialog>/<x-confirm-dialog>) --------
     // Delegated on `document`, not bound per-element like the Rules dialog

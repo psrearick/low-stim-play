@@ -2556,12 +2556,6 @@ body.scrollable.family-feud-play {
     color: var(--bar);
 }
 
-.app-sidebar-divider {
-    height: 1px;
-    margin: 8px 4px;
-    background: var(--die-border);
-}
-
 .app-main {
     flex: 1;
     min-width: 0;

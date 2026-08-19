@@ -12,7 +12,6 @@ The Order of Work list is a separate, ordinary numbered list reflecting current 
 2. [Task 8: Add Quartiles](#8-add-quartiles)
 3. [Task 10: Spec and build NYT-style puzzle games](#10-spec-and-build-nyt-style-puzzle-games)
 4. [Task 11: Shared puzzle-game infrastructure](#11-shared-puzzle-game-infrastructure)
-5. [Task 24: Move Edit Profile/Log Out into a navbar avatar dropdown, trim the sidebar](#24-move-edit-profilelog-out-into-a-navbar-avatar-dropdown-trim-the-sidebar)
 
 ## Tasks
 
@@ -31,15 +30,4 @@ Add Wordle, Pips, Spelling Bee, Strands, and Connections. All need daily/random 
 ### 11. Shared puzzle-game infrastructure
 
 A cross-cutting set of features for the app's puzzle-style games (Boggle/Word Grid, Quartiles once built, and the NYT-style games in Task 10 once built): give each individual puzzle a unique code so it can be shared and replayed identically by someone else; once Friends activity (Task 4) exists, surface that code there too — e.g. a "Challenge a Friend" button at the end of a game, possibly emailing an invite; and add daily puzzles (one fixed puzzle per game per day, distinct from the existing random ones) with an archive of past days' puzzles. Depends on Task 4 for the friend-sharing piece, and on the relevant puzzle games actually existing.
-
-### 24. Move Edit Profile/Log Out into a navbar avatar dropdown, trim the sidebar
-
-A follow-up polish pass on the sidebar/navbar split from the "Navigation" redesign (`docs/DEVLOG.md`'s own section) and Task 3's image-avatar upload, both already shipped:
-
-- Drop the " Stats" suffix from each per-game sidebar label (`app-sidebar.blade.php`'s `$links` array) — "Word Grid Stats" → "Word Grid", "Yacht Stats" → "Yacht", "Survey Says Stats" → "Survey Says", "10,000 Stats" → "10,000", "Best Match Stats" → "Best Match", "Clear the Deck (Tens) Stats" → "Clear the Deck (Tens)". The sidebar's own "My Stats" (dashboard) entry is unaffected — it isn't one of the per-game labels this is about.
-- Remove the "Edit Profile" link and the "Log Out" form/divider from the sidebar entirely — both move into the new avatar dropdown below instead.
-- Add an avatar (the existing `<x-avatar>` component, already used on `/dashboard` and public profile pages) to the persistent top navbar, visible on every authenticated page — including pages with the sidebar (`/dashboard`, `/profile`, the stats pages), which currently render nothing in the top bar's right side at all, unlike the homepage's own `$barRight` slot.
-- Clicking the avatar opens a dropdown with three items: "Stats" (→ `/dashboard`), "Edit Profile" (→ `/profile`), "Logout". The existing Rooms menu (`<livewire:rooms-menu>`, `#rooms-menu-toggle`/`#rooms-menu-panel` in `layouts/app.blade.php`, positioning JS in `app.js`) is the established pattern for a toggle-button-plus-positioned-panel in this exact navbar — reuse that interaction shape rather than inventing a new one.
-- Remove "My Stats" and "Log Out" (and whatever visual separator currently sits between them) from the homepage's own authenticated-state `$barRight` slot (`welcome.blade.php`) — both are superseded by the new avatar dropdown, which should render there too once it's navbar-wide.
-- Guest (unauthenticated) navbar state — Sign In / Create an Account — is unaffected; this is only about the authenticated-user navbar.
 

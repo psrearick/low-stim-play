@@ -10,18 +10,22 @@ test('guests see sign in and create account links in the top bar', function () {
         ->assertOk()
         ->assertSee('Sign In')
         ->assertSee('Create an Account')
-        ->assertDontSee('My Stats')
-        ->assertDontSee('Log Out');
+        ->assertDontSee('Logout');
 });
 
-test('authenticated users see my stats and log out links in the top bar', function () {
+/**
+ * "My Stats"/"Log Out" no longer render directly in the homepage's own
+ * bar -- they moved into the navbar-wide avatar dropdown (docs/TODO.md's
+ * former #24, see tests/Feature/UserMenuTest.php for that component's own
+ * coverage), which this just confirms actually renders here too.
+ */
+test('authenticated users see the avatar account menu instead of Sign In/Create an Account', function () {
     $user = User::factory()->create();
 
     $this->actingAs($user)
         ->get('/')
         ->assertOk()
-        ->assertSee('My Stats')
-        ->assertSee('Log Out')
+        ->assertSee('id="user-menu-toggle"', false)
         ->assertDontSee('Sign In')
         ->assertDontSee('Create an Account');
 });
