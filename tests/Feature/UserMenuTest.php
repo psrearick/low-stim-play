@@ -18,7 +18,7 @@ test('a guest (logged out) visitor sees no account menu at all', function () {
         ->assertDontSee('id="user-menu-panel"', false);
 });
 
-test('an authenticated visitor sees the avatar toggle and its Stats/Edit Profile/Logout links', function () {
+test('an authenticated visitor sees the avatar toggle and its Stats/Friends/Edit Profile/Logout links', function () {
     $user = User::factory()->create(['name' => 'Alex Rivera']);
 
     $this->actingAs($user)
@@ -26,9 +26,11 @@ test('an authenticated visitor sees the avatar toggle and its Stats/Edit Profile
         ->assertSee('id="user-menu-toggle"', false)
         ->assertSee('id="user-menu-panel"', false)
         ->assertSee('Stats')
+        ->assertSee('Friends')
         ->assertSee('Edit Profile')
         ->assertSee('Logout')
         ->assertSeeHtml(route('dashboard'))
+        ->assertSeeHtml(route('friends'))
         ->assertSeeHtml(route('profile'))
         ->assertSeeHtml(route('logout'));
 });

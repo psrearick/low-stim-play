@@ -45,6 +45,22 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     }
 
     /**
+     * @return HasMany<Friendship, $this>
+     */
+    public function sentFriendRequests(): HasMany
+    {
+        return $this->hasMany(Friendship::class, 'requester_id');
+    }
+
+    /**
+     * @return HasMany<Friendship, $this>
+     */
+    public function receivedFriendRequests(): HasMany
+    {
+        return $this->hasMany(Friendship::class, 'addressee_id');
+    }
+
+    /**
      * Null when no image has been uploaded -- `<x-avatar>` falls back to
      * the generated initial-letter badge in that case.
      */

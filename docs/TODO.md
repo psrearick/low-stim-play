@@ -8,16 +8,11 @@ The Order of Work list is a separate, ordinary numbered list reflecting current 
 
 ## Order of Work
 
-1. [Task 4: Friends activity](#4-friends-activity)
-2. [Task 8: Add Quartiles](#8-add-quartiles)
-3. [Task 10: Spec and build NYT-style puzzle games](#10-spec-and-build-nyt-style-puzzle-games)
-4. [Task 11: Shared puzzle-game infrastructure](#11-shared-puzzle-game-infrastructure)
+1. [Task 8: Add Quartiles](#8-add-quartiles)
+2. [Task 10: Spec and build NYT-style puzzle games](#10-spec-and-build-nyt-style-puzzle-games)
+3. [Task 11: Shared puzzle-game infrastructure](#11-shared-puzzle-game-infrastructure)
 
 ## Tasks
-
-### 4. Friends activity
-
-The original app plan mentioned a friends-activity feed on the dashboard once, but no friends/social-graph table (follow requests? mutual-only follows?) exists anywhere in the schema. Needs an actual design decision — what "friends" means here — before any building starts.
 
 ### 8. Add Quartiles
 
@@ -29,5 +24,5 @@ Add Wordle, Pips, Spelling Bee, Strands, and Connections. All need daily/random 
 
 ### 11. Shared puzzle-game infrastructure
 
-A cross-cutting set of features for the app's puzzle-style games (Boggle/Word Grid, Quartiles once built, and the NYT-style games in Task 10 once built): give each individual puzzle a unique code so it can be shared and replayed identically by someone else; once Friends activity (Task 4) exists, surface that code there too — e.g. a "Challenge a Friend" button at the end of a game, possibly emailing an invite; and add daily puzzles (one fixed puzzle per game per day, distinct from the existing random ones) with an archive of past days' puzzles. Depends on Task 4 for the friend-sharing piece, and on the relevant puzzle games actually existing.
+A cross-cutting set of features for the app's puzzle-style games (Boggle/Word Grid, Quartiles once built, and the NYT-style games in Task 10 once built): give each individual puzzle a unique code so it can be shared and replayed identically by someone else; surface that code on the Friends page (see `docs/DEVLOG.md`'s "Friends & friend activity" section) too — e.g. a "Challenge a Friend" button at the end of a game, possibly emailing an invite; and add daily puzzles (one fixed puzzle per game per day, distinct from the existing random ones) with an archive of past days' puzzles. Depends on the relevant puzzle games actually existing.
 

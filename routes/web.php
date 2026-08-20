@@ -30,6 +30,10 @@ Route::livewire('/profile', 'pages::profile')
     ->middleware(['auth', 'verified'])
     ->name('profile');
 
+Route::livewire('/friends', 'pages::friends')
+    ->middleware(['auth', 'verified'])
+    ->name('friends');
+
 // Registered before /profile/{username} below, which would otherwise treat
 // "word-grid" as a username and swallow both these routes -- Laravel matches
 // routes in registration order, and {username} is a single wildcard segment

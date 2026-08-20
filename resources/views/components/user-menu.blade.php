@@ -57,6 +57,7 @@
         <div id="user-menu-panel" hidden
             class="absolute right-0 top-full mt-2 w-48 rounded-lg border-2 border-surface-border bg-surface p-2 flex flex-col gap-1 z-10">
             <a href="{{ route('dashboard') }}" class="px-2 py-2 rounded text-sm text-text hover:bg-bg/60">Stats</a>
+            <a href="{{ route('friends') }}" class="px-2 py-2 rounded text-sm text-text hover:bg-bg/60">Friends</a>
             <a href="{{ route('profile') }}" class="px-2 py-2 rounded text-sm text-text hover:bg-bg/60">Edit Profile</a>
 
             <div class="border-t border-surface-border my-1"></div>
