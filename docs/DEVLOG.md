@@ -605,6 +605,23 @@ deterministic case (five 8-letter, single-repeated-character candidate words, e.
 every single time, proving the retry loop's own exhaustion path throws rather than
 silently returning a colliding puzzle.
 
+**Two more `docs/notes.md` follow-ups: dropped the "Quad found" label, and a two-column
+desktop layout.** The per-found-row text label (`<p>Quad found</p>`) was removed outright
+per the request — the found row's own distinct color/border plus its position, pinned to
+its own row at the top of the grid, remain as the non-color signal the spec's
+accessibility section calls for (section 5), just without the redundant caption repeated
+once per Quad. Separately, the grid+controls and the found-words list used to be one
+single stacked column capped at `max-w-md` regardless of viewport, so a longer found-
+words list pushed the page tall enough to need scrolling even on a wide desktop screen
+with plenty of horizontal room going unused. Now `lg:flex-row` (grid on the left, found-
+words list on the right, `lg:sticky lg:top-24` so the list stays in view while scrolling
+the grid) — collapses back to the original single stacked column below that breakpoint,
+where there's no room for two columns side by side anyway. `tests/Browser/
+QuartilesFoundQuartileTest.php`'s hand-verified seed-1 fixture word changed from
+"dingiest" to "carjacker" as a side effect of `attemptUniqueFragments()`'s own retry loop
+consuming randomness differently than the original generator did — re-verified live
+(`PuzzleGenerator::generate(1)`) rather than assumed still correct.
+
 ## User profiles & stats
 
 - `/dashboard` (own stats) and `/profile/{username}` (public, `is_public`-gated).

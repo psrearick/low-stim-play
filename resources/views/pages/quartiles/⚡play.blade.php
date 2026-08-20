@@ -584,15 +584,25 @@ new class extends Component
     @endif
 
     @unless ($ended)
-        <div class="flex flex-col items-center gap-3 w-full max-w-md">
-            <p class="status-line text-center" id="quartiles-selected-word" style="min-height: 1.5em;">
-                {{ $this->selectedWord }}
-            </p>
+        {{--
+            Side by side on desktop (the grid + controls on the left, the
+            growing found-words list on the right) so both are visible at
+            once instead of having to scroll past the whole grid to see
+            what's been found so far -- stacked back to a single column
+            below lg, where there's no room for two columns side by side
+            anyway. items-start (not items-center, unlike the single-
+            column mobile layout) so the right column's own top aligns
+            with the left's instead of vertically centering against
+            whichever column is taller.
+        --}}
+        <div class="flex flex-col lg:flex-row lg:items-start justify-center gap-6 w-full lg:max-w-3xl">
+            <div class="flex flex-col items-center gap-3 w-full max-w-md mx-auto lg:mx-0">
+                <p class="status-line text-center" id="quartiles-selected-word" style="min-height: 1.5em;">
+                    {{ $this->selectedWord }}
+                </p>
 
-            @foreach ($foundGroups as $groupIndex)
-                <div class="flex flex-col items-center gap-1 w-full" id="found-group-{{ $groupIndex }}" wire:key="found-group-{{ $groupIndex }}">
-                    <p class="text-xs text-accent font-bold">Quad found</p>
-                    <div class="grid grid-cols-4 gap-2 w-full">
+                @foreach ($foundGroups as $groupIndex)
+                    <div class="grid grid-cols-4 gap-2 w-full" id="found-group-{{ $groupIndex }}" wire:key="found-group-{{ $groupIndex }}">
                         @foreach ($groups[$groupIndex] as $tileId)
                             <button type="button" id="tile-{{ $tileId }}" wire:key="tile-{{ $tileId }}" wire:click="toggleTile({{ $tileId }})"
                                 aria-pressed="{{ in_array($tileId, $selected, true) ? 'true' : 'false' }}"
@@ -601,36 +611,36 @@ new class extends Component
                             </button>
                         @endforeach
                     </div>
-                </div>
-            @endforeach
-
-            <div class="grid grid-cols-4 gap-2 w-full" id="unfound-tiles">
-                @foreach ($unfoundOrder as $tileId)
-                    <button type="button" id="tile-{{ $tileId }}" wire:key="tile-{{ $tileId }}" wire:click="toggleTile({{ $tileId }})"
-                        aria-pressed="{{ in_array($tileId, $selected, true) ? 'true' : 'false' }}"
-                        class="quartile-tile aspect-square min-h-14 flex items-center justify-center rounded-lg border-2 text-base font-bold tracking-wide bg-surface border-surface-border text-text {{ in_array($tileId, $selected, true) ? 'ring-2 ring-accent border-accent' : '' }}">
-                        {{ $tiles[$tileId]['display'] }}
-                    </button>
                 @endforeach
+
+                <div class="grid grid-cols-4 gap-2 w-full" id="unfound-tiles">
+                    @foreach ($unfoundOrder as $tileId)
+                        <button type="button" id="tile-{{ $tileId }}" wire:key="tile-{{ $tileId }}" wire:click="toggleTile({{ $tileId }})"
+                            aria-pressed="{{ in_array($tileId, $selected, true) ? 'true' : 'false' }}"
+                            class="quartile-tile aspect-square min-h-14 flex items-center justify-center rounded-lg border-2 text-base font-bold tracking-wide bg-surface border-surface-border text-text {{ in_array($tileId, $selected, true) ? 'ring-2 ring-accent border-accent' : '' }}">
+                            {{ $tiles[$tileId]['display'] }}
+                        </button>
+                    @endforeach
+                </div>
+
+                <div class="flex gap-3">
+                    <button type="button" id="quartiles-shuffle-btn" wire:click="shuffleTiles">Shuffle</button>
+                    <button type="button" id="quartiles-clear-btn" wire:click="clearSelection" @disabled($selected === [])>Clear</button>
+                    <button type="button" id="quartiles-submit-btn" wire:click="submitWord" @disabled($selected === [])>Submit</button>
+                </div>
+
+                @if ($message)
+                    <p class="status-line" style="color: var(--warn);">{{ $message }}</p>
+                @endif
             </div>
 
-            <div class="flex gap-3">
-                <button type="button" id="quartiles-shuffle-btn" wire:click="shuffleTiles">Shuffle</button>
-                <button type="button" id="quartiles-clear-btn" wire:click="clearSelection" @disabled($selected === [])>Clear</button>
-                <button type="button" id="quartiles-submit-btn" wire:click="submitWord" @disabled($selected === [])>Submit</button>
-            </div>
-
-            @if ($message)
-                <p class="status-line" style="color: var(--warn);">{{ $message }}</p>
-            @endif
-
-            <div class="flex flex-col gap-2 w-full">
+            <div class="flex flex-col gap-2 w-full max-w-md mx-auto lg:mx-0 lg:max-w-xs lg:sticky lg:top-24">
                 <p class="text-sm text-text/80 font-bold">Words found</p>
 
                 @if ($foundWords === [])
                     <p class="text-sm text-text/65 text-center">Nothing yet.</p>
                 @else
-                    <div class="flex flex-wrap gap-2 w-full" id="found-words-list">
+                    <div class="flex flex-wrap gap-2 w-full lg:max-h-[520px] lg:overflow-y-auto" id="found-words-list">
                         @foreach ($this->foundWordsSorted as $word => $points)
                             <span wire:key="found-word-{{ $word }}" class="text-sm bg-surface border border-surface-border rounded px-3 py-1.5 text-text">
                                 {{ strtoupper($word) }} <span class="text-text/65">({{ $points }})</span>

@@ -9,9 +9,13 @@
  * (already covered by tests/Feature/Games/QuartilesGameTest.php).
  *
  * Seed 1 is hand-verified (via a throwaway PuzzleGenerator::generate(1)
- * call) to put "dingiest" at group 0, tiles 0-3 (DI/NG/IE/ST) -- picked
- * for a real, short, unambiguous word so the test can click exact tile
- * ids instead of hunting the page for a valid combination.
+ * call) to put "carjacker" at group 0, tiles 0-3 (CA/RJ/ACK/ER) -- picked
+ * for a real, unambiguous word so the test can click exact tile ids
+ * instead of hunting the page for a valid combination. Re-verify this
+ * mapping (it can shift if PuzzleGenerator's own randomness usage
+ * changes, e.g. the uniqueness-retry logic added in
+ * attemptUniqueFragments()) before assuming a failure here is this
+ * test's own bug.
  */
 test('finding a quartile moves its tiles into their own row with a distinct look', function () {
     $page = visit('/word-blocks?seed=1');
@@ -24,8 +28,7 @@ test('finding a quartile moves its tiles into their own row with a distinct look
         ->click('#tile-2')
         ->click('#tile-3')
         ->click('#quartiles-submit-btn')
-        ->assertVisible('#found-group-0')
-        ->assertSee('Quad found');
+        ->assertVisible('#found-group-0');
 
     // The relocated tile keeps its id but picks up the found-quartile
     // class -- confirms this is a real class/DOM change, not just text.
