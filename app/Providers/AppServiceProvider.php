@@ -9,6 +9,7 @@ use App\Http\Requests\RememberedPasskeyVerificationRequest;
 use App\Models\User;
 use App\Services\Boggle\Solver;
 use App\Services\FamilyFeud\JudgeService;
+use App\Services\Quartiles\PuzzleGenerator;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
@@ -24,6 +25,11 @@ class AppServiceProvider extends ServiceProvider
         // Building the word trie means reading ~79k words; a singleton
         // means that only happens once per worker instead of per request.
         $this->app->singleton(Solver::class);
+
+        // Same reasoning: filtering the ~79k-word file down to 8-16 letter
+        // candidates should only happen once per worker, not once per
+        // Quartiles puzzle generated.
+        $this->app->singleton(PuzzleGenerator::class);
 
         // Same reasoning: the mmdb reader should only open its database
         // file once per worker, not once per request.

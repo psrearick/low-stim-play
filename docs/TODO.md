@@ -8,15 +8,10 @@ The Order of Work list is a separate, ordinary numbered list reflecting current 
 
 ## Order of Work
 
-1. [Task 8: Add Quartiles](#8-add-quartiles)
-2. [Task 10: Spec and build NYT-style puzzle games](#10-spec-and-build-nyt-style-puzzle-games)
-3. [Task 11: Shared puzzle-game infrastructure](#11-shared-puzzle-game-infrastructure)
+1. [Task 10: Spec and build NYT-style puzzle games](#10-spec-and-build-nyt-style-puzzle-games)
+2. [Task 11: Shared puzzle-game infrastructure](#11-shared-puzzle-game-infrastructure)
 
 ## Tasks
-
-### 8. Add Quartiles
-
-A solo word-forming puzzle game — select 2-4 letter tiles from a 4x5 grid to build words, with a bonus for finding all 5 four-tile "Quartiles." [`docs/specs/quartiles.md`](specs/quartiles.md) currently only has the rules and scoring table, not a build spec — it doesn't yet address puzzle generation (letter groups, valid-word source), session/state design, or how a single puzzle instance is represented. Needs the same spec-first treatment `docs/specs/clear-the-deck.md` got before that game was built (see `docs/DEVLOG.md`'s Clear the Deck section) before building starts here.
 
 ### 10. Spec and build NYT-style puzzle games
 
@@ -24,5 +19,5 @@ Add Wordle, Pips, Spelling Bee, Strands, and Connections. All need daily/random 
 
 ### 11. Shared puzzle-game infrastructure
 
-A cross-cutting set of features for the app's puzzle-style games (Boggle/Word Grid, Quartiles once built, and the NYT-style games in Task 10 once built): give each individual puzzle a unique code so it can be shared and replayed identically by someone else; surface that code on the Friends page (see `docs/DEVLOG.md`'s "Friends & friend activity" section) too — e.g. a "Challenge a Friend" button at the end of a game, possibly emailing an invite; and add daily puzzles (one fixed puzzle per game per day, distinct from the existing random ones) with an archive of past days' puzzles. Depends on the relevant puzzle games actually existing.
+A cross-cutting set of features for the app's puzzle-style games (Boggle/Word Grid, Word Blocks, and the NYT-style games in Task 10 once built): give each individual puzzle a unique code so it can be shared and replayed identically by someone else (Word Blocks' `PuzzleGenerator` already supports a reproducible `#[Url] $seed`, unused by any UI yet — see `docs/DEVLOG.md`'s "Word Blocks" section); surface that code on the Friends page (see `docs/DEVLOG.md`'s "Friends & friend activity" section) too — e.g. a "Challenge a Friend" button at the end of a game, possibly emailing an invite; and add daily puzzles (one fixed puzzle per game per day, distinct from the existing random ones) with an archive of past days' puzzles. Depends on the relevant puzzle games actually existing.
 

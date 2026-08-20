@@ -44,6 +44,13 @@ test('the Clear the Deck game card shows the "(Tens)" clarifier', function () {
         ->assertSee('Clear the Deck (Tens)');
 });
 
+test('the homepage links to Word Blocks, not the trademarked "Quartiles" name', function () {
+    $this->get('/')
+        ->assertSee('Word Blocks')
+        ->assertDontSee('Quartiles')
+        ->assertSeeHtml(route('quartiles.play'));
+});
+
 test('logging out from the homepage redirects back to a guest view', function () {
     $user = User::factory()->create();
 

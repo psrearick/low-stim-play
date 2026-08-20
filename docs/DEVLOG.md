@@ -455,6 +455,79 @@ A turn-based, multi-deck shedding card game (`docs/TODO.md`'s former #1), the fi
 - `hasGoneOut()`'s check inside the shared method can never actually fire for a pickup specifically (picking up the stack always *adds* cards to the acting seat's hand, so it can never be empty right after) — kept anyway for consistency with the identical call the ordinary-play branch already needed, not because that path can reach it.
 - Updated everywhere the old behavior was described: `docs/specs/clear-the-deck.md`'s turn-resolution section 4 (kept as a record of what shipped first, with a note explaining the 2026-08-18 reversal, rather than silently rewritten — the appendix's own verbatim-original-rules text was correctly left untouched, since it was never about this app's specific implementation choice), the in-game rules text (`pages::clear-the-deck.play`), and `tests/Feature/Games/ClearTheDeckRoomTest.php`'s existing pickup test (renamed, and its `turnSeatIndex` assertion changed from staying on the acting seat to advancing to the next one) — updated in place rather than left alongside a new, contradicting test, per the task's own instruction.
 
+## Word Blocks
+
+A solo, untimed word-forming puzzle (`docs/TODO.md`'s former #8), ships under the
+display name **"Word Blocks"** — "Quartiles" is NYT Games' trademarked name for this
+exact mechanic, same rename treatment as Boggle/Yahtzee/Family Feud/Apples-to-Apples
+(see "Game renaming" below). Full build spec, including every resolved design decision:
+`docs/specs/quartiles.md`.
+
+- **The one genuinely new problem this game posed: puzzle generation from scratch.**
+  Every other game in this app either has a fixed physical ruleset (cards, dice) or, for
+  Boggle, a real physical dice set to digitize — this one needed 20 letter-fragment tiles
+  built from nothing, 5 of which had to form a hidden "find all of these" bonus group.
+  Asked the user directly rather than guessing at generation strategy; two decisions came
+  back: **algorithmic, not AI-curated** (pick 5 random 8–16 letter words from the same
+  dictionary Boggle's `Solver` already loads, split each into 4 random-length 2–4 letter
+  fragments, shuffle into the grid — no new LLM-call infrastructure, matching what the
+  user proposed directly), and the display-name rename above.
+- `App\Services\Quartiles\PuzzleGenerator` mirrors `Boggle\BoardGenerator`'s seeded
+  `Randomizer`/`Mt19937` pattern (`#[Url] $seed` on the play page, unused by any UI yet
+  but free reproducibility — positions this for Task 11's future "puzzle codes" work).
+  `App\Services\Quartiles\WordFinder` is the harder new piece: since tile selection has
+  no spatial-adjacency constraint (unlike Boggle, any subset of 1–4 tiles in any order is
+  a legal attempt), "every possible word" is a subset/permutation search (≤123,520
+  combinations for 20 tiles) rather than a graph walk — reuses `Boggle\Solver::
+  isValidWord()` directly as the leaf dictionary check rather than loading a second
+  ~79k-word dictionary, and is only ever run once, at End Game, same "expensive, so cache
+  it" precedent as Boggle's own `solve()` call in `finishGame()`.
+- **A "Quad" (the 40-point-bonus 4-tile group) is matched by tile-id *set*, not word
+  text.** Submitting exactly a designated group's 4 tile ids (any order) marks it found;
+  a *different* 4-tile combination that happens to also spell a valid dictionary word
+  (entirely possible once 20 real dictionary fragments share a grid) still scores the
+  normal 8 points but isn't a Quad — doesn't relocate, recolor, or count toward 5/5. This
+  is the only way "found all 5" can mean something specific rather than "found five
+  4-tile words." Covered explicitly in `tests/Feature/Games/QuartilesGameTest.php` (a
+  word spelled from a different 4-tile combination than its own designated group scores
+  but doesn't complete that group).
+- **Found-group tiles relocate into their own row and recolor, remaining tiles reshuffle
+  — the one CSS-driven behavior here** (`docs/CLAUDE.md`'s "Automated Browser Testing"
+  section) a `Livewire::test()` can't actually see, since the underlying `$foundGroups`/
+  `$unfoundOrder` arrays changing server-side isn't the same as confirming a found
+  group's tiles genuinely move to a distinct DOM position with a different class in a
+  real render. `tests/Browser/QuartilesFoundQuartileTest.php` covers it against a
+  hand-verified seed (`PuzzleGenerator::generate(1)` puts "dingiest" at group 0, tiles
+  0–3) rather than trying to assert against random puzzle content.
+- **Real trademark leak, caught by a `grep` sweep, not proactively.** The rename above
+  covers the game's own *name*, but a first implementation pass still said "Quartile(s)"
+  verbatim throughout rules copy, the HUD tile, the found-group label, the reveal
+  screen's answer list, both profile pages' stat labels, and the homepage card
+  description — exactly the class of leak `docs/DEVLOG.md`'s own "Game renaming" section
+  says to avoid ("what a user can see," not just the top-level name). Caught via `grep -rn
+  "Quartile" resources/views/` after visually reviewing a live screenshot and noticing the
+  homepage card's own copy still used the word. Replaced everywhere visible with **"Quad"**
+  (internal identifiers — `GameType::Quartiles`, `App\Services\Quartiles\*`, `quartiles`/
+  `profile.quartiles` route names — deliberately kept, same "not user-facing" rule every
+  other renamed game already follows). `tests/Feature/Games/QuartilesGameTest.php` and
+  `tests/Feature/WelcomePageTest.php` both gained an explicit `assertDontSee('Quartiles')`
+  regression guard rather than just fixing the visible instances and moving on.
+- No online-room mode at all (not even opted out of the way Best Match/Clear the Deck
+  lack pass-and-play) — `GameType::supportsRooms()` is `false` only for `Quartiles`,
+  filtering it out of `<livewire:game-lobby>`'s "switch game" list and `pages::room.show`'s
+  "start a game" list, the two places that previously assumed every `GameType::cases()`
+  entry could resolve a room route. `roomRoute()`'s own `Quartiles` arm throws a
+  `LogicException` instead of returning a route that doesn't exist, so a caller that
+  skips the `supportsRooms()` filter fails loudly rather than routing somewhere broken —
+  caught by Larastan (`match.unhandled`) the moment the case was added without an arm,
+  not discovered at runtime.
+- No dedicated stats depth beyond `App\Services\Stats\QuartilesStatsService` (`gamesForUser()`/
+  `statsFor()`/`bestMetrics()`, closest to `FarkleStatsService`'s lighter shape rather than
+  Boggle's own `topLongestWords()`/`topFrequentWords()` — solo, no opponent, so no
+  win-rate concept either) — best-metric tiles are Highest score, Most words found, Most
+  Quads found (omitted if nobody's ever found one, same "omit rather than a misleading
+  zero" rule every other stats service follows).
+
 ## User profiles & stats
 
 - `/dashboard` (own stats) and `/profile/{username}` (public, `is_public`-gated).

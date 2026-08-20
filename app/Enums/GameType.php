@@ -10,6 +10,7 @@ enum GameType: string
     case Farkle = 'farkle';
     case AppleMatch = 'apple_match';
     case ClearTheDeck = 'clear_the_deck';
+    case Quartiles = 'quartiles';
 
     /**
      * The user-visible display name -- deliberately not the same as the
@@ -29,6 +30,7 @@ enum GameType: string
             self::Farkle => '10,000',
             self::AppleMatch => 'Best Match',
             self::ClearTheDeck => 'Clear the Deck (Tens)',
+            self::Quartiles => 'Word Blocks',
         };
     }
 
@@ -38,7 +40,12 @@ enum GameType: string
      * I send a room's players to play this," used when a room switches
      * from one game to another (see `<livewire:game-lobby>`'s
      * `switchGame()`) so that logic doesn't need its own copy of this
-     * mapping, or any game-specific knowledge at all.
+     * mapping, or any game-specific knowledge at all. `self::Quartiles` has
+     * no room mode at all (see `supportsRooms()`) and is filtered out of
+     * every list that would otherwise call this -- its own arm throws
+     * rather than returning a route name that doesn't exist, so callers
+     * that skip the `supportsRooms()` filter fail loudly instead of
+     * routing somewhere broken.
      */
     public function roomRoute(): string
     {
@@ -49,6 +56,7 @@ enum GameType: string
             self::Farkle => 'farkle.room',
             self::AppleMatch => 'apple-match.room',
             self::ClearTheDeck => 'clear-the-deck.room',
+            self::Quartiles => throw new \LogicException('Quartiles has no online-room mode; check supportsRooms() before calling roomRoute().'),
         };
     }
 
@@ -57,7 +65,12 @@ enum GameType: string
      * {game}.play`) -- used by pages::room.show to link a member straight
      * into a room's currently active game (resuming their own seat, or
      * spectating) without detouring through the lobby/seat-assignment
-     * page roomRoute() above points at.
+     * page roomRoute() above points at. Unlike `roomRoute()` above, this
+     * *is* exhaustive over every case including `self::Quartiles` --
+     * `/word-blocks` is a real, valid solo page, so mapping it costs
+     * nothing even though nothing currently calls `playRoute()` for a
+     * Quartiles instance in practice (both call sites derive their
+     * `GameType` from an active room's game, and Quartiles never has one).
      */
     public function playRoute(): string
     {
@@ -68,7 +81,23 @@ enum GameType: string
             self::Farkle => 'farkle.play',
             self::AppleMatch => 'apple-match.play',
             self::ClearTheDeck => 'clear-the-deck.play',
+            self::Quartiles => 'quartiles.play',
         };
+    }
+
+    /**
+     * Whether this game has an online-room mode at all. False only for
+     * `self::Quartiles` -- unlike every other game (including solo-capable
+     * Boggle), it has no multiplayer mode to opt into, not even one that's
+     * merely unavailable the way Best Match/Clear the Deck lack a
+     * pass-and-play mode. Used to filter `GameType::cases()` everywhere a
+     * room might list "other games to switch to" (see
+     * `<livewire:game-lobby>`'s `getOtherGamesProperty()`), so `roomRoute()`
+     * above never actually needs a Quartiles case.
+     */
+    public function supportsRooms(): bool
+    {
+        return $this !== self::Quartiles;
     }
 
     /**

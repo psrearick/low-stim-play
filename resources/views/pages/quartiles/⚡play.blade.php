@@ -1,0 +1,504 @@
+<?php
+
+use App\Enums\GameMode;
+use App\Enums\GameType;
+use App\Models\GameParticipant;
+use App\Models\GameSession;
+use App\Services\Boggle\Solver;
+use App\Services\Quartiles\PuzzleGenerator;
+use App\Services\Quartiles\Scorer;
+use App\Services\Quartiles\WordFinder;
+use Illuminate\Support\Facades\Auth;
+use Livewire\Attributes\Url;
+use Livewire\Component;
+
+new class extends Component
+{
+    private const MAX_SELECTION = 4;
+
+    private const GROUP_COUNT = 5;
+
+    /**
+     * Sharing a seed makes an identical puzzle reproducible -- same
+     * purpose as Boggle's own `#[Url] $seed`, unused by any UI in v1 but
+     * free forward-compatibility for Task 11's future "puzzle codes" work
+     * (see docs/specs/quartiles.md section 4). Ignored by resetGame()
+     * ("New Game" always generates a genuinely fresh puzzle), matching
+     * Boggle's own resetGame() not reusing $this->seed either.
+     */
+    #[Url]
+    public ?int $seed = null;
+
+    /**
+     * id => {display, match, groupIndex} -- static for the whole game once
+     * generated, never mutated after mount()/resetGame().
+     *
+     * @var array<int, array{display: string, match: string, groupIndex: int}>
+     */
+    public array $tiles = [];
+
+    /**
+     * groupIndex => list of the 4 tile ids that make up that quartile.
+     * Static, same lifetime as $tiles.
+     *
+     * @var list<list<int>>
+     */
+    public array $groups = [];
+
+    /**
+     * Tile ids not yet part of a found quartile, in their current grid
+     * (shuffle) order. Shrinks by 4 every time a quartile is found; the
+     * remainder is reshuffled at that point and by shuffleTiles() below.
+     *
+     * @var list<int>
+     */
+    public array $unfoundOrder = [];
+
+    /**
+     * Indices into $groups, in the order each quartile was actually found
+     * -- also what drives rendering each found quartile's own fixed row at
+     * the top of the grid (see docs/specs/quartiles.md section 3).
+     *
+     * @var list<int>
+     */
+    public array $foundGroups = [];
+
+    /**
+     * Tile ids selected so far, in click order -- concatenating their
+     * `match` text in this order is the candidate word submitWord() below
+     * checks.
+     *
+     * @var list<int>
+     */
+    public array $selected = [];
+
+    /**
+     * Found words and the points they were worth, keyed by word -- same
+     * shape as Boggle's own $foundWords.
+     *
+     * @var array<string, int>
+     */
+    public array $foundWords = [];
+
+    public int $score = 0;
+
+    /**
+     * The seed the current puzzle was actually generated with (whether
+     * from $seed above or freshly randomized) -- distinct from that
+     * property so an unspecified $seed (the ordinary case) doesn't force
+     * it to stay null; persisted into GameSession.settings at endGame().
+     */
+    public int $resolvedSeed = 0;
+
+    public int $startedAt;
+
+    public bool $ended = false;
+
+    /**
+     * Every valid word the puzzle contains, word => max tile-count it can
+     * be formed with. Null until either all 5 quartiles are found (so the
+     * "keep going" banner can report how many words remain) or the game
+     * ends -- computed at most once per game (WordFinder::findAll() is not
+     * cheap enough to run on every render), never recomputed afterward.
+     *
+     * @var array<string, int>|null
+     */
+    public ?array $allValidWords = null;
+
+    public ?string $message = null;
+
+    public ?int $gameSessionId = null;
+
+    public function mount(PuzzleGenerator $generator): void
+    {
+        $this->loadNewPuzzle($generator, $this->seed);
+        $this->startedAt = now()->timestamp;
+    }
+
+    public function toggleTile(int $tileId): void
+    {
+        if ($this->ended || ! isset($this->tiles[$tileId])) {
+            return;
+        }
+
+        $index = array_search($tileId, $this->selected, true);
+
+        if ($index !== false) {
+            array_splice($this->selected, $index, 1);
+
+            return;
+        }
+
+        if (count($this->selected) >= self::MAX_SELECTION) {
+            return;
+        }
+
+        $this->selected[] = $tileId;
+    }
+
+    public function clearSelection(): void
+    {
+        $this->selected = [];
+    }
+
+    public function submitWord(Solver $solver, Scorer $scorer, WordFinder $wordFinder): void
+    {
+        if ($this->ended || $this->selected === []) {
+            return;
+        }
+
+        $tileIds = $this->selected;
+        $word = implode('', array_map(fn (int $id) => $this->tiles[$id]['match'], $tileIds));
+
+        $this->selected = [];
+
+        if (isset($this->foundWords[$word])) {
+            $this->message = 'Already found.';
+
+            return;
+        }
+
+        if (! $solver->isValidWord($word)) {
+            $this->message = 'Not a word.';
+
+            return;
+        }
+
+        $points = $scorer->pointsFor(count($tileIds));
+        $this->foundWords[$word] = $points;
+        $this->score += $points;
+        $this->message = null;
+
+        $this->checkForQuartile($tileIds, $wordFinder);
+    }
+
+    public function shuffleTiles(): void
+    {
+        if ($this->ended) {
+            return;
+        }
+
+        $this->unfoundOrder = collect($this->unfoundOrder)->shuffle()->values()->all();
+    }
+
+    public function endGame(WordFinder $wordFinder): void
+    {
+        if ($this->ended) {
+            return;
+        }
+
+        $this->ended = true;
+        $this->selected = [];
+        $this->resolveAllValidWords($wordFinder);
+
+        $session = GameSession::create([
+            'type' => GameType::Quartiles,
+            'mode' => GameMode::Solo,
+            // Not used to reconstruct anything in v1 (unlike Boggle's own
+            // size/seed/minutes) -- kept anyway since it costs nothing and
+            // positions this for Task 11's future "puzzle codes" work
+            // without a schema rework (see docs/specs/quartiles.md
+            // section 4).
+            'settings' => ['seed' => $this->resolvedSeed],
+            'started_at' => now()->setTimestamp($this->startedAt),
+            'ended_at' => now(),
+        ]);
+
+        $stats = [
+            'found_words' => $this->foundWords,
+            'words_found' => count($this->foundWords),
+            'quartiles_found' => count($this->foundGroups),
+            'total_valid_words' => count($this->allValidWords),
+        ];
+
+        $participant = Auth::check()
+            ? GameParticipant::updateOrCreate(
+                ['game_session_id' => $session->id, 'user_id' => Auth::id()],
+                ['guest_name' => null, 'score' => $this->score, 'stats' => $stats],
+            )
+            : GameParticipant::create([
+                'game_session_id' => $session->id,
+                'user_id' => null,
+                'guest_name' => 'Guest',
+                'score' => $this->score,
+                'stats' => $stats,
+            ]);
+
+        $this->gameSessionId = $session->id;
+    }
+
+    public function resetGame(PuzzleGenerator $generator): void
+    {
+        $this->loadNewPuzzle($generator);
+        $this->foundGroups = [];
+        $this->selected = [];
+        $this->foundWords = [];
+        $this->score = 0;
+        $this->ended = false;
+        $this->allValidWords = null;
+        $this->message = null;
+        $this->startedAt = now()->timestamp;
+        $this->gameSessionId = null;
+    }
+
+    public function getSelectedWordProperty(): string
+    {
+        return strtoupper(implode('', array_map(
+            fn (int $id) => $this->tiles[$id]['match'] ?? '',
+            $this->selected,
+        )));
+    }
+
+    /**
+     * Each quartile's answer word alongside whether it's been found yet --
+     * used both for the live "N/5 quartiles found" progress readout and
+     * the post-game reveal.
+     *
+     * @return list<array{word: string, found: bool}>
+     */
+    public function getQuartileAnswersProperty(): array
+    {
+        return array_map(
+            fn (array $tileIds, int $groupIndex) => [
+                'word' => implode('', array_map(fn (int $id) => $this->tiles[$id]['match'], $tileIds)),
+                'found' => in_array($groupIndex, $this->foundGroups, true),
+            ],
+            $this->groups,
+            array_keys($this->groups),
+        );
+    }
+
+    /**
+     * All valid words grouped by the tile-count they can be formed with,
+     * ascending -- the post-game reveal panel's own grouping, matching
+     * this game's tile-count-based scoring rather than Boggle's
+     * letter-length grouping.
+     *
+     * @return array<int, list<string>>
+     */
+    public function getRevealByTileCountProperty(): array
+    {
+        $groups = [];
+
+        foreach ($this->allValidWords ?? [] as $word => $tileCount) {
+            $groups[$tileCount][] = $word;
+        }
+
+        foreach (array_keys($groups) as $tileCount) {
+            sort($groups[$tileCount]);
+        }
+
+        ksort($groups);
+
+        return $groups;
+    }
+
+    /**
+     * Null once the game has ended (the reveal panel takes over) or before
+     * all 5 quartiles are found. In between, tells the player there's more
+     * to find without forcing them to keep playing -- see
+     * docs/specs/quartiles.md section 3.
+     */
+    public function getBannerProperty(): ?string
+    {
+        if ($this->ended || count($this->foundGroups) < self::GROUP_COUNT) {
+            return null;
+        }
+
+        $remaining = $this->allValidWords !== null
+            ? count($this->allValidWords) - count($this->foundWords)
+            : 0;
+
+        if ($remaining <= 0) {
+            return 'All 5 Quads found — you found everything!';
+        }
+
+        $word = $remaining === 1 ? 'word' : 'words';
+
+        return "All 5 Quads found! {$remaining} more {$word} to find, or press End Game whenever you're ready.";
+    }
+
+    /**
+     * @param  list<int>  $tileIds
+     */
+    private function checkForQuartile(array $tileIds, WordFinder $wordFinder): void
+    {
+        if (count($tileIds) !== self::MAX_SELECTION) {
+            return;
+        }
+
+        $sortedSelected = collect($tileIds)->sort()->values()->all();
+
+        foreach ($this->groups as $groupIndex => $groupTileIds) {
+            if (in_array($groupIndex, $this->foundGroups, true)) {
+                continue;
+            }
+
+            if ($sortedSelected !== collect($groupTileIds)->sort()->values()->all()) {
+                continue;
+            }
+
+            $this->foundGroups[] = $groupIndex;
+            $this->unfoundOrder = collect($this->unfoundOrder)
+                ->reject(fn (int $id) => in_array($id, $groupTileIds, true))
+                ->shuffle()
+                ->values()
+                ->all();
+
+            if (count($this->foundGroups) === self::GROUP_COUNT) {
+                $this->resolveAllValidWords($wordFinder);
+            }
+
+            return;
+        }
+    }
+
+    private function resolveAllValidWords(WordFinder $wordFinder): void
+    {
+        if ($this->allValidWords !== null) {
+            return;
+        }
+
+        $tileTexts = array_map(fn (array $tile) => $tile['match'], $this->tiles);
+        $this->allValidWords = $wordFinder->findAll($tileTexts);
+    }
+
+    private function loadNewPuzzle(PuzzleGenerator $generator, ?int $seed = null): void
+    {
+        $puzzle = $generator->generate($seed);
+        $this->tiles = $puzzle['tiles'];
+        $this->groups = $puzzle['groups'];
+        $this->unfoundOrder = $puzzle['tileOrder'];
+        $this->resolvedSeed = $puzzle['seed'];
+    }
+};
+?>
+
+<x-slot:title>Word Blocks — Low Stim Play</x-slot>
+<x-slot:description>Play Word Blocks online — combine 2-4 letter tiles into words, find all 5 hidden Quads for a bonus, calm low-contrast visuals with no flashing or motion.</x-slot:description>
+<x-slot:bodyClass>quartiles-play</x-slot:bodyClass>
+<x-slot:rulesTitle>Word Blocks Rules</x-slot:rulesTitle>
+<x-slot:rules>
+    <h3>How to Use This Page</h3>
+    <ul>
+        <li>Tap tiles (in any order) to build a word, then press Submit. Tap a selected tile again to remove it.</li>
+        <li>Combine 1 to 4 tiles per word — longer combinations score more.</li>
+        <li>Five specific groups of 4 tiles spell a hidden "Quad" — finding one moves those tiles to their own row and earns bonus progress toward a 40-point bonus for finding all 5.</li>
+        <li>Shuffle re-arranges the tiles you haven't used in a found Quad yet.</li>
+        <li>Press End Game whenever you're ready to stop — every valid word the puzzle contains is then revealed, found and missed.</li>
+    </ul>
+
+    <h3>Full Rules</h3>
+    <ul>
+        <li>Scoring: 1 tile = 1 point, 2 tiles = 2 points, 3 tiles = 4 points, 4 tiles = 8 points.</li>
+        <li>Finding all 5 Quads earns a 40-point bonus.</li>
+        <li>Only real dictionary words count, checked against the same word list Word Grid uses. Each word only scores once per game.</li>
+        <li>A Quad's tiles remain selectable afterward — they can still be combined with other tiles to spell more words.</li>
+    </ul>
+</x-slot:rules>
+
+<div class="flex flex-col items-center w-full gap-6">
+    @teleport('#game-actions')
+        <div style="display: contents;">
+            @unless ($ended)
+                <button type="button" id="end-game-btn" wire:click="endGame">End Game</button>
+            @else
+                <button type="button" id="new-game-btn" wire:click="resetGame">New Game</button>
+            @endunless
+        </div>
+    @endteleport
+
+    <div class="flex flex-wrap items-center justify-center gap-4 w-full max-w-md">
+        <div class="flex flex-col items-center gap-1 bg-surface border-2 border-surface-border rounded-lg px-4 py-2">
+            <span class="text-xl font-bold text-text">{{ $score }}</span>
+            <span class="text-xs text-text/65">Score</span>
+        </div>
+        <div class="flex flex-col items-center gap-1 bg-surface border-2 border-surface-border rounded-lg px-4 py-2">
+            <span class="text-xl font-bold text-text">{{ count($foundGroups) }}/5</span>
+            <span class="text-xs text-text/65">Quads</span>
+        </div>
+        <div class="flex flex-col items-center gap-1 bg-surface border-2 border-surface-border rounded-lg px-4 py-2">
+            <span class="text-xl font-bold text-text">{{ count($foundWords) }}</span>
+            <span class="text-xs text-text/65">Words</span>
+        </div>
+    </div>
+
+    @if ($this->banner)
+        <p class="status-line text-center" id="quartiles-banner">{{ $this->banner }}</p>
+    @endif
+
+    @unless ($ended)
+        <div class="flex flex-col items-center gap-3 w-full max-w-md">
+            <p class="status-line text-center" id="quartiles-selected-word" style="min-height: 1.5em;">
+                {{ $this->selectedWord }}
+            </p>
+
+            @foreach ($foundGroups as $groupIndex)
+                <div class="flex flex-col items-center gap-1 w-full" id="found-group-{{ $groupIndex }}" wire:key="found-group-{{ $groupIndex }}">
+                    <p class="text-xs text-accent font-bold">Quad found</p>
+                    <div class="grid grid-cols-4 gap-2 w-full">
+                        @foreach ($groups[$groupIndex] as $tileId)
+                            <button type="button" id="tile-{{ $tileId }}" wire:key="tile-{{ $tileId }}" wire:click="toggleTile({{ $tileId }})"
+                                aria-pressed="{{ in_array($tileId, $selected, true) ? 'true' : 'false' }}"
+                                class="quartile-tile quartile-tile-found aspect-square min-h-14 flex items-center justify-center rounded-lg border-2 text-base font-bold tracking-wide bg-accent/15 border-accent text-accent {{ in_array($tileId, $selected, true) ? 'ring-2 ring-accent' : '' }}">
+                                {{ $tiles[$tileId]['display'] }}
+                            </button>
+                        @endforeach
+                    </div>
+                </div>
+            @endforeach
+
+            <div class="grid grid-cols-4 gap-2 w-full" id="unfound-tiles">
+                @foreach ($unfoundOrder as $tileId)
+                    <button type="button" id="tile-{{ $tileId }}" wire:key="tile-{{ $tileId }}" wire:click="toggleTile({{ $tileId }})"
+                        aria-pressed="{{ in_array($tileId, $selected, true) ? 'true' : 'false' }}"
+                        class="quartile-tile aspect-square min-h-14 flex items-center justify-center rounded-lg border-2 text-base font-bold tracking-wide bg-surface border-surface-border text-text {{ in_array($tileId, $selected, true) ? 'ring-2 ring-accent border-accent' : '' }}">
+                        {{ $tiles[$tileId]['display'] }}
+                    </button>
+                @endforeach
+            </div>
+
+            <div class="flex gap-3">
+                <button type="button" id="quartiles-shuffle-btn" wire:click="shuffleTiles">Shuffle</button>
+                <button type="button" id="quartiles-clear-btn" wire:click="clearSelection" @disabled($selected === [])>Clear</button>
+                <button type="button" id="quartiles-submit-btn" wire:click="submitWord" @disabled($selected === [])>Submit</button>
+            </div>
+
+            @if ($message)
+                <p class="status-line" style="color: var(--warn);">{{ $message }}</p>
+            @endif
+        </div>
+    @else
+        <div class="flex flex-col items-center gap-4 w-full max-w-2xl">
+            <div class="flex flex-col items-center gap-2 w-full">
+                <p class="text-sm text-text/80 font-bold">Quads</p>
+                <div class="flex flex-wrap justify-center gap-2 w-full">
+                    @foreach ($this->quartileAnswers as $answer)
+                        <span wire:key="answer-{{ $loop->index }}"
+                            class="text-sm px-3 py-2 rounded-lg border-2 {{ $answer['found'] ? 'bg-accent/15 border-accent text-accent' : 'bg-surface border-surface-border text-text/65' }}">
+                            {{ strtoupper($answer['word']) }} {{ $answer['found'] ? '✓' : '' }}
+                        </span>
+                    @endforeach
+                </div>
+            </div>
+
+            <div class="flex flex-col gap-2 w-full">
+                <p class="text-sm text-text/80 font-bold">All Possible Words ({{ count($allValidWords ?? []) }})</p>
+                <div class="flex flex-wrap gap-6 w-full bg-surface border-2 border-surface-border rounded-lg p-6">
+                    @foreach ($this->revealByTileCount as $tileCount => $words)
+                        <div class="flex flex-col gap-1 min-w-24">
+                            <p class="text-xs text-text/65 font-bold border-b border-surface-border pb-2 mb-1">{{ $tileCount }} tile{{ $tileCount === 1 ? '' : 's' }}</p>
+                            <ul class="flex flex-col gap-1">
+                                @foreach ($words as $word)
+                                    <li wire:key="reveal-{{ $word }}" class="text-sm px-2 py-1 {{ isset($foundWords[$word]) ? 'text-accent font-bold' : 'text-text/65' }}">
+                                        {{ strtoupper($word) }}
+                                    </li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        </div>
+    @endif
+</div>

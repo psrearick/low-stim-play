@@ -227,7 +227,7 @@ new class extends Component
     {
         return array_values(array_filter(
             GameType::cases(),
-            fn (GameType $type) => $type !== $this->currentGame,
+            fn (GameType $type) => $type !== $this->currentGame && $type->supportsRooms(),
         ));
     }
 

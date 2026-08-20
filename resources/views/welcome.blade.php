@@ -72,6 +72,13 @@
                 <a href="{{ route('clear-the-deck.play') }}"><button type="button">Clear the Deck (Tens)</button></a>
             </div>
         </div>
+        <div class="game-card">
+            <div class="game-card-title">Word Blocks</div>
+            <p class="game-card-desc">Combine 2&ndash;4 letter tiles into words. Five hidden four-tile "Quads" earn a bonus if you find them all &mdash; solo, untimed.</p>
+            <div class="game-card-actions">
+                <a href="{{ route('quartiles.play') }}"><button type="button">Word Blocks</button></a>
+            </div>
+        </div>
     </div>
 
 @endcomponent

@@ -93,6 +93,15 @@ Route::livewire('/profile/clear-the-deck/{gameParticipant}', 'pages::profile.cle
     ->name('profile.clear-the-deck.show');
 
 // Same registration-order reasoning as /profile/word-grid etc. above.
+Route::livewire('/profile/word-blocks', 'pages::profile.quartiles.index')
+    ->middleware(['auth', 'verified'])
+    ->name('profile.quartiles');
+
+Route::livewire('/profile/word-blocks/{gameParticipant}', 'pages::profile.quartiles.show')
+    ->middleware(['auth', 'verified'])
+    ->name('profile.quartiles.show');
+
+// Same registration-order reasoning as /profile/word-grid etc. above.
 Route::livewire('/profile/games', 'pages::profile.games.index')
     ->middleware(['auth', 'verified'])
     ->name('profile.games');
@@ -196,6 +205,15 @@ Route::livewire('/clear-the-deck', 'pages::clear-the-deck.play')->name('clear-th
 // anyone arriving without one.
 Route::livewire('/clear-the-deck/room/{code}', 'pages::clear-the-deck.room')
     ->name('clear-the-deck.room');
+
+// Solo only, no room mode at all (see docs/specs/quartiles.md section 1 --
+// GameType::Quartiles::supportsRooms() is false, and nothing here ever
+// registers a pages::quartiles.room). No auth middleware needed either:
+// unlike every game above, there's no guest-provisioning to do since
+// there's no room/presence-channel involved -- a guest just plays and,
+// same as an authenticated user, only gets a GameParticipant row if
+// Auth::check() at endGame().
+Route::livewire('/word-blocks', 'pages::quartiles.play')->name('quartiles.play');
 
 // The room hub -- game-agnostic, unlike every /{game}/room/{code} above
 // (each of those is specifically the seat-assignment/start screen for

@@ -139,7 +139,10 @@ new class extends Component
      */
     public function getStartableGamesProperty(): array
     {
-        return GameType::cases();
+        return array_values(array_filter(
+            GameType::cases(),
+            fn (GameType $type) => $type->supportsRooms(),
+        ));
     }
 
     /**

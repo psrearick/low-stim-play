@@ -38,6 +38,16 @@ test('otherGames excludes only the current game', function () {
     expect($component->get('otherGames'))->toBe([GameType::Yahtzee, GameType::FamilyFeud, GameType::Farkle, GameType::AppleMatch, GameType::ClearTheDeck]);
 });
 
+test('otherGames never includes Quartiles, which has no room mode at all', function () {
+    $host = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    $component = Livewire::actingAs($host)
+        ->test('game-lobby', ['room' => $room, 'currentGame' => GameType::Yahtzee]);
+
+    expect($component->get('otherGames'))->not->toContain(GameType::Quartiles);
+});
+
 test('the host can switch the room to a different game', function () {
     $host = User::factory()->create();
     $room = Room::factory()->create([

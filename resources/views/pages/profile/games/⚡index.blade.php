@@ -27,6 +27,7 @@ new class extends Component
             GameType::Farkle => 'profile.farkle.show',
             GameType::AppleMatch => 'profile.apple-match.show',
             GameType::ClearTheDeck => 'profile.clear-the-deck.show',
+            GameType::Quartiles => 'profile.quartiles.show',
         };
 
         return route($routeName, $participant);
