@@ -5,6 +5,7 @@ namespace App\Services\Quartiles;
 use InvalidArgumentException;
 use Random\Engine\Mt19937;
 use Random\Randomizer;
+use RuntimeException;
 
 class PuzzleGenerator
 {
@@ -19,6 +20,15 @@ class PuzzleGenerator
     private const MIN_WORD_LENGTH = self::TILES_PER_GROUP * self::MIN_FRAGMENT_LENGTH;
 
     private const MAX_WORD_LENGTH = self::TILES_PER_GROUP * self::MAX_FRAGMENT_LENGTH;
+
+    /**
+     * How many times to retry picking/splitting words after landing on a
+     * puzzle with a duplicate tile (see generate()'s own docblock) before
+     * giving up. Never expected to actually get close to this in practice
+     * -- retrying even once resolves the overwhelming majority of
+     * collisions, since it's a fresh set of 5 words each time.
+     */
+    private const MAX_ATTEMPTS = 100;
 
     /**
      * Every dictionary word long enough to split into exactly 4 fragments
@@ -42,6 +52,11 @@ class PuzzleGenerator
      * own BoardGenerator offers, unused by anything in v1 but free to keep
      * (see docs/specs/quartiles.md section 4).
      *
+     * Every fragment's text is guaranteed unique across all 20 tiles (see
+     * attemptUniqueFragments()) -- retries consume more randomness from
+     * the same seeded $randomizer rather than starting over with a new
+     * one, so a given seed still always produces the same eventual puzzle.
+     *
      * @return array{
      *     tiles: array<int, array{display: string, match: string, groupIndex: int}>,
      *     groups: list<list<int>>,
@@ -54,17 +69,61 @@ class PuzzleGenerator
         $seed ??= random_int(0, PHP_INT_MAX);
         $randomizer = new Randomizer(new Mt19937($seed));
 
+        $result = null;
+
+        for ($attempt = 0; $attempt < self::MAX_ATTEMPTS; $attempt++) {
+            $result = $this->attemptUniqueFragments($randomizer);
+
+            if ($result !== null) {
+                break;
+            }
+        }
+
+        if ($result === null) {
+            throw new RuntimeException('Could not generate a puzzle with unique tile text after '.self::MAX_ATTEMPTS.' attempts.');
+        }
+
+        return [
+            'tiles' => $result['tiles'],
+            'groups' => $result['groups'],
+            'tileOrder' => $randomizer->shuffleArray(array_keys($result['tiles'])),
+            'seed' => $seed,
+        ];
+    }
+
+    /**
+     * One attempt at picking 5 words and splitting them into 20 fragments,
+     * returning null the moment any fragment's text collides with one
+     * already assigned earlier in this same attempt -- two tiles showing
+     * identical text are indistinguishable to a player, so a "Quad" match
+     * (checked by exact tile id, not text -- see
+     * docs/specs/quartiles.md section 3) can silently fail to register
+     * when the player clicks the visually-identical-but-wrong tile.
+     * Eliminated at generation time rather than worked around in the UI.
+     *
+     * @return array{tiles: array<int, array{display: string, match: string, groupIndex: int}>, groups: list<list<int>>}|null
+     */
+    private function attemptUniqueFragments(Randomizer $randomizer): ?array
+    {
         $tiles = [];
         $groups = [];
+        $usedTexts = [];
         $nextId = 0;
 
         foreach ($this->pickWords($randomizer) as $groupIndex => $word) {
             $groupTileIds = [];
 
             foreach ($this->splitWord($word, $randomizer) as $fragment) {
+                $text = strtolower($fragment);
+
+                if (isset($usedTexts[$text])) {
+                    return null;
+                }
+
+                $usedTexts[$text] = true;
                 $tiles[$nextId] = [
                     'display' => strtoupper($fragment),
-                    'match' => strtolower($fragment),
+                    'match' => $text,
                     'groupIndex' => $groupIndex,
                 ];
                 $groupTileIds[] = $nextId;
@@ -74,12 +133,7 @@ class PuzzleGenerator
             $groups[] = $groupTileIds;
         }
 
-        return [
-            'tiles' => $tiles,
-            'groups' => $groups,
-            'tileOrder' => $randomizer->shuffleArray(array_keys($tiles)),
-            'seed' => $seed,
-        ];
+        return ['tiles' => $tiles, 'groups' => $groups];
     }
 
     /**

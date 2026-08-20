@@ -61,6 +61,17 @@ one thing the original rules leave unspecified that a digital version has to dec
   no frequency/commonness data, so an occasional one of the 5 answer words may be
   obscure. Not blocking — "New Game" is free (just regenerates), so a rough puzzle can
   simply be discarded rather than played.
+- **Every tile's text is guaranteed unique across the whole puzzle (bug fix, 2026-08-20).**
+  Missed in v1: nothing stopped two independently-split words from producing the same
+  2–4 letter fragment (e.g. both containing "ER"), and since a Quad is matched by exact
+  tile *id*, not text (this section, above), two visually-identical tiles are genuinely
+  ambiguous to a player — clicking the wrong one of the pair scores the word normally but
+  silently fails to complete the Quad. Reported directly by the user, who also correctly
+  diagnosed the cause and proposed the fix. `PuzzleGenerator::attemptUniqueFragments()`
+  now rejects and retries (consuming more randomness from the same seeded `Randomizer`,
+  so a given seed still always produces the same eventual puzzle) any attempt that would
+  produce a duplicate, up to 100 tries before giving up with a `RuntimeException` —
+  fixed at generation time, not worked around with some kind of tile-disambiguation UI.
 - **Untimed.** Unlike Boggle, no clock — matches the genre (NYT's own Quartiles has no
   timer either) and nothing in the request called for one. Decided independently, not
   re-confirmed with the user — narrow enough to be a judgment call under section 2's

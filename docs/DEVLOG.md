@@ -584,6 +584,27 @@ limitation Boggle's own solo mode has. Both requested afterward; full design in
   same puzzle while zeroing progress, New Game reusing vs. correctly *not* reusing a row
   depending on whether it's already finished, and an explicit seed overriding resume.
 
+**Real bug, reported and correctly diagnosed by the user: a found Quad sometimes didn't
+register.** Nothing in `PuzzleGenerator` prevented two independently-split words from
+producing the same fragment text (e.g. two different tiles both showing "ER") — and
+since a Quad is matched by exact tile *id*, not text (section 3 of the spec), two
+tiles with identical text are genuinely ambiguous to look at. Clicking the
+visually-right-but-actually-wrong one of the pair still spelled the correct word (scored
+normally) but silently never matched the intended group's own tile-id set. The user's own
+diagnosis — "are the tiles linked to the quads... maybe I'm clicking the wrong tile" —
+and their own proposed fix — "it might be better if all of the tiles were unique" — were
+both exactly right, so that's what got built, at generation time rather than patched
+around in the UI: `attemptUniqueFragments()` now rejects any attempt with a colliding
+fragment and retries (consuming more randomness from the same seeded `Randomizer`, so a
+given seed still always produces the same eventual puzzle) up to 100 times before giving
+up with a `RuntimeException`. Verified two ways in `tests/Unit/Quartiles/
+PuzzleGeneratorTest.php`: 200 seeds against the *real* dictionary asserting no puzzle
+ever has a duplicate tile (the actual conditions the bug was found under), and a
+deterministic case (five 8-letter, single-repeated-character candidate words, e.g.
+`"aaaaaaaa"`) where the *only* legal 4-fragment split is forced to collide with itself
+every single time, proving the retry loop's own exhaustion path throws rather than
+silently returning a colliding puzzle.
+
 ## User profiles & stats
 
 - `/dashboard` (own stats) and `/profile/{username}` (public, `is_public`-gated).
