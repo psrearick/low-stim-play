@@ -103,6 +103,43 @@ test('the avatar toggle is the same height as the Rooms button, with real space 
         ->and($rects['gap'])->toBeGreaterThan(10);
 });
 
+/**
+ * Real bug, reported by the user after an earlier fix attempt (docs/
+ * DEVLOG.md's "Third follow-up") failed to reproduce it despite extensive
+ * resize()-based testing across 10+ widths. Root cause: .button-bar
+ * button (max-width: 360px) and .button-bar.many-buttons button
+ * (max-width: 480px) in app.css are plain, unlayered rules -- higher
+ * specificity than Tailwind's single-class `.p-0` utility the avatar
+ * toggle relies on to stay padding-free, so on any page with the
+ * `manyButtons` slot set (welcome.blade.php always sets it) they silently
+ * won and added *horizontal-only* padding (never top/bottom) to
+ * #user-menu-toggle at real mobile widths. resources/js/app.js's
+ * syncAvatarToggleSize() only ever sets the toggle's outer width/height,
+ * never its padding, so the outer button stayed a perfect square while
+ * its inner content box -- what <x-avatar>'s w-full/h-full circle
+ * actually fills -- was squeezed narrower than tall: a portrait oval.
+ *
+ * Confirmed live specifically via device emulation (on()->iPhoneSE()),
+ * not resize() -- resize() to the exact same 320px width leaves the
+ * avatar's padding at 0 in this environment (a real, reproducible
+ * discrepancy between the two, not yet root-caused), which is almost
+ * certainly why the original investigation's resize()-only sweep never
+ * saw this. Use device emulation for any future check of this class of
+ * bug rather than assuming resize() alone is equivalent.
+ */
+test('the avatar stays circular, not oval, on a real mobile viewport', function () {
+    $user = User::factory()->create();
+    $this->actingAs($user);
+
+    $page = visit('/')->on()->iPhoneSE();
+
+    $rect = $page->script(<<<'JS'
+        document.querySelector('#user-menu-toggle > *').getBoundingClientRect()
+    JS);
+
+    expect($rect['width'])->toEqualWithDelta($rect['height'], 1.0);
+});
+
 test('the avatar toggle is always the last item in the navbar, even on a page with its own game buttons', function () {
     // Word Grid's play page adds both a teleported #game-actions button
     // (End Game) and the fullscreen toggle to .right -- previously the

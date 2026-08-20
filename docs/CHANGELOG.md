@@ -4,6 +4,7 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 
 ## 2026-08-20
 
+- Fixed the navbar avatar rendering as an oval instead of a circle on real mobile-width viewports (e.g. the homepage, which always sets `manyButtons`) — two unlayered CSS rules were silently overriding the avatar toggle's own zero-padding with horizontal-only padding.
 - Removed Word Blocks' Restart button and its `restartGame()` action; New Game is now only shown once the game has ended, not throughout play.
 - Word Blocks: dropped the per-found-row "Quad found" label; grid + controls and the found-words list now sit side by side on desktop instead of one stacked column.
 - Word Blocks: fixed a bug where a found Quad sometimes silently didn't register when two tiles showed identical text — the puzzle generator now guarantees every tile's displayed text is unique.

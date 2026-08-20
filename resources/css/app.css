@@ -204,8 +204,25 @@ body.scrollable {
     border-bottom: 1px solid var(--die-border);
 }
 
+/* :not(#user-menu-toggle) on both rules below -- the avatar toggle relies
+   on padding staying at its own explicit p-0 (Tailwind, unlayered) to keep
+   its content box square, since resources/js/app.js's
+   syncAvatarToggleSize() only ever sets its *outer* width/height, not
+   padding. These plain (unlayered, no @layer) rules have higher
+   specificity than a single-class Tailwind utility like `.p-0`
+   (`.button-bar button` is (0,1,1) vs `.p-0`'s (0,1,0)), so without the
+   exclusion they silently won on real mobile widths -- confirmed live via
+   device emulation (iPhone SE viewport, not just a plain resize(): a
+   width-only resize() never triggers `.many-buttons`' own real device
+   metrics the same way, which is why an earlier attempt to reproduce this
+   bug via resize() alone came back clean). Left/right padding only (never
+   top/bottom, both rules), so the avatar's outer box stayed a perfect
+   square (JS-set width === height) while its *inner* content box --
+   what <x-avatar>'s w-full/h-full circle actually fills -- was squeezed
+   narrower than tall: a portrait oval, not the outer button shape either
+   of the earlier investigation's own live measurements ever looked at. */
 @media (max-width: 360px) {
-    .button-bar button {
+    .button-bar button:not(#user-menu-toggle) {
         padding-left: clamp(8px, 2vmin, 18px);
         padding-right: clamp(8px, 2vmin, 18px);
         font-size: clamp(11px, 1.9vmin, 20px);
@@ -217,7 +234,7 @@ body.scrollable {
         gap: 6px;
     }
 
-    .button-bar.many-buttons button {
+    .button-bar.many-buttons button:not(#user-menu-toggle) {
         padding-left: clamp(6px, 1.6vmin, 18px);
         padding-right: clamp(6px, 1.6vmin, 18px);
         font-size: clamp(10px, 1.7vmin, 20px);
