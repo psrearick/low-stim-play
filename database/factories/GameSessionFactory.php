@@ -5,6 +5,7 @@ namespace Database\Factories;
 use App\Enums\GameMode;
 use App\Enums\GameType;
 use App\Models\GameSession;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -47,6 +48,17 @@ class GameSessionFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'ended_at' => now(),
+        ]);
+    }
+
+    /**
+     * Attaches a resumable-in-progress session to a specific user -- see
+     * GameSession::user()'s own docblock for what this is (and isn't) for.
+     */
+    public function forUser(User $user): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'user_id' => $user->id,
         ]);
     }
 }

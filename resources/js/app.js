@@ -197,7 +197,16 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const size = `${roomsToggle.getBoundingClientRect().height}px`;
+        // Rounded to a whole pixel, not the raw fractional
+        // getBoundingClientRect() value (clamp(vmin) math essentially never
+        // lands on a whole number) -- setting width/height from the same
+        // fractional string should be identical in principle, but a
+        // fractional CSS length rasterizes independently per axis, and two
+        // axes that are numerically equal can still snap to a different
+        // device-pixel count under certain zoom levels/DPRs, which reads as
+        // a hairline-oval circle rather than a true one. A whole pixel value
+        // rasterizes the same on both axes everywhere.
+        const size = `${Math.round(roomsToggle.getBoundingClientRect().height)}px`;
         avatarToggle.style.width = size;
         avatarToggle.style.height = size;
     };

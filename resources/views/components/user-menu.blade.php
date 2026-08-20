@@ -37,9 +37,9 @@
         it in CSS" approach this navbar already uses for the dropdown
         panels' own position (see registerNavbarDropdown()'s docblock).
     --}}
-    <div class="relative inline-flex ml-2">
+    <div class="relative inline-flex ml-2 shrink-0">
         <button type="button" id="user-menu-toggle" aria-haspopup="true" aria-expanded="false"
-            aria-label="Account menu" class="p-0 border-none bg-transparent rounded-full w-9 h-9">
+            aria-label="Account menu" class="p-0 border-none bg-transparent rounded-full w-9 h-9 shrink-0">
             <x-avatar :name="auth()->user()->name" :avatar-url="auth()->user()->avatarUrl()" size="w-full h-full text-sm" />
         </button>
 

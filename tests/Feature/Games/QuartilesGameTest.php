@@ -260,6 +260,127 @@ test('endGame for a guest creates a guest GameParticipant', function () {
         ->and($participant->guest_name)->toBe('Guest');
 });
 
+test('a signed-in user gets an in-progress GameSession the moment a puzzle is generated, before ending it', function () {
+    $user = User::factory()->create();
+    Livewire::actingAs($user);
+
+    $component = quartilesComponent();
+
+    $session = GameSession::sole();
+    expect($session->user_id)->toBe($user->id)
+        ->and($session->ended_at)->toBeNull()
+        ->and($component->get('gameSessionId'))->toBe($session->id);
+});
+
+test('a guest gets no early GameSession -- only endGame() ever creates one', function () {
+    quartilesComponent();
+
+    expect(GameSession::count())->toBe(0);
+});
+
+test('progress is saved after every scoring submission and after shuffling', function () {
+    $user = User::factory()->create();
+    Livewire::actingAs($user);
+
+    $component = quartilesComponent()
+        ->call('toggleTile', 0)->call('toggleTile', 1)->call('toggleTile', 2)->call('toggleTile', 3)
+        ->call('submitWord');
+
+    $session = GameSession::sole();
+    expect($session->state['foundWords'])->toBe(['cats' => 8])
+        ->and($session->state['score'])->toBe(8);
+
+    $component->call('shuffleTiles');
+
+    expect(GameSession::sole()->state['unfoundOrder'])->toEqualCanonicalizing($component->get('unfoundOrder'));
+});
+
+test('leaving and revisiting resumes the saved in-progress game exactly as left', function () {
+    $user = User::factory()->create();
+    Livewire::actingAs($user);
+
+    quartilesComponent()
+        ->call('toggleTile', 0)->call('toggleTile', 1)->call('toggleTile', 2)->call('toggleTile', 3)
+        ->call('submitWord');
+
+    // A brand new component instance -- simulates leaving and coming back,
+    // with nothing overridden this time, so mount() must do the resuming
+    // on its own from the saved GameSession rather than generating fresh.
+    $resumed = Livewire::actingAs($user)->test('pages::quartiles.play');
+
+    expect($resumed->get('foundWords'))->toBe(['cats' => 8])
+        ->and($resumed->get('score'))->toBe(8)
+        // The fixture's own tiles (id 0 = "C"), not a freshly generated
+        // random puzzle -- proves the *saved* puzzle was actually loaded,
+        // not just regenerated (both happen to have 20 tiles either way).
+        ->and($resumed->get('tiles')[0]['display'])->toBe('C')
+        ->and($resumed->get('selected'))->toBe([]) // never persisted
+        ->and(GameSession::count())->toBe(1); // resuming must not create a second row
+});
+
+test('restartGame keeps the same puzzle but resets all progress', function () {
+    $user = User::factory()->create();
+    Livewire::actingAs($user);
+
+    $component = quartilesComponent()
+        ->call('toggleTile', 0)->call('toggleTile', 1)->call('toggleTile', 2)->call('toggleTile', 3)
+        ->call('submitWord');
+
+    $tilesBefore = $component->get('tiles');
+    $sessionIdBefore = $component->get('gameSessionId');
+
+    $component->call('restartGame');
+
+    expect($component->get('tiles'))->toBe($tilesBefore)
+        ->and($component->get('foundWords'))->toBe([])
+        ->and($component->get('foundGroups'))->toBe([])
+        ->and($component->get('score'))->toBe(0)
+        ->and($component->get('unfoundOrder'))->toEqualCanonicalizing(array_keys($tilesBefore))
+        // Same row reused, not a second one created.
+        ->and($component->get('gameSessionId'))->toBe($sessionIdBefore)
+        ->and(GameSession::count())->toBe(1);
+});
+
+test('New Game reuses the same unfinished session row instead of creating a duplicate', function () {
+    $user = User::factory()->create();
+    Livewire::actingAs($user);
+
+    $component = quartilesComponent();
+    $firstSessionId = $component->get('gameSessionId');
+
+    $component->call('resetGame');
+
+    expect(GameSession::count())->toBe(1)
+        ->and($component->get('gameSessionId'))->toBe($firstSessionId);
+});
+
+test('New Game after ending creates a genuinely new session, leaving the finished one untouched', function () {
+    $user = User::factory()->create();
+    Livewire::actingAs($user);
+
+    $component = quartilesComponent()->call('endGame');
+    $finishedSessionId = $component->get('gameSessionId');
+
+    $component->call('resetGame');
+
+    expect(GameSession::count())->toBe(2)
+        ->and($component->get('gameSessionId'))->not->toBe($finishedSessionId)
+        ->and(GameSession::find($finishedSessionId)->ended_at)->not->toBeNull();
+});
+
+test('an explicit seed always starts a fresh puzzle instead of resuming a saved one', function () {
+    $user = User::factory()->create();
+    Livewire::actingAs($user);
+
+    $first = quartilesComponent();
+    $firstTiles = $first->get('tiles');
+
+    $overridden = Livewire::actingAs($user)->test('pages::quartiles.play', ['seed' => 12345]);
+
+    expect($overridden->get('tiles'))->not->toBe($firstTiles)
+        ->and(GameSession::count())->toBe(1); // reuses the same row, doesn't duplicate
+});
+
 test('actions are no-ops once the game has ended', function () {
     $component = quartilesComponent()->call('endGame');
 
@@ -298,6 +419,29 @@ test('the reveal screen renders the possible-words list and quartile answers onc
 
     $component->assertSee('All Possible Words')
         ->assertSee('CATS');
+});
+
+test('found words are listed during play, not just at the end-game reveal', function () {
+    $component = quartilesComponent()
+        ->call('toggleTile', 0)->call('toggleTile', 1)->call('toggleTile', 2)->call('toggleTile', 3)
+        ->call('submitWord');
+
+    expect($component->get('ended'))->toBeFalse();
+
+    $component->assertSee('Words found')
+        ->assertSee('CATS');
+});
+
+test('foundWordsSorted lists found words alphabetically, not in find order', function () {
+    $component = quartilesComponent()
+        // Group 1 (dogs, tiles 4-7) found first...
+        ->call('toggleTile', 4)->call('toggleTile', 5)->call('toggleTile', 6)->call('toggleTile', 7)
+        ->call('submitWord')
+        // ...then group 0 (cats, tiles 0-3) second.
+        ->call('toggleTile', 0)->call('toggleTile', 1)->call('toggleTile', 2)->call('toggleTile', 3)
+        ->call('submitWord');
+
+    expect(array_keys($component->get('foundWordsSorted')))->toBe(['cats', 'dogs']);
 });
 
 test('selectedWord shows the concatenated uppercase text of the current selection', function () {

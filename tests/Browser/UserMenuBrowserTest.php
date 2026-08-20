@@ -103,6 +103,23 @@ test('the avatar toggle is the same height as the Rooms button, with real space 
         ->and($rects['gap'])->toBeGreaterThan(10);
 });
 
+test('the avatar toggle is always the last item in the navbar, even on a page with its own game buttons', function () {
+    // Word Grid's play page adds both a teleported #game-actions button
+    // (End Game) and the fullscreen toggle to .right -- previously the
+    // avatar rendered *before* those, so its position shifted from page
+    // to page depending on how many extra buttons a given game added.
+    $user = User::factory()->create();
+    $this->actingAs($user);
+
+    $page = visit('/word-grid/play');
+
+    $rightChildrenCount = (int) $page->script("document.querySelector('.button-bar .right').children.length");
+    expect($rightChildrenCount)->toBeGreaterThan(2); // Rooms, End Game, fullscreen toggle, avatar
+
+    $lastChildContainsAvatar = $page->script("!!document.querySelector('.button-bar .right').lastElementChild.querySelector('#user-menu-toggle')");
+    expect($lastChildContainsAvatar)->toBeTrue();
+});
+
 test('the dropdown panel stays fully on-screen on a narrow mobile viewport', function () {
     // .button-bar .right has a real, documented history of pushing a
     // fixed right-0 dropdown panel off-screen once it wraps below 900px

@@ -149,6 +149,64 @@ one thing the original rules leave unspecified that a digital version has to dec
   found, and Most quartiles found (omitted if nobody's ever found one, same "omit rather
   than a misleading zero" rule every other stats service already follows).
 
+## 4a. v2 addendum: resumable games (2026-08-20)
+
+v1 above never persisted anything until `endGame()` — a page reload lost all progress
+mid-game, same as Boggle's own solo mode. Requested afterward: leave and come back later
+without losing progress, plus explicit **Restart** (same puzzle, zero progress),
+**New Game** (a fresh random puzzle), and **Continue** (the default — see below), with
+**Daily** deferred until Task 11's daily-puzzle infrastructure exists. Three decisions
+confirmed with the user before building:
+
+- **Restart resets progress but keeps the same puzzle** — the only reading that makes it
+  different from New Game, which discards everything and generates a new one.
+- **Signed-in accounts only.** Guests stay exactly as v1 (no persistence at all until
+  `endGame()`, if it's ever reached) — matches how stats/history are already
+  authenticated-only, and guest accounts are already ephemeral/pruned
+  (`PruneGuestAccounts`), so there's no durable identity to resume against on a later
+  visit anyway.
+- **Auto-resume, not a choice screen.** Visiting `/word-blocks` with a saved in-progress
+  game lands straight back in it, exactly as left — no "Continue?" prompt. Restart/New
+  Game/End Game are always available as buttons during play instead, so "start over" is
+  never more than one click away without an extra step being forced on the common case
+  (just continuing).
+
+Implementation:
+- **New nullable `game_sessions.user_id`** (migration, FK, cascade-delete). Used
+  exclusively for this — every room game already identifies players via
+  `room_code`/`RoomSeat`, and every other solo `GameSession` (Boggle) is only ever
+  written once the game has already ended, so nothing else needs "find this user's own
+  in-progress row." `GameSession::user()` added for completeness; deliberately not the
+  inverse of `User::gameParticipants()` (that relationship is about *results*, via
+  `GameParticipant`, not in-progress state).
+- **The `GameSession` row is created immediately** (not deferred to `endGame()` the way
+  v1/Boggle both do), the moment a signed-in user's puzzle is first generated —
+  `settings` holds the immutable `seed`, `state` holds everything needed to fully
+  reconstruct play: `tiles`, `groups`, `unfoundOrder`, `foundGroups`, `foundWords`,
+  `score`. (`selected` — the in-progress tile picks — is deliberately **not** persisted;
+  resuming clears the current selection rather than trying to preserve a half-built word
+  across a real session gap.) Re-saved after every scoring action (`submitWord()` on a
+  successful score, `shuffleTiles()`).
+- **At most one in-progress row per user**, enforced at the application layer via
+  `GameSession::updateOrCreate(['user_id' => ..., 'type' => Quartiles, 'ended_at' =>
+  null], [...])` rather than a DB constraint — New Game's fresh puzzle overwrites
+  whatever unfinished row already matches that key instead of accumulating abandoned
+  duplicates; once a row's `ended_at` is set (by `endGame()`), it stops matching, so the
+  *next* New Game correctly creates a genuinely new row rather than reopening a finished
+  one.
+- **`endGame()` updates the existing row instead of creating one**, for a signed-in user
+  (`$this->gameSessionId` is already set from mount time) — guests still `create()` fresh
+  at the end, same as v1, since they were never given an early row.
+- **Restart doesn't need `PuzzleGenerator` at all** — the puzzle's tiles/groups are
+  already known (loaded from `state` or just generated), so restarting is just resetting
+  `foundGroups`/`foundWords`/`score`/`selected` to empty and reshuffling `unfoundOrder`
+  from the existing tile ids, then persisting that reset state to the same row.
+- **An explicit `#[Url] $seed` always wins over auto-resume** — a deliberate "play this
+  specific puzzle" request (unused by any UI yet, but this is exactly the mechanism
+  Task 11's future daily-puzzle/shared-puzzle-code links will need) generates that puzzle
+  and becomes the new in-progress row, the same as clicking New Game would, rather than
+  being silently overridden by whatever was already in progress.
+
 ## 5. Accessibility
 
 Same low-stim system as the rest of the app (see `docs/DEVLOG.md`'s "Site-wide design
@@ -163,8 +221,11 @@ already applied to Win/Loss coloring elsewhere in this app.
 - `GameType::Quartiles` (`label()` "Word Blocks").
 - `App\Services\Quartiles\{PuzzleGenerator,WordFinder,Scorer}`.
 - `pages::quartiles.play` — tile grid, click-to-select + Submit, Shuffle, End Game,
-  reveal screen (found vs. missed words, quartile bonus status), New Game. Route
-  `/word-blocks`, name `quartiles.play`.
+  reveal screen (found vs. missed words, quartile bonus status), Restart/New Game
+  (section 4a), a live "words found" list during play. Route `/word-blocks`, name
+  `quartiles.play`.
+- Resumable in-progress games for signed-in users (section 4a): new nullable
+  `game_sessions.user_id`, auto-resume on visit, Restart/New Game always available.
 - `pages::profile.quartiles.index`/`.show` + `App\Services\Stats\QuartilesStatsService`,
   following the existing per-game profile pattern. Routes `/profile/word-blocks(...)`,
   names `profile.quartiles`/`profile.quartiles.show`.

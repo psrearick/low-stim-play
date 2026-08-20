@@ -528,6 +528,62 @@ exact mechanic, same rename treatment as Boggle/Yahtzee/Family Feud/Apples-to-Ap
   Quads found (omitted if nobody's ever found one, same "omit rather than a misleading
   zero" rule every other stats service follows).
 
+**Same-day follow-up: a live "words found" list during play, plus resumable in-progress
+games (2026-08-20).** v1 above only ever showed found words at the End Game reveal, and
+never persisted anything until then either — a page reload lost all progress, same
+limitation Boggle's own solo mode has. Both requested afterward; full design in
+`docs/specs/quartiles.md` section 4a.
+
+- A plain alphabetized `$foundWords` list, added below the tile grid during play
+  (`getFoundWordsSortedProperty()`, `ksort()` over the existing map) — the underlying
+  data already existed, this was pure template work, no new state.
+- **Resumable games needed a new nullable `game_sessions.user_id`** — the first time any
+  game in this app has needed to look up "this signed-in user's own game" outside of
+  `GameParticipant` (which only ever exists for a *finished* game). Every room game
+  already identifies players via `room_code`/`RoomSeat`; every other solo game only
+  writes its `GameSession` once already over. Scoped narrowly: nullable, used only by
+  Word Blocks' in-progress rows, `GameSession::user()` added for completeness.
+- **Three decisions confirmed with the user before building** (same "ask, don't guess"
+  approach as puzzle generation itself): **Restart** resets progress but keeps the same
+  puzzle (the only reading that makes it different from New Game, which discards
+  everything); resuming is **signed-in-only** (guests stay exactly as v1 — ephemeral
+  accounts already get pruned, nothing durable to resume against later); and visiting the
+  page with a saved game **auto-resumes immediately**, no "Continue?" prompt — Restart/
+  New Game/End Game are just always-available buttons instead, so nothing is forced on
+  the common case of simply continuing.
+- **The `GameSession` row now gets created the moment a signed-in user's puzzle is first
+  generated**, not deferred to `endGame()` — `state` holds everything needed to fully
+  reconstruct play (`tiles`, `groups`, `unfoundOrder`, `foundGroups`, `foundWords`,
+  `score`), re-saved after every scoring submission and every shuffle. Deliberately not
+  persisted: `selected` (the in-progress tile picks) — resuming clears the current
+  selection rather than trying to preserve a half-built word across a real session gap,
+  which nobody would expect to survive a logout-and-return-later anyway.
+- **At most one in-progress row per signed-in user, enforced at the application layer**,
+  not a DB constraint — `startNewSession()` reuses whatever unfinished row already
+  exists for that user (abandoning its puzzle) rather than accumulating duplicates when
+  New Game/Restart runs, but explicitly *never* touches an already-*finished* row (found
+  via `whereNull('ended_at')`) — reusing a finished row for a new puzzle would silently
+  rewrite that older game's own recorded stats out from under it. `endGame()`
+  correspondingly now `update()`s the existing row for a signed-in user instead of always
+  `create()`ing a new one; guests are untouched, still getting a fresh row created only
+  at `endGame()`, exactly as v1.
+- **Restart doesn't call `PuzzleGenerator` at all** — since the puzzle's tiles/groups are
+  already known (either just generated or loaded from a resumed session), restarting is
+  just reshuffling `unfoundOrder` from the existing tile ids and zeroing every progress
+  field, then persisting that to the same row.
+- **An explicit `#[Url] $seed` always wins over auto-resume** — checked first in
+  `mount()`, before the resume lookup even runs. A deliberate "play this specific puzzle"
+  request (unused by any UI yet, but exactly the mechanism Task 11's future daily-puzzle/
+  shared-puzzle-code links will need) generates that puzzle and becomes the new
+  in-progress row, rather than being silently overridden by whatever was already saved.
+- Covered by 9 new tests in `tests/Feature/Games/QuartilesGameTest.php`: early session
+  creation for a signed-in user vs. none at all for a guest, progress actually saved
+  after a scoring submission and after a shuffle, a full leave-and-revisit cycle resuming
+  the exact saved puzzle (not a regenerated one — same tile count either way, so the
+  assertion checks a specific tile's content, not just `count()`), Restart keeping the
+  same puzzle while zeroing progress, New Game reusing vs. correctly *not* reusing a row
+  depending on whether it's already finished, and an explicit seed overriding resume.
+
 ## User profiles & stats
 
 - `/dashboard` (own stats) and `/profile/{username}` (public, `is_public`-gated).
@@ -599,6 +655,11 @@ Decisions:
 **Same-day follow-up: the avatar sat too close to the Rooms button, and wasn't the same height as it.** `ml-2` on the toggle's wrapping div adds real space beyond `.right`'s own 10px flex gap. Height-matching turned out to need a real fix, not a one-line one: the first attempt was pure CSS (`align-self: stretch` + `aspect-square` on the toggle button, `<x-avatar size="w-full h-full">` filling it) — reasoning that `.right` has no `align-items` override, so its default (`stretch`) should already size every child to the row's tallest sibling (ordinarily the Rooms button, whose own height is `clamp(vmin)` padding/font-size-driven, not a fixed px value — see app.css's base `button` rule). Confirmed live via `getBoundingClientRect()` that it didn't work: the toggle collapsed to ~9.5px instead of matching the Rooms button's real ~58.5px, almost certainly a percentage-height (`h-full`) child failing to resolve against a parent whose own height comes from flex-stretch interacting with `aspect-ratio` rather than an explicit CSS `height` — a genuinely gnarly combination, not reliable across engines. Replaced with `syncAvatarToggleSize()` in `app.js`: measures `#rooms-menu-toggle`'s real rendered height and copies it directly onto `#user-menu-toggle`'s inline `width`/`height`, re-run on `resize` (the `clamp(vmin)` height genuinely changes with viewport) and once `document.fonts.ready` resolves (the fallback font at first paint under `font-display: swap` can have slightly different metrics than the real one) — the same "measure it for real, don't try to derive it in CSS" approach `registerNavbarDropdown()` already uses for the dropdown panels' own position, applied to sizing instead. New browser test asserts the two toggles' real heights match (within 1px), the avatar stays square (not squashed by a mismatched width), and the gap exceeds the base 10px.
 
 **Second same-day follow-up: the Edit Profile page (`/profile`) dropped its own sidebar** — now that "Edit Profile" is reached via the navbar avatar dropdown rather than a sidebar entry, the sidebar's remaining purpose is stats navigation only, and `/profile` isn't a stats page. Removed `pages::profile`'s own `<x-slot:sidebar>1</x-slot:sidebar>`, falling through to `layouts/app.blade.php`'s plain (no `.app-shell`) rendering path — the same one every non-sidebar page already uses, so no new layout code was needed. Confirmed live via a real screenshot that the page still centers correctly without it. `AppSidebarTest.php`'s "appears on every Dashboard/Profile/Stats page" test dropped `/profile` from its list (renamed to "Dashboard/Stats"), and gained a new sibling assertion (`the sidebar does not appear on the Edit Profile page`) matching the existing homepage/game-play-page "does not appear" cases.
+
+**Third follow-up (2026-08-20): the avatar's position in `.right` shifted per page, and could render non-round at some sizes.** Both requested together, after Word Blocks shipped with its own `#game-actions` buttons (Restart/New Game/End Game) sitting *before* the avatar — every page's own extra buttons (a game's End Game, the fullscreen toggle, `$barRight`) rendered ahead of `<x-user-menu />` in the DOM, so the avatar's on-screen position varied with however many buttons a given page happened to add next to it.
+
+- **Fixed by moving `<x-user-menu />` to render last in `layouts/app.blade.php`'s `.right`** — after `#game-actions`, `$barRight`, and the fullscreen toggle, rather than immediately after `<livewire:rooms-menu />`. The dropdown panel itself (`absolute right-0 top-full`, positioned relative to its own wrapping div) needed no changes — its position was already independent of where that div sits in the row. New regression test (`tests/Browser/UserMenuBrowserTest.php`): visits a page with real extra buttons in `.right` (Word Grid's play page — End Game + fullscreen toggle) and asserts the avatar toggle is inside `.right`'s *last* child, not just checking a button-free page like the homepage where the bug could never have shown up.
+- **Oval bug: reproduction was inconclusive despite extensive live testing** (resize events at 10+ widths across 3 pages, a genuinely fresh mobile-viewport load via device emulation to rule out a resize-event self-correction masking a load-time-only bug, extreme widths down to 180px to try to force `.right`'s flexbox to actually compress something) — every measured case came back a perfect square. Rather than leave it unfixed for lack of a reliable repro, closed two real, independently-defensible gaps found along the way: (1) `syncAvatarToggleSize()` (`app.js`) was applying the Rooms button's raw fractional `getBoundingClientRect().height` (essentially never a whole number, since it comes from `clamp(vmin)` font/padding math) directly as both `width` and `height` — numerically identical fractional CSS lengths can still rasterize to a different device-pixel count per axis under some zoom/DPR combinations, which reads as a hairline-not-quite-circle; now rounded to a whole pixel first, which rasterizes identically on both axes everywhere. (2) Neither `#user-menu-toggle` nor its wrapping div carried `shrink-0` — unlike `<x-avatar>` itself, which already defends against exactly this — leaving both flex-shrinkable (`flexShrink: 1`, confirmed live) inside `.right`'s row, a latent risk for exactly the width-only-compresses symptom described even though it couldn't be forced to manifest in this environment. Both fixes are cheap, correct regardless of which (if either) was the real mechanism on the user's own device, and were kept rather than reverted for lack of a red test to turn green.
 
 ## Game renaming (trademark avoidance)
 

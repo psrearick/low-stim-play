@@ -20,11 +20,13 @@ new class extends Component
 
     /**
      * Sharing a seed makes an identical puzzle reproducible -- same
-     * purpose as Boggle's own `#[Url] $seed`, unused by any UI in v1 but
+     * purpose as Boggle's own `#[Url] $seed`, unused by any UI yet but
      * free forward-compatibility for Task 11's future "puzzle codes" work
-     * (see docs/specs/quartiles.md section 4). Ignored by resetGame()
-     * ("New Game" always generates a genuinely fresh puzzle), matching
-     * Boggle's own resetGame() not reusing $this->seed either.
+     * (see docs/specs/quartiles.md section 4). An explicit seed always
+     * wins over resuming a saved in-progress game (section 4a) -- it's a
+     * deliberate "play this specific puzzle" request. Ignored by
+     * resetGame() ("New Game" always generates a genuinely fresh puzzle)
+     * and restartGame() (which doesn't regenerate at all).
      */
     #[Url]
     public ?int $seed = null;
@@ -111,8 +113,13 @@ new class extends Component
 
     public function mount(PuzzleGenerator $generator): void
     {
+        if ($this->seed === null && Auth::check() && $this->resumeInProgressGame()) {
+            return;
+        }
+
         $this->loadNewPuzzle($generator, $this->seed);
         $this->startedAt = now()->timestamp;
+        $this->startNewSession();
     }
 
     public function toggleTile(int $tileId): void
@@ -170,6 +177,7 @@ new class extends Component
         $this->message = null;
 
         $this->checkForQuartile($tileIds, $wordFinder);
+        $this->persistState();
     }
 
     public function shuffleTiles(): void
@@ -179,6 +187,7 @@ new class extends Component
         }
 
         $this->unfoundOrder = collect($this->unfoundOrder)->shuffle()->values()->all();
+        $this->persistState();
     }
 
     public function endGame(WordFinder $wordFinder): void
@@ -191,25 +200,32 @@ new class extends Component
         $this->selected = [];
         $this->resolveAllValidWords($wordFinder);
 
-        $session = GameSession::create([
-            'type' => GameType::Quartiles,
-            'mode' => GameMode::Solo,
-            // Not used to reconstruct anything in v1 (unlike Boggle's own
-            // size/seed/minutes) -- kept anyway since it costs nothing and
-            // positions this for Task 11's future "puzzle codes" work
-            // without a schema rework (see docs/specs/quartiles.md
-            // section 4).
-            'settings' => ['seed' => $this->resolvedSeed],
-            'started_at' => now()->setTimestamp($this->startedAt),
-            'ended_at' => now(),
-        ]);
-
         $stats = [
             'found_words' => $this->foundWords,
             'words_found' => count($this->foundWords),
             'quartiles_found' => count($this->foundGroups),
             'total_valid_words' => count($this->allValidWords),
         ];
+
+        // A signed-in user's session already exists (created at mount/New
+        // Game/Restart time -- see startNewSession()) -- update it in
+        // place rather than creating a second row. Guests were never given
+        // an early row (see docs/specs/quartiles.md section 4a: resuming
+        // is signed-in-only), so they still get one created here exactly
+        // as v1 did.
+        if (Auth::check() && $this->gameSessionId !== null) {
+            $session = GameSession::find($this->gameSessionId);
+            $session->update(['state' => $this->progressState(), 'ended_at' => now()]);
+        } else {
+            $session = GameSession::create([
+                'type' => GameType::Quartiles,
+                'mode' => GameMode::Solo,
+                'settings' => ['seed' => $this->resolvedSeed],
+                'started_at' => now()->setTimestamp($this->startedAt),
+                'ended_at' => now(),
+            ]);
+            $this->gameSessionId = $session->id;
+        }
 
         $participant = Auth::check()
             ? GameParticipant::updateOrCreate(
@@ -223,22 +239,25 @@ new class extends Component
                 'score' => $this->score,
                 'stats' => $stats,
             ]);
-
-        $this->gameSessionId = $session->id;
     }
 
     public function resetGame(PuzzleGenerator $generator): void
     {
         $this->loadNewPuzzle($generator);
-        $this->foundGroups = [];
-        $this->selected = [];
-        $this->foundWords = [];
-        $this->score = 0;
-        $this->ended = false;
-        $this->allValidWords = null;
-        $this->message = null;
-        $this->startedAt = now()->timestamp;
-        $this->gameSessionId = null;
+        $this->resetProgress();
+        $this->startNewSession();
+    }
+
+    /**
+     * Same puzzle (tiles/groups untouched, no PuzzleGenerator call), zero
+     * progress -- distinct from resetGame()'s "New Game," which discards
+     * the puzzle itself too. See docs/specs/quartiles.md section 4a.
+     */
+    public function restartGame(): void
+    {
+        $this->unfoundOrder = collect(array_keys($this->tiles))->shuffle()->values()->all();
+        $this->resetProgress();
+        $this->startNewSession();
     }
 
     public function getSelectedWordProperty(): string
@@ -247,6 +266,20 @@ new class extends Component
             fn (int $id) => $this->tiles[$id]['match'] ?? '',
             $this->selected,
         )));
+    }
+
+    /**
+     * $foundWords, alphabetically -- insertion (find) order isn't a useful
+     * reading order once there are more than a couple of entries.
+     *
+     * @return array<string, int>
+     */
+    public function getFoundWordsSortedProperty(): array
+    {
+        $sorted = $this->foundWords;
+        ksort($sorted);
+
+        return $sorted;
     }
 
     /**
@@ -371,6 +404,128 @@ new class extends Component
         $this->unfoundOrder = $puzzle['tileOrder'];
         $this->resolvedSeed = $puzzle['seed'];
     }
+
+    /**
+     * Resets every progress field back to a fresh-game state, leaving
+     * $tiles/$groups untouched -- shared by resetGame() (which also
+     * generates a new puzzle before calling this) and restartGame()
+     * (which doesn't).
+     */
+    private function resetProgress(): void
+    {
+        $this->foundGroups = [];
+        $this->selected = [];
+        $this->foundWords = [];
+        $this->score = 0;
+        $this->ended = false;
+        $this->allValidWords = null;
+        $this->message = null;
+        $this->startedAt = now()->timestamp;
+        $this->gameSessionId = null;
+    }
+
+    /**
+     * @return array{tiles: array<int, array{display: string, match: string, groupIndex: int}>, groups: list<list<int>>, unfoundOrder: list<int>, foundGroups: list<int>, foundWords: array<string, int>, score: int}
+     */
+    private function progressState(): array
+    {
+        return [
+            'tiles' => $this->tiles,
+            'groups' => $this->groups,
+            'unfoundOrder' => $this->unfoundOrder,
+            'foundGroups' => $this->foundGroups,
+            'foundWords' => $this->foundWords,
+            'score' => $this->score,
+        ];
+    }
+
+    /**
+     * Hydrates $this from a signed-in user's own saved in-progress
+     * GameSession, if one exists -- see docs/specs/quartiles.md section 4a.
+     * $selected is deliberately left empty (never persisted).
+     */
+    private function resumeInProgressGame(): bool
+    {
+        $session = GameSession::query()
+            ->where('user_id', Auth::id())
+            ->where('type', GameType::Quartiles)
+            ->whereNull('ended_at')
+            ->first();
+
+        if ($session === null) {
+            return false;
+        }
+
+        $state = $session->state ?? [];
+
+        $this->tiles = $state['tiles'] ?? [];
+        $this->groups = $state['groups'] ?? [];
+        $this->unfoundOrder = $state['unfoundOrder'] ?? [];
+        $this->foundGroups = $state['foundGroups'] ?? [];
+        $this->foundWords = $state['foundWords'] ?? [];
+        $this->score = $state['score'] ?? 0;
+        $this->resolvedSeed = $session->settings['seed'] ?? 0;
+        $this->startedAt = $session->started_at->timestamp;
+        $this->gameSessionId = $session->id;
+
+        return true;
+    }
+
+    /**
+     * Starts tracking the current puzzle as this signed-in user's
+     * in-progress game -- reuses whatever unfinished row already exists
+     * for them (abandoning its puzzle in favor of this one) rather than
+     * accumulating a second row, but never touches an already-*finished*
+     * row (that would silently rewrite another game's own recorded
+     * history -- see docs/specs/quartiles.md section 4a). A no-op for
+     * guests, who are never given an early row at all.
+     */
+    private function startNewSession(): void
+    {
+        if (! Auth::check()) {
+            return;
+        }
+
+        $attributes = [
+            'user_id' => Auth::id(),
+            'type' => GameType::Quartiles,
+            'mode' => GameMode::Solo,
+            'settings' => ['seed' => $this->resolvedSeed],
+            'state' => $this->progressState(),
+            'started_at' => now()->setTimestamp($this->startedAt),
+            'ended_at' => null,
+        ];
+
+        $existing = GameSession::query()
+            ->where('user_id', Auth::id())
+            ->where('type', GameType::Quartiles)
+            ->whereNull('ended_at')
+            ->first();
+
+        if ($existing !== null) {
+            $existing->update($attributes);
+            $this->gameSessionId = $existing->id;
+
+            return;
+        }
+
+        $this->gameSessionId = GameSession::create($attributes)->id;
+    }
+
+    /**
+     * Saves the current progress to the already-started session from
+     * startNewSession() -- called after every scoring action. A no-op for
+     * guests (no session to update) or if somehow called before a session
+     * exists.
+     */
+    private function persistState(): void
+    {
+        if (! Auth::check() || $this->gameSessionId === null) {
+            return;
+        }
+
+        GameSession::whereKey($this->gameSessionId)->update(['state' => $this->progressState()]);
+    }
 };
 ?>
 
@@ -386,6 +541,7 @@ new class extends Component
         <li>Five specific groups of 4 tiles spell a hidden "Quad" — finding one moves those tiles to their own row and earns bonus progress toward a 40-point bonus for finding all 5.</li>
         <li>Shuffle re-arranges the tiles you haven't used in a found Quad yet.</li>
         <li>Press End Game whenever you're ready to stop — every valid word the puzzle contains is then revealed, found and missed.</li>
+        <li>If you're signed in, leaving and coming back later picks up right where you left off. Restart tries the same puzzle again from scratch; New Game gets you a different one.</li>
     </ul>
 
     <h3>Full Rules</h3>
@@ -400,10 +556,10 @@ new class extends Component
 <div class="flex flex-col items-center w-full gap-6">
     @teleport('#game-actions')
         <div style="display: contents;">
+            <button type="button" id="restart-game-btn" wire:click="restartGame">Restart</button>
+            <button type="button" id="new-game-btn" wire:click="resetGame">New Game</button>
             @unless ($ended)
                 <button type="button" id="end-game-btn" wire:click="endGame">End Game</button>
-            @else
-                <button type="button" id="new-game-btn" wire:click="resetGame">New Game</button>
             @endunless
         </div>
     @endteleport
@@ -467,6 +623,22 @@ new class extends Component
             @if ($message)
                 <p class="status-line" style="color: var(--warn);">{{ $message }}</p>
             @endif
+
+            <div class="flex flex-col gap-2 w-full">
+                <p class="text-sm text-text/80 font-bold">Words found</p>
+
+                @if ($foundWords === [])
+                    <p class="text-sm text-text/65 text-center">Nothing yet.</p>
+                @else
+                    <div class="flex flex-wrap gap-2 w-full" id="found-words-list">
+                        @foreach ($this->foundWordsSorted as $word => $points)
+                            <span wire:key="found-word-{{ $word }}" class="text-sm bg-surface border border-surface-border rounded px-3 py-1.5 text-text">
+                                {{ strtoupper($word) }} <span class="text-text/65">({{ $points }})</span>
+                            </span>
+                        @endforeach
+                    </div>
+                @endif
+            </div>
         </div>
     @else
         <div class="flex flex-col items-center gap-4 w-full max-w-2xl">

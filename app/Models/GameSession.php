@@ -8,6 +8,7 @@ use Database\Factories\GameSessionFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
@@ -16,7 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property array<string, mixed> $settings
  * @property array<string, mixed>|null $state
  */
-#[Fillable(['type', 'mode', 'room_code', 'settings', 'state', 'started_at', 'ended_at'])]
+#[Fillable(['user_id', 'type', 'mode', 'room_code', 'settings', 'state', 'started_at', 'ended_at'])]
 class GameSession extends Model
 {
     /** @use HasFactory<GameSessionFactory> */
@@ -28,6 +29,19 @@ class GameSession extends Model
     public function participants(): HasMany
     {
         return $this->hasMany(GameParticipant::class);
+    }
+
+    /**
+     * Only ever set for a solo, resumable-in-progress session (currently
+     * just Word Blocks) -- null for every room game (identified by
+     * `room_code`/`RoomSeat` instead) and for any solo game whose
+     * GameSession is only ever written once it's already finished.
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
     }
 
     /**

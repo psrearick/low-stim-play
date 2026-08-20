@@ -61,7 +61,6 @@
                     round trip of their own for a teleport to react to.
                 --}}
                 <livewire:rooms-menu />
-                <x-user-menu />
                 {{--
                     A stable teleport target (see Livewire's @teleport
                     directive), not a slot -- game-specific right-side
@@ -105,6 +104,14 @@
                         </svg>
                     </button>
                 @endisset
+                {{--
+                    Always the last item in .right -- rendered after every
+                    game-specific/page-specific button above (#game-actions,
+                    $barRight, the fullscreen toggle) so the avatar's own
+                    position never shifts depending on how many other
+                    buttons a given page adds next to it.
+                --}}
+                <x-user-menu />
             </div>
         </div>
 
