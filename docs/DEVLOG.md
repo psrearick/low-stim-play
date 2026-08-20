@@ -622,6 +622,18 @@ QuartilesFoundQuartileTest.php`'s hand-verified seed-1 fixture word changed from
 consuming randomness differently than the original generator did — re-verified live
 (`PuzzleGenerator::generate(1)`) rather than assumed still correct.
 
+**Restart removed; New Game only shown once the game has ended.** Restart (section 4a of
+the spec: same puzzle, zero progress) turned out to have no real use once New Game is
+always one click away — there's no case where replaying the identical puzzle from
+scratch beats just starting a fresh one. Removed entirely: the button, the
+`restartGame()` Livewire method, its dedicated test, and the mentions in this file and
+`docs/specs/quartiles.md` (superseded by that doc's own section 4b rather than rewritten
+in place, consistent with how the rest of this log treats past decisions). Separately,
+New Game's button is now conditioned on `$ended` and only rendered in the post-game
+reveal state, rather than being available throughout play — with Restart gone, showing
+"abandon this puzzle" as an option before a player has had a chance to finish it no
+longer served a purpose. `docs/specs/quartiles.md` section 4b has the full reasoning.
+
 ## User profiles & stats
 
 - `/dashboard` (own stats) and `/profile/{username}` (public, `is_public`-gated).

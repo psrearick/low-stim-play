@@ -218,6 +218,17 @@ Implementation:
   and becomes the new in-progress row, the same as clicking New Game would, rather than
   being silently overridden by whatever was already in progress.
 
+## 4b. v3 addendum: Restart removed (2026-08-20)
+
+Restart (section 4a: same puzzle, zero progress) is gone — button, `restartGame()`
+Livewire method, and its test all removed. Reasoning: with New Game one click away and
+always available, there's no situation where replaying the identical puzzle from scratch
+is what a player actually wants over a fresh one, so the second button was just clutter.
+**New Game is now only shown once the game has ended** (`$ended` true) rather than being
+available throughout play — it no longer makes sense to raise "abandon this puzzle" as an
+option before a player has had a chance to finish it. `game_sessions.user_id` and the
+resumable-game mechanics from section 4a are otherwise unchanged.
+
 ## 5. Accessibility
 
 Same low-stim system as the rest of the app (see `docs/DEVLOG.md`'s "Site-wide design

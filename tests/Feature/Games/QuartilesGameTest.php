@@ -318,29 +318,6 @@ test('leaving and revisiting resumes the saved in-progress game exactly as left'
         ->and(GameSession::count())->toBe(1); // resuming must not create a second row
 });
 
-test('restartGame keeps the same puzzle but resets all progress', function () {
-    $user = User::factory()->create();
-    Livewire::actingAs($user);
-
-    $component = quartilesComponent()
-        ->call('toggleTile', 0)->call('toggleTile', 1)->call('toggleTile', 2)->call('toggleTile', 3)
-        ->call('submitWord');
-
-    $tilesBefore = $component->get('tiles');
-    $sessionIdBefore = $component->get('gameSessionId');
-
-    $component->call('restartGame');
-
-    expect($component->get('tiles'))->toBe($tilesBefore)
-        ->and($component->get('foundWords'))->toBe([])
-        ->and($component->get('foundGroups'))->toBe([])
-        ->and($component->get('score'))->toBe(0)
-        ->and($component->get('unfoundOrder'))->toEqualCanonicalizing(array_keys($tilesBefore))
-        // Same row reused, not a second one created.
-        ->and($component->get('gameSessionId'))->toBe($sessionIdBefore)
-        ->and(GameSession::count())->toBe(1);
-});
-
 test('New Game reuses the same unfinished session row instead of creating a duplicate', function () {
     $user = User::factory()->create();
     Livewire::actingAs($user);

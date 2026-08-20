@@ -25,8 +25,7 @@ new class extends Component
      * (see docs/specs/quartiles.md section 4). An explicit seed always
      * wins over resuming a saved in-progress game (section 4a) -- it's a
      * deliberate "play this specific puzzle" request. Ignored by
-     * resetGame() ("New Game" always generates a genuinely fresh puzzle)
-     * and restartGame() (which doesn't regenerate at all).
+     * resetGame() ("New Game" always generates a genuinely fresh puzzle).
      */
     #[Url]
     public ?int $seed = null;
@@ -208,7 +207,7 @@ new class extends Component
         ];
 
         // A signed-in user's session already exists (created at mount/New
-        // Game/Restart time -- see startNewSession()) -- update it in
+        // Game time -- see startNewSession()) -- update it in
         // place rather than creating a second row. Guests were never given
         // an early row (see docs/specs/quartiles.md section 4a: resuming
         // is signed-in-only), so they still get one created here exactly
@@ -244,18 +243,6 @@ new class extends Component
     public function resetGame(PuzzleGenerator $generator): void
     {
         $this->loadNewPuzzle($generator);
-        $this->resetProgress();
-        $this->startNewSession();
-    }
-
-    /**
-     * Same puzzle (tiles/groups untouched, no PuzzleGenerator call), zero
-     * progress -- distinct from resetGame()'s "New Game," which discards
-     * the puzzle itself too. See docs/specs/quartiles.md section 4a.
-     */
-    public function restartGame(): void
-    {
-        $this->unfoundOrder = collect(array_keys($this->tiles))->shuffle()->values()->all();
         $this->resetProgress();
         $this->startNewSession();
     }
@@ -407,9 +394,8 @@ new class extends Component
 
     /**
      * Resets every progress field back to a fresh-game state, leaving
-     * $tiles/$groups untouched -- shared by resetGame() (which also
-     * generates a new puzzle before calling this) and restartGame()
-     * (which doesn't).
+     * $tiles/$groups untouched -- called by resetGame() after it generates
+     * a new puzzle.
      */
     private function resetProgress(): void
     {
@@ -541,7 +527,7 @@ new class extends Component
         <li>Five specific groups of 4 tiles spell a hidden "Quad" — finding one moves those tiles to their own row and earns bonus progress toward a 40-point bonus for finding all 5.</li>
         <li>Shuffle re-arranges the tiles you haven't used in a found Quad yet.</li>
         <li>Press End Game whenever you're ready to stop — every valid word the puzzle contains is then revealed, found and missed.</li>
-        <li>If you're signed in, leaving and coming back later picks up right where you left off. Restart tries the same puzzle again from scratch; New Game gets you a different one.</li>
+        <li>If you're signed in, leaving and coming back later picks up right where you left off.</li>
     </ul>
 
     <h3>Full Rules</h3>
@@ -556,11 +542,11 @@ new class extends Component
 <div class="flex flex-col items-center w-full gap-6">
     @teleport('#game-actions')
         <div style="display: contents;">
-            <button type="button" id="restart-game-btn" wire:click="restartGame">Restart</button>
-            <button type="button" id="new-game-btn" wire:click="resetGame">New Game</button>
-            @unless ($ended)
+            @if ($ended)
+                <button type="button" id="new-game-btn" wire:click="resetGame">New Game</button>
+            @else
                 <button type="button" id="end-game-btn" wire:click="endGame">End Game</button>
-            @endunless
+            @endif
         </div>
     @endteleport
 

@@ -2,6 +2,15 @@
 
 A terse, commit-by-commit record of what changed, newest first. No rationale or decisions here — see `docs/DEVLOG.md` for the *why* behind anything listed here, organized by feature instead of by commit. See `docs/TODO.md` for what's still outstanding.
 
+## 2026-08-20
+
+- Removed Word Blocks' Restart button and its `restartGame()` action; New Game is now only shown once the game has ended, not throughout play.
+- Word Blocks: dropped the per-found-row "Quad found" label; grid + controls and the found-words list now sit side by side on desktop instead of one stacked column.
+- Word Blocks: fixed a bug where a found Quad sometimes silently didn't register when two tiles showed identical text — the puzzle generator now guarantees every tile's displayed text is unique.
+- Word Blocks: added resumable in-progress games for signed-in users (auto-resume on visit, Restart/New Game/End Game buttons), a live found-words list during play; fixed the navbar avatar's position and shape being affected by other pages' own button-bar buttons.
+- Added Word Blocks (Quartiles): a solo word puzzle where players combine 2-4 letter tiles into words, with algorithmically generated tiles and 5 hidden "Quads" for bonus scoring.
+- Added friends: mutual friend requests, a friends list, and a friend-activity feed.
+
 ## 2026-08-18
 
 - Reverted the "Home" → "Play" button rename from earlier today ("Dashboard" → "My Stats" stands); fixed the now-stale test this desynced.
