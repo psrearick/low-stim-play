@@ -44,6 +44,7 @@ class RecordPageview
             ]));
 
             $utm = PathNormalizer::utmParams($request);
+            $countryResolver = app(CountryResolver::class);
 
             $data = new PageviewData(
                 date: $now->toDateString(),
@@ -51,7 +52,8 @@ class RecordPageview
                 visitorHash: $visitorHash,
                 path: PathNormalizer::path($request),
                 routeName: PathNormalizer::routeName($request),
-                country: app(CountryResolver::class)->resolve($request->ip()),
+                country: $countryResolver->resolve($request->ip()),
+                region: $countryResolver->resolveRegion($request->ip()),
                 referrerHost: PathNormalizer::referrerHost($request),
                 utmSource: $utm['utm_source'],
                 utmMedium: $utm['utm_medium'],

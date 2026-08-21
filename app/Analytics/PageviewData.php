@@ -19,6 +19,7 @@ final readonly class PageviewData
         public string $path,
         public ?string $routeName,
         public ?string $country,
+        public ?string $region,
         public ?string $referrerHost,
         public ?string $utmSource,
         public ?string $utmMedium,
@@ -27,7 +28,7 @@ final readonly class PageviewData
     ) {}
 
     /**
-     * @return array{date: string, hour: int, visitor_hash: string, path: string, route_name: ?string, country: ?string, referrer_host: ?string, utm_source: ?string, utm_medium: ?string, utm_campaign: ?string, created_at: string}
+     * @return array{date: string, hour: int, visitor_hash: string, path: string, route_name: ?string, country: ?string, region: ?string, referrer_host: ?string, utm_source: ?string, utm_medium: ?string, utm_campaign: ?string, created_at: string}
      */
     public function toArray(): array
     {
@@ -38,6 +39,7 @@ final readonly class PageviewData
             'path' => $this->path,
             'route_name' => $this->routeName,
             'country' => $this->country,
+            'region' => $this->region,
             'referrer_host' => $this->referrerHost,
             'utm_source' => $this->utmSource,
             'utm_medium' => $this->utmMedium,

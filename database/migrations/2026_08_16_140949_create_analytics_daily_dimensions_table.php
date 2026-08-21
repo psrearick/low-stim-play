@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('analytics_daily_dimensions', function (Blueprint $table) {
             $table->id();
             $table->date('date');
-            $table->string('dimension', 24); // 'path' | 'country' | 'referrer' | 'utm_source'
+            $table->string('dimension', 24); // 'path' | 'country' | 'region' | 'referrer' | 'utm_source'
             $table->string('value', 255);
             $table->unsignedInteger('pageviews');
             $table->unsignedInteger('visitors');

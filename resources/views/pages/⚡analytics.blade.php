@@ -2,6 +2,7 @@
 
 use App\Analytics\AnalyticsRepository;
 use App\Analytics\Geo\CountryNames;
+use App\Analytics\Geo\RegionNames;
 use Carbon\CarbonPeriod;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -174,6 +175,15 @@ new class extends Component
     /**
      * @return Collection<int, array{label: string, pageviews: int, visitors: int}>
      */
+    public function getRegionsProperty(): Collection
+    {
+        return app(AnalyticsRepository::class)->regions($this->period)
+            ->map(fn (array $row) => ['label' => RegionNames::label($row['value']), 'pageviews' => $row['pageviews'], 'visitors' => $row['visitors']]);
+    }
+
+    /**
+     * @return Collection<int, array{label: string, pageviews: int, visitors: int}>
+     */
     public function getReferrersProperty(): Collection
     {
         return app(AnalyticsRepository::class)->referrers($this->period)
@@ -312,6 +322,14 @@ new class extends Component
             :rows="$this->countries"
             :expanded="in_array('countries', $expandedPanels, true)"
             empty-message="No visits recorded yet."
+        />
+        <x-analytics-breakdown
+            title="Regions"
+            column-label="Region"
+            panel-key="regions"
+            :rows="$this->regions"
+            :expanded="in_array('regions', $expandedPanels, true)"
+            empty-message="No region data yet. Not every visit resolves to a state/province."
         />
         <x-analytics-breakdown
             title="Referrers"

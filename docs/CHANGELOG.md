@@ -4,6 +4,7 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 
 ## 2026-08-21
 
+- Added state/region-level analytics: switched the geo database from MaxMind's GeoLite2-Country to GeoLite2-City and added a "Regions" panel to the analytics dashboard.
 - Split the dashboard/profile Boggle "avg score" stat into separate solo and rooms figures instead of blending two different score scales together.
 - Added a Word Grid stat: points earned from words over 4 letters, shown per-game and as a personal best.
 - Added a pending friend-request count badge to the navbar avatar dropdown.

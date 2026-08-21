@@ -104,6 +104,19 @@ class AnalyticsRepository
     }
 
     /**
+     * `value` is the ISO 3166-2 composite App\Analytics\Geo\CountryResolver::resolveRegion()
+     * writes (e.g. "US-CA"), not a bare subdivision code -- see
+     * App\Analytics\Geo\RegionNames::label() for turning that back into a
+     * display string.
+     *
+     * @return Collection<int, array{value: string, pageviews: int, visitors: int}>
+     */
+    public function regions(CarbonPeriod $period, int $limit = 30): Collection
+    {
+        return $this->dimension($period, 'region', 'region', $limit);
+    }
+
+    /**
      * @return Collection<int, array{value: string, pageviews: int, visitors: int}>
      */
     public function referrers(CarbonPeriod $period, int $limit = 20): Collection

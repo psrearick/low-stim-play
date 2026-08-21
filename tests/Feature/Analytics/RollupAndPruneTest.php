@@ -16,6 +16,7 @@ function seedAnalyticsEvent(string $date, array $overrides = []): AnalyticsEvent
         'visitor_hash' => 'hash-'.uniqid(),
         'path' => '/',
         'country' => 'US',
+        'region' => null,
         'referrer_host' => null,
         'utm_source' => null,
         'created_at' => $date.' 12:00:00',
@@ -25,9 +26,9 @@ function seedAnalyticsEvent(string $date, array $overrides = []): AnalyticsEvent
 test('rollup produces correct totals and per-dimension rows for a seeded day', function () {
     $date = now()->subDay()->toDateString();
 
-    seedAnalyticsEvent($date, ['visitor_hash' => 'a', 'path' => '/', 'country' => 'US', 'referrer_host' => 'google.com']);
-    seedAnalyticsEvent($date, ['visitor_hash' => 'a', 'path' => '/', 'country' => 'US', 'referrer_host' => 'google.com']);
-    seedAnalyticsEvent($date, ['visitor_hash' => 'b', 'path' => '/about', 'country' => 'CA', 'referrer_host' => null]);
+    seedAnalyticsEvent($date, ['visitor_hash' => 'a', 'path' => '/', 'country' => 'US', 'region' => 'US-CA', 'referrer_host' => 'google.com']);
+    seedAnalyticsEvent($date, ['visitor_hash' => 'a', 'path' => '/', 'country' => 'US', 'region' => 'US-CA', 'referrer_host' => 'google.com']);
+    seedAnalyticsEvent($date, ['visitor_hash' => 'b', 'path' => '/about', 'country' => 'CA', 'region' => null, 'referrer_host' => null]);
 
     $this->artisan('analytics:rollup', ['--date' => $date])->assertSuccessful();
 
@@ -43,6 +44,14 @@ test('rollup produces correct totals and per-dimension rows for a seeded day', f
     $countries = AnalyticsDailyDimension::where('date', $date)->where('dimension', 'country')->get()->keyBy('value');
     expect($countries['US']->pageviews)->toBe(2);
     expect($countries['CA']->pageviews)->toBe(1);
+
+    // The one event with no region resolved (country = 'CA') doesn't
+    // produce a null/empty regions row -- rollupDimension() always
+    // whereNotNull()s its column, same as every other dimension.
+    $regions = AnalyticsDailyDimension::where('date', $date)->where('dimension', 'region')->get()->keyBy('value');
+    expect($regions)->toHaveCount(1);
+    expect($regions['US-CA']->pageviews)->toBe(2);
+    expect($regions['US-CA']->visitors)->toBe(1);
 
     $referrers = AnalyticsDailyDimension::where('date', $date)->where('dimension', 'referrer')->get();
     expect($referrers)->toHaveCount(1);

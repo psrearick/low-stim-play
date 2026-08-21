@@ -24,13 +24,15 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $path
  * @property ?string $route_name
  * @property ?string $country
+ * @property ?string $region ISO 3166-2 composite, e.g. "US-CA" -- see
+ *                           App\Analytics\Geo\CountryResolver::resolveRegion()
  * @property ?string $referrer_host
  * @property ?string $utm_source
  * @property ?string $utm_medium
  * @property ?string $utm_campaign
  */
 #[Fillable([
-    'date', 'hour', 'visitor_hash', 'path', 'route_name', 'country',
+    'date', 'hour', 'visitor_hash', 'path', 'route_name', 'country', 'region',
     'referrer_host', 'utm_source', 'utm_medium', 'utm_campaign', 'created_at',
 ])]
 class AnalyticsEvent extends Model

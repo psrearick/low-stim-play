@@ -29,6 +29,7 @@ class AnalyticsRollup extends Command
     private const array DIMENSIONS = [
         'path' => 'path',
         'country' => 'country',
+        'region' => 'region',
         'referrer_host' => 'referrer',
         'utm_source' => 'utm_source',
     ];

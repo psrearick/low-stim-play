@@ -29,6 +29,7 @@ test('the dashboard renders correct figures from seeded rollups', function () {
     AnalyticsDailyTotal::create(['date' => $date, 'pageviews' => 42, 'visitors' => 17]);
     AnalyticsDailyDimension::create(['date' => $date, 'dimension' => 'path', 'value' => '/', 'pageviews' => 42, 'visitors' => 17]);
     AnalyticsDailyDimension::create(['date' => $date, 'dimension' => 'country', 'value' => 'US', 'pageviews' => 30, 'visitors' => 10]);
+    AnalyticsDailyDimension::create(['date' => $date, 'dimension' => 'region', 'value' => 'US-CA', 'pageviews' => 12, 'visitors' => 4]);
     AnalyticsDailyDimension::create(['date' => $date, 'dimension' => 'referrer', 'value' => 'google.com', 'pageviews' => 5, 'visitors' => 3]);
 
     $this->actingAs($admin)
@@ -38,6 +39,7 @@ test('the dashboard renders correct figures from seeded rollups', function () {
         ->assertSee('17')
         ->assertSee('/')
         ->assertSee('United States')
+        ->assertSee('CA, United States')
         ->assertSee('google.com');
 });
 

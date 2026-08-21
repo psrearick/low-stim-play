@@ -29,9 +29,15 @@ return [
     // sit behind a proxy that sets a country header on Laravel Cloud, and
     // depending on one that could silently disappear later was judged not
     // worth it -- see docs/DEVLOG.md's Analytics section.
+    //
+    // GeoLite2-City, not -Country -- City's schema is a superset of
+    // Country's, so this doesn't change country resolution, but it's the
+    // only edition with subdivision (state/region) data. See
+    // App\Analytics\Console\Commands\AnalyticsGeoipUpdate, which downloads
+    // this same edition.
     'geo' => [
         'driver' => env('ANALYTICS_GEO_DRIVER', 'maxmind'),
-        'database_path' => env('ANALYTICS_GEO_DB', storage_path('app/geoip/GeoLite2-Country.mmdb')),
+        'database_path' => env('ANALYTICS_GEO_DB', storage_path('app/geoip/GeoLite2-City.mmdb')),
     ],
 
     'retention' => [

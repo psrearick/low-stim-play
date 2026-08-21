@@ -11,11 +11,14 @@ use PharData;
 use Throwable;
 
 /**
- * Downloads the current GeoLite2-Country database for
- * App\Analytics\Geo\CountryResolver's maxmind driver. MaxMind's license
- * does not permit redistributing the .mmdb, so it is never committed --
- * see .gitignore's storage/app/geoip/ entry -- and this command is how
- * both local dev and any deployment obtain their own copy.
+ * Downloads the current GeoLite2-City database for
+ * App\Analytics\Geo\CountryResolver's maxmind driver -- City, not Country,
+ * since City is the only edition with subdivision (state/region) data;
+ * its schema is a superset of Country's, so this doesn't change country
+ * resolution. MaxMind's license does not permit redistributing the
+ * .mmdb, so it is never committed -- see .gitignore's storage/app/geoip/
+ * entry -- and this command is how both local dev and any deployment
+ * obtain their own copy.
  *
  * Deliberately not scheduled. Laravel Cloud's filesystem is ephemeral
  * and per-replica -- a scheduled run only ever updates whichever single
@@ -30,10 +33,10 @@ use Throwable;
  * Analytics section for the full reasoning.
  */
 #[Signature('analytics:geoip-update')]
-#[Description('Download the current GeoLite2-Country database for the maxmind geo driver')]
+#[Description('Download the current GeoLite2-City database for the maxmind geo driver')]
 class AnalyticsGeoipUpdate extends Command
 {
-    private const string EDITION = 'GeoLite2-Country';
+    private const string EDITION = 'GeoLite2-City';
 
     public function handle(): int
     {
