@@ -1,4 +1,5 @@
 import { Passkeys } from '@laravel/passkeys';
+import Cropper from 'cropperjs';
 
 import './echo';
 
@@ -775,6 +776,122 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } finally {
                 removeConfirmBtn.disabled = false;
+            }
+        });
+    }
+
+    // ---- Avatar crop-before-upload (docs/concerns.md) ---------------------
+    // The <input type="file"> deliberately has no wire:model -- the raw
+    // file the user picked never reaches Livewire. Selecting a file only
+    // opens this dialog against a local blob: URL (no network round trip);
+    // the only thing ever handed to Livewire is the cropped square the
+    // user confirms, via $wire.$upload() -- the JS upload API is the only
+    // entry point that accepts a File Livewire didn't itself receive from
+    // the raw <input>, which a normal wire:model upload requires.
+    const avatarInput = document.getElementById('avatar-upload-input');
+    const avatarCropDialog = document.getElementById('avatar-crop-dialog');
+
+    if (avatarInput && avatarCropDialog) {
+        const cropImage = document.getElementById('avatar-crop-image');
+        const cropCanvasWrapper = document.getElementById('avatar-crop-canvas-wrapper');
+        const cropConfirm = document.getElementById('avatar-crop-confirm');
+        const cropCancel = document.getElementById('avatar-crop-cancel');
+        const cropError = document.getElementById('avatar-crop-error');
+        let objectUrl = null;
+        let cropper = null;
+
+        // Same tree Cropper.js's own DEFAULT_TEMPLATE builds (see
+        // node_modules/cropperjs/dist/cropper.esm.raw.js), plus a fixed
+        // 1:1 aspect ratio on <cropper-selection> for a square avatar.
+        // Not the library's default -- passed explicitly so the only
+        // difference from upstream is that one attribute, not a
+        // hand-guessed rebuild of the whole tree (which previously left
+        // <cropper-selection> stuck at 0x0; see the profile.blade.php
+        // comment above this dialog for how that was confirmed).
+        const cropperTemplate = '<cropper-canvas background style="display:block;width:100%;height:280px;border-radius:0.25rem;overflow:hidden;">'
+            + '<cropper-image rotatable scalable skewable translatable></cropper-image>'
+            + '<cropper-shade hidden></cropper-shade>'
+            + '<cropper-handle action="select" plain></cropper-handle>'
+            + '<cropper-selection aspect-ratio="1" initial-coverage="0.8" movable resizable>'
+            + '<cropper-grid role="grid" bordered covered></cropper-grid>'
+            + '<cropper-crosshair centered></cropper-crosshair>'
+            + '<cropper-handle action="move" theme-color="rgba(255, 255, 255, 0.35)"></cropper-handle>'
+            + '<cropper-handle action="n-resize"></cropper-handle>'
+            + '<cropper-handle action="e-resize"></cropper-handle>'
+            + '<cropper-handle action="s-resize"></cropper-handle>'
+            + '<cropper-handle action="w-resize"></cropper-handle>'
+            + '<cropper-handle action="ne-resize"></cropper-handle>'
+            + '<cropper-handle action="nw-resize"></cropper-handle>'
+            + '<cropper-handle action="se-resize"></cropper-handle>'
+            + '<cropper-handle action="sw-resize"></cropper-handle>'
+            + '</cropper-selection>'
+            + '</cropper-canvas>';
+
+        const destroyCropper = () => {
+            cropper?.destroy();
+            cropper = null;
+        };
+
+        const closeCropDialog = () => {
+            avatarCropDialog.close();
+            avatarInput.value = '';
+            destroyCropper();
+
+            if (objectUrl) {
+                URL.revokeObjectURL(objectUrl);
+                objectUrl = null;
+            }
+        };
+
+        avatarInput.addEventListener('change', () => {
+            const file = avatarInput.files[0];
+
+            if (!file) {
+                return;
+            }
+
+            if (objectUrl) {
+                URL.revokeObjectURL(objectUrl);
+            }
+
+            destroyCropper();
+            objectUrl = URL.createObjectURL(file);
+            cropImage.src = objectUrl;
+            cropError.classList.add('hidden');
+            avatarCropDialog.showModal();
+            cropper = new Cropper(cropImage, { container: cropCanvasWrapper, template: cropperTemplate });
+        });
+
+        cropCancel.addEventListener('click', () => closeCropDialog());
+
+        avatarCropDialog.addEventListener('click', (event) => {
+            if (event.target === avatarCropDialog) {
+                closeCropDialog();
+            }
+        });
+
+        cropConfirm.addEventListener('click', async () => {
+            cropError.classList.add('hidden');
+            cropConfirm.disabled = true;
+
+            try {
+                const selection = cropper.getCropperSelection();
+                const canvas = await selection.$toCanvas({ width: 512, height: 512 });
+                const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9));
+                const croppedFile = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
+                const wireRoot = avatarInput.closest('[wire\\:id]');
+                const component = window.Livewire.find(wireRoot.getAttribute('wire:id'));
+
+                await new Promise((resolve, reject) => {
+                    component.$upload('avatarUpload', croppedFile, resolve, reject);
+                });
+
+                closeCropDialog();
+            } catch (error) {
+                cropError.textContent = 'Could not crop that image. Please try again.';
+                cropError.classList.remove('hidden');
+            } finally {
+                cropConfirm.disabled = false;
             }
         });
     }

@@ -16,6 +16,7 @@
     },
     "dependencies": {
         "@laravel/passkeys": "^0.2.0",
+        "cropperjs": "^2.1.1",
         "laravel-echo": "^2.4.0",
         "pusher-js": "^8.6.0"
     }

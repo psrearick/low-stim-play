@@ -80,6 +80,12 @@ RUN echo "opcache.enable=1" >> /usr/local/etc/php/conf.d/opcache.ini \
     && echo "opcache.revalidate_freq=0" >> /usr/local/etc/php/conf.d/opcache.ini \
     && echo "opcache.validate_timestamps=1" >> /usr/local/etc/php/conf.d/opcache.ini
 
+# PHP config: raise upload limits above the default 2M/8M so avatar
+# uploads (validated up to 10MB, see resources/views/pages/⚡profile.blade.php)
+# aren't silently truncated by php-fpm before Laravel ever sees them.
+RUN echo "upload_max_filesize=10M" >> /usr/local/etc/php/conf.d/uploads.ini \
+    && echo "post_max_size=12M" >> /usr/local/etc/php/conf.d/uploads.ini
+
 EXPOSE 9000
 
 CMD ["php-fpm"]

@@ -27,7 +27,7 @@ new class extends Component
 
     public ?string $avatarUrl = null;
 
-    #[Validate('nullable|image|max:2048')]
+    #[Validate('nullable|image|max:10240')]
     public ?UploadedFile $avatarUpload = null;
 
     public function mount(): void
@@ -168,7 +168,7 @@ new class extends Component
             @endif
 
             <div class="flex flex-col gap-2 flex-1">
-                <input type="file" id="avatar-upload-input" wire:model="avatarUpload" accept="image/*"
+                <input type="file" id="avatar-upload-input" accept="image/*"
                     class="text-sm text-text/80 file:mr-3 file:rounded file:border-2 file:border-surface-border file:bg-surface file:px-3 file:py-1 file:text-text">
                 @error('avatarUpload')
                     <p class="text-sm text-warn">{{ $message }}</p>
@@ -440,5 +440,39 @@ new class extends Component
         </div>
 
         <button type="button" id="two-factor-recovery-codes-done" data-passkey-dialog-close class="w-full">Done</button>
+    </dialog>
+
+    <dialog class="passkey-dialog m-auto w-[min(94vw,420px)] rounded-lg border-2 border-surface-border bg-surface p-6 text-text backdrop:bg-black/50 focus:outline-none"
+        id="avatar-crop-dialog" aria-labelledby="avatar-crop-dialog-title">
+        <div class="flex items-center justify-between gap-3 mb-4">
+            <div class="text-bar font-bold tracking-wide text-lg" id="avatar-crop-dialog-title">Adjust your avatar</div>
+        </div>
+
+        <p class="text-sm text-text/80 text-center mb-4">Drag to reposition, or resize the corners to zoom.</p>
+
+        {{--
+            Cropper.js builds its whole <cropper-canvas>/<cropper-image>/
+            <cropper-selection> element tree itself (via `new Cropper(img)`
+            in app.js) right after this <img>, using its own verified
+            DEFAULT_TEMPLATE -- hand-authoring that tree here previously
+            produced a <cropper-selection> stuck at 0x0 (confirmed via a
+            real $toCanvas() capture rendering a blank sliver), since the
+            template's internal sizing logic expects to run once, right
+            after construction, against an <img> whose src is already set.
+        --}}
+        <div id="avatar-crop-canvas-wrapper" class="w-full">
+            <img id="avatar-crop-image" alt="Photo to crop" class="hidden">
+        </div>
+
+        <p id="avatar-crop-error" class="text-sm text-warn hidden mt-3"></p>
+
+        <div class="flex gap-3 w-full mt-4">
+            <button type="button" id="avatar-crop-cancel" class="flex-1 rounded px-6 py-2 font-bold tracking-wide bg-surface border-2 border-surface-border text-text">
+                Cancel
+            </button>
+            <button type="button" id="avatar-crop-confirm" class="flex-1 rounded px-6 py-2 font-bold tracking-wide bg-surface border-2 border-surface-border text-text">
+                Use This Photo
+            </button>
+        </div>
     </dialog>
 </div>

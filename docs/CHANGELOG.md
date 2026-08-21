@@ -4,6 +4,9 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 
 ## 2026-08-21
 
+- Provisioned the missing Laravel Cloud queue worker in production — friend-request and Challenge-a-Friend emails were queuing correctly but never actually sending, since no worker had ever been running.
+- Added a crop-before-upload step to avatar uploads, using Cropper.js.
+- Raised the avatar upload size limit from 2MB to 10MB, and fixed nginx/php-fpm upload limits that were silently capping it below the old Laravel-side limit.
 - Fixed the daily puzzles feature being unreachable: added a site-wide "Daily Puzzles" nav link, a prominent "play today's puzzle" card on the archive page, and an in-play badge showing when a game is a daily (and which date).
 - Added shared puzzle-game infrastructure: puzzle-code sharing for Word Blocks, daily puzzles with a 30-day archive for Word Grid and Word Blocks, and emailed Challenge-a-Friend invites from both games' reveal screens and the Friends page's activity feed.
 - Removed the analytics time-on-site/time-per-page TODO item.

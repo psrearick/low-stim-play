@@ -65,6 +65,31 @@ test('uploading a new avatar deletes the previous one from the s3 disk', functio
     Storage::disk('s3')->assertExists($secondPath);
 });
 
+test('an avatar up to 10MB is accepted', function () {
+    Storage::fake('s3');
+    $user = User::factory()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::profile')
+        ->set('avatarUpload', UploadedFile::fake()->image('large.jpg')->size(10240))
+        ->call('uploadAvatar')
+        ->assertHasNoErrors();
+
+    expect($user->fresh()->avatar_path)->not->toBeNull();
+});
+
+test('an avatar larger than 10MB is rejected', function () {
+    Storage::fake('s3');
+    $user = User::factory()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::profile')
+        ->set('avatarUpload', UploadedFile::fake()->image('too-large.jpg')->size(10241))
+        ->assertHasErrors(['avatarUpload' => 'max']);
+
+    expect($user->fresh()->avatar_path)->toBeNull();
+});
+
 test('a non-image upload is rejected', function () {
     Storage::fake('s3');
     $user = User::factory()->create();
