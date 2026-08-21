@@ -32,3 +32,16 @@ test('Quartiles has no room mode', function () {
 test('roomRoute() throws for Quartiles instead of returning a route that does not exist', function () {
     expect(fn () => GameType::Quartiles->roomRoute())->toThrow(LogicException::class);
 });
+
+test('only Boggle and Quartiles are challengeable today', function () {
+    expect(GameType::Boggle->isChallengeable())->toBeTrue()
+        ->and(GameType::Quartiles->isChallengeable())->toBeTrue();
+
+    foreach (GameType::cases() as $type) {
+        if (in_array($type, [GameType::Boggle, GameType::Quartiles], true)) {
+            continue;
+        }
+
+        expect($type->isChallengeable())->toBeFalse();
+    }
+});

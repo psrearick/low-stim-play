@@ -4,6 +4,8 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 
 ## 2026-08-21
 
+- Added shared puzzle-game infrastructure: puzzle-code sharing for Word Blocks, daily puzzles with a 30-day archive for Word Grid and Word Blocks, and emailed Challenge-a-Friend invites from both games' reveal screens and the Friends page's activity feed.
+- Removed the analytics time-on-site/time-per-page TODO item.
 - Removed the pending-friend-request badge dot from the avatar toggle itself; it now only shows next to "Friends" inside the dropdown panel.
 - Added state/region-level analytics: switched the geo database from MaxMind's GeoLite2-Country to GeoLite2-City and added a "Regions" panel to the analytics dashboard.
 - Split the dashboard/profile Boggle "avg score" stat into separate solo and rooms figures instead of blending two different score scales together.

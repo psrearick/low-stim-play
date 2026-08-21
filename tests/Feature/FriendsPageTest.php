@@ -8,6 +8,7 @@ use App\Models\GameParticipant;
 use App\Models\GameSession;
 use App\Models\User;
 use App\Notifications\FriendRequestReceived;
+use App\Notifications\GameChallengeReceived;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
@@ -214,4 +215,38 @@ test('the activity feed shows friends\' completed games but not the user\'s own 
     $component = Livewire::actingAs($user)->test('pages::friends');
 
     expect($component->get('activity')->pluck('id')->all())->toBe([$friendGame->id]);
+});
+
+test('challengeBack notifies the friend with the link for their own game type', function () {
+    Notification::fake();
+
+    $user = User::factory()->create();
+    $friend = User::factory()->create();
+    Friendship::factory()->accepted()->create(['requester_id' => $user->id, 'addressee_id' => $friend->id]);
+
+    $participant = gameParticipantFor($friend, GameType::Boggle);
+
+    Livewire::actingAs($user)
+        ->test('pages::friends')
+        ->call('challengeBack', $participant->id);
+
+    Notification::assertSentTo($friend, GameChallengeReceived::class, function (GameChallengeReceived $notification) use ($user, $participant) {
+        return $notification->from->is($user)
+            && $notification->gameType === GameType::Boggle
+            && $notification->link === route('boggle.share', ['gameSession' => $participant->game_session_id]);
+    });
+});
+
+test('the activity feed offers a Challenge back button only for a challengeable game type', function () {
+    $user = User::factory()->create();
+    $friend = User::factory()->create();
+    Friendship::factory()->accepted()->create(['requester_id' => $user->id, 'addressee_id' => $friend->id]);
+
+    $boggleGame = gameParticipantFor($friend, GameType::Boggle);
+    $yahtzeeGame = gameParticipantFor($friend, GameType::Yahtzee);
+
+    $component = Livewire::actingAs($user)->test('pages::friends');
+
+    $component->assertSeeHtml('challenge-back-'.$boggleGame->id)
+        ->assertDontSeeHtml('challenge-back-'.$yahtzeeGame->id);
 });

@@ -16,8 +16,14 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property GameMode $mode
  * @property array<string, mixed> $settings
  * @property array<string, mixed>|null $state
+ * @property string|null $daily_date A plain `Y-m-d` string, deliberately
+ *                                   uncast -- Eloquent's `date` cast reformats to a full datetime on
+ *                                   *write* (only truncating on read), which drifts from a bare
+ *                                   `toDateString()` under sqlite's dynamic typing (no real DATE column).
+ *                                   Left as a raw string so every write/compare uses the exact same
+ *                                   `Y-m-d` value everywhere, DB driver notwithstanding.
  */
-#[Fillable(['user_id', 'type', 'mode', 'room_code', 'settings', 'state', 'started_at', 'ended_at'])]
+#[Fillable(['user_id', 'type', 'mode', 'room_code', 'is_daily', 'daily_date', 'settings', 'state', 'started_at', 'ended_at'])]
 class GameSession extends Model
 {
     /** @use HasFactory<GameSessionFactory> */
@@ -52,6 +58,7 @@ class GameSession extends Model
         return [
             'type' => GameType::class,
             'mode' => GameMode::class,
+            'is_daily' => 'boolean',
             'settings' => 'array',
             'state' => 'array',
             'started_at' => 'datetime',

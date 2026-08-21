@@ -215,6 +215,11 @@ Route::livewire('/clear-the-deck/room/{code}', 'pages::clear-the-deck.room')
 // Auth::check() at endGame().
 Route::livewire('/word-blocks', 'pages::quartiles.play')->name('quartiles.play');
 
+// Pure date math, no DB reads -- every day's puzzle is derived on the fly
+// by DailyPuzzle::seedFor(), so there's nothing here to gate behind auth;
+// guests can browse and play the archive exactly like the random puzzles.
+Route::livewire('/daily-puzzles', 'pages::daily-puzzles')->name('daily-puzzles');
+
 // The room hub -- game-agnostic, unlike every /{game}/room/{code} above
 // (each of those is specifically the seat-assignment/start screen for
 // *that* game). This is where a room's own code/member list/host controls

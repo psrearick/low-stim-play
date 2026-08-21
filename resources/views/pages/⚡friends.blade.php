@@ -2,14 +2,25 @@
 
 use App\Enums\FriendshipStatus;
 use App\Models\Friendship;
+use App\Models\GameParticipant;
 use App\Models\User;
 use App\Services\Social\FriendService;
+use App\Services\Social\GameChallengeService;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 
 new class extends Component
 {
     public string $search = '';
+
+    /**
+     * Participant ids just challenged back, this request -- drives the
+     * activity feed's inline "Sent!" confirmation, same pattern as
+     * <livewire:challenge-friend>'s own $sentFriendId.
+     *
+     * @var list<int>
+     */
+    public array $challengedParticipantIds = [];
 
     /**
      * @return \Illuminate\Database\Eloquent\Collection<int, User>
@@ -111,6 +122,28 @@ new class extends Component
         $friend = User::findOrFail($userId);
 
         app(FriendService::class)->remove($this->user(), $friend);
+    }
+
+    /**
+     * Re-challenges a friend to the exact puzzle their own activity-feed
+     * row represents -- Boggle's own shared/ranked session link for a
+     * Boggle row, Word Blocks' direct seed link for a Word Blocks one (see
+     * GameChallengeService::linkFor()). A no-op for a non-challengeable
+     * game type or a guest-authored row, neither of which the UI below
+     * ever renders a button for, but guarded here too since this is a
+     * public Livewire action.
+     */
+    public function challengeBack(int $participantId, GameChallengeService $service): void
+    {
+        $participant = GameParticipant::with(['gameSession', 'user'])->findOrFail($participantId);
+
+        if ($participant->user === null || ! $participant->gameSession->type->isChallengeable()) {
+            return;
+        }
+
+        $service->send($this->user(), $participant->user, $service->linkFor($participant), $participant->gameSession->type);
+
+        $this->challengedParticipantIds[] = $participantId;
     }
 
     private function user(): User
@@ -231,7 +264,7 @@ new class extends Component
             <p class="text-sm text-text/65 text-center">Nothing here yet.</p>
         @else
             <div class="w-full overflow-x-auto bg-surface border-2 border-surface-border rounded-lg">
-                <div class="grid min-w-[480px]" style="grid-template-columns: 1fr 1fr 1fr 0.8fr;">
+                <div class="grid min-w-[560px]" style="grid-template-columns: 1fr 1fr 1fr 0.8fr 1fr;">
                     @foreach ($this->activity as $participant)
                         <div wire:key="activity-{{ $participant->id }}" class="contents">
                             <span class="pl-6 pr-3 py-3 {{ $loop->first ? '' : 'border-t border-surface-border' }} text-sm font-bold text-text">
@@ -243,8 +276,19 @@ new class extends Component
                             <span class="px-3 py-3 {{ $loop->first ? '' : 'border-t border-surface-border' }} text-sm text-text/65">
                                 {{ $participant->created_at->diffForHumans() }}
                             </span>
-                            <span class="pl-3 pr-6 py-3 {{ $loop->first ? '' : 'border-t border-surface-border' }} text-sm text-text">
+                            <span class="px-3 py-3 {{ $loop->first ? '' : 'border-t border-surface-border' }} text-sm text-text">
                                 {{ $participant->score }}
+                            </span>
+                            <span class="pl-3 pr-6 py-3 {{ $loop->first ? '' : 'border-t border-surface-border' }} text-sm">
+                                @if ($participant->gameSession->type->isChallengeable())
+                                    @if (in_array($participant->id, $challengedParticipantIds, true))
+                                        <span class="text-text/65">Sent!</span>
+                                    @else
+                                        <button type="button" id="challenge-back-{{ $participant->id }}" wire:click="challengeBack({{ $participant->id }})">
+                                            Challenge back
+                                        </button>
+                                    @endif
+                                @endif
                             </span>
                         </div>
                     @endforeach

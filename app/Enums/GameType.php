@@ -121,4 +121,17 @@ enum GameType: string
     {
         return $this !== self::Boggle;
     }
+
+    /**
+     * Whether this game has a "Challenge a Friend" link worth emailing --
+     * true only for games with a reproducible/shareable solo puzzle
+     * (Boggle's own async challenge link, Word Blocks' seed-based share
+     * link). The extensibility hook for Task 10's future NYT-style games:
+     * add a case here once one gets its own shareable puzzle code, nothing
+     * else needs to change (see GameChallengeService::linkFor()).
+     */
+    public function isChallengeable(): bool
+    {
+        return in_array($this, [self::Boggle, self::Quartiles], true);
+    }
 }

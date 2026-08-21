@@ -427,3 +427,9 @@ test('selectedWord shows the concatenated uppercase text of the current selectio
 
     expect($component->get('selectedWord'))->toBe('CATS');
 });
+
+test('the reveal screen shows a copyable share link built from the resolved seed', function () {
+    $component = Livewire::test('pages::quartiles.play', ['seed' => 42])->call('endGame');
+
+    $component->assertSee(route('quartiles.play', ['seed' => 42]));
+});

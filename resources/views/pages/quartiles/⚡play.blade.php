@@ -5,9 +5,11 @@ use App\Enums\GameType;
 use App\Models\GameParticipant;
 use App\Models\GameSession;
 use App\Services\Boggle\Solver;
+use App\Services\Puzzles\DailyPuzzle;
 use App\Services\Quartiles\PuzzleGenerator;
 use App\Services\Quartiles\Scorer;
 use App\Services\Quartiles\WordFinder;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Url;
 use Livewire\Component;
@@ -29,6 +31,26 @@ new class extends Component
      */
     #[Url]
     public ?int $seed = null;
+
+    /**
+     * A `Y-m-d` date string -- when set, the puzzle is that day's daily
+     * (seed derived by DailyPuzzle::seedFor(), not $seed above), not an
+     * arbitrary shared puzzle. Only *today's* date is locked to one
+     * signed-in play per day (see mountDaily()); any other date -- an
+     * archive entry, or any date at all for a guest -- is just an
+     * ordinary seeded puzzle, freely replayable.
+     */
+    #[Url]
+    public ?string $dailyDate = null;
+
+    /**
+     * True once mountDaily() has restored *today's* already-finished
+     * attempt -- distinct from $ended (true for every ended game) so the
+     * reveal screen can show a "come back tomorrow" countdown instead of
+     * the ordinary share-link box, which wouldn't mean anything for a
+     * fixed daily puzzle.
+     */
+    public bool $dailyAlreadyDone = false;
 
     /**
      * id => {display, match, groupIndex} -- static for the whole game once
@@ -110,8 +132,14 @@ new class extends Component
 
     public ?int $gameSessionId = null;
 
-    public function mount(PuzzleGenerator $generator): void
+    public function mount(PuzzleGenerator $generator, DailyPuzzle $dailyPuzzle, WordFinder $wordFinder): void
     {
+        if ($this->dailyDate !== null) {
+            $this->mountDaily($generator, $dailyPuzzle, $wordFinder);
+
+            return;
+        }
+
         if ($this->seed === null && Auth::check() && $this->resumeInProgressGame()) {
             return;
         }
@@ -428,13 +456,18 @@ new class extends Component
     /**
      * Hydrates $this from a signed-in user's own saved in-progress
      * GameSession, if one exists -- see docs/specs/quartiles.md section 4a.
-     * $selected is deliberately left empty (never persisted).
+     * $selected is deliberately left empty (never persisted). Scoped to
+     * `is_daily = false` -- a daily attempt gets its own separate
+     * in-progress row (see mountDaily()/findDailySession()), so a signed-in
+     * user can have one of each in progress at once without either
+     * clobbering the other.
      */
     private function resumeInProgressGame(): bool
     {
         $session = GameSession::query()
             ->where('user_id', Auth::id())
             ->where('type', GameType::Quartiles)
+            ->where('is_daily', false)
             ->whereNull('ended_at')
             ->first();
 
@@ -476,6 +509,7 @@ new class extends Component
             'user_id' => Auth::id(),
             'type' => GameType::Quartiles,
             'mode' => GameMode::Solo,
+            'is_daily' => false,
             'settings' => ['seed' => $this->resolvedSeed],
             'state' => $this->progressState(),
             'started_at' => now()->setTimestamp($this->startedAt),
@@ -485,6 +519,7 @@ new class extends Component
         $existing = GameSession::query()
             ->where('user_id', Auth::id())
             ->where('type', GameType::Quartiles)
+            ->where('is_daily', false)
             ->whereNull('ended_at')
             ->first();
 
@@ -496,6 +531,94 @@ new class extends Component
         }
 
         $this->gameSessionId = GameSession::create($attributes)->id;
+    }
+
+    /**
+     * Mounts a daily puzzle -- a deterministic seed derived from
+     * $dailyDate via DailyPuzzle::seedFor(), not an arbitrary $seed
+     * override. Only *today's* date is locked to one signed-in play per
+     * day (resumable mid-attempt, restored read-only once finished); any
+     * other date -- an archive entry, or any date at all for a guest -- is
+     * just an ordinary seeded puzzle with no early row and no lock, freely
+     * replayable.
+     */
+    private function mountDaily(PuzzleGenerator $generator, DailyPuzzle $dailyPuzzle, WordFinder $wordFinder): void
+    {
+        $date = Carbon::parse($this->dailyDate)->startOfDay();
+        $seed = $dailyPuzzle->seedFor(GameType::Quartiles, $date);
+
+        if ($date->isToday() && Auth::check()) {
+            $session = $this->findDailySession($date);
+
+            if ($session !== null) {
+                $this->restoreDailySession($session, $wordFinder);
+
+                return;
+            }
+
+            $this->loadNewPuzzle($generator, $seed);
+            $this->startedAt = now()->timestamp;
+            $this->startDailySession($date);
+
+            return;
+        }
+
+        $this->loadNewPuzzle($generator, $seed);
+        $this->startedAt = now()->timestamp;
+    }
+
+    private function findDailySession(Carbon $date): ?GameSession
+    {
+        return GameSession::query()
+            ->where('user_id', Auth::id())
+            ->where('type', GameType::Quartiles)
+            ->where('is_daily', true)
+            ->where('daily_date', $date->toDateString())
+            ->first();
+    }
+
+    /**
+     * Hydrates $this from today's daily GameSession -- in progress or
+     * already finished. A finished row is restored read-only ($ended and
+     * $dailyAlreadyDone both true, no puzzle regenerated), same shape
+     * Boggle's own isSharedSession restore uses.
+     */
+    private function restoreDailySession(GameSession $session, WordFinder $wordFinder): void
+    {
+        $state = $session->state ?? [];
+
+        $this->tiles = $state['tiles'] ?? [];
+        $this->groups = $state['groups'] ?? [];
+        $this->unfoundOrder = $state['unfoundOrder'] ?? [];
+        $this->foundGroups = $state['foundGroups'] ?? [];
+        $this->foundWords = $state['foundWords'] ?? [];
+        $this->score = $state['score'] ?? 0;
+        $this->resolvedSeed = $session->settings['seed'] ?? 0;
+        $this->startedAt = $session->started_at->timestamp;
+        $this->gameSessionId = $session->id;
+
+        if ($session->ended_at === null) {
+            return;
+        }
+
+        $this->ended = true;
+        $this->dailyAlreadyDone = true;
+        $this->resolveAllValidWords($wordFinder);
+    }
+
+    private function startDailySession(Carbon $date): void
+    {
+        $this->gameSessionId = GameSession::create([
+            'user_id' => Auth::id(),
+            'type' => GameType::Quartiles,
+            'mode' => GameMode::Solo,
+            'is_daily' => true,
+            'daily_date' => $date->toDateString(),
+            'settings' => ['seed' => $this->resolvedSeed],
+            'state' => $this->progressState(),
+            'started_at' => now()->setTimestamp($this->startedAt),
+            'ended_at' => null,
+        ])->id;
     }
 
     /**
@@ -543,7 +666,14 @@ new class extends Component
     @teleport('#game-actions')
         <div style="display: contents;">
             @if ($ended)
-                <button type="button" id="new-game-btn" wire:click="resetGame">New Game</button>
+                @if ($dailyDate !== null)
+                    {{-- A daily puzzle isn't reroll-able -- its board is fixed
+                         for the whole day, same reasoning Boggle applies to a
+                         room/challenge game's own New Game button. --}}
+                    <a href="{{ route('daily-puzzles') }}"><button type="button" id="new-game-btn">More Daily Puzzles</button></a>
+                @else
+                    <button type="button" id="new-game-btn" wire:click="resetGame">New Game</button>
+                @endif
             @else
                 <button type="button" id="end-game-btn" wire:click="endGame">End Game</button>
             @endif
@@ -667,6 +797,28 @@ new class extends Component
                     @endforeach
                 </div>
             </div>
+
+            @if ($dailyDate === now()->toDateString())
+                {{-- Covers both a just-finished today's daily (this same
+                     request) and a restored, already-done one
+                     ($dailyAlreadyDone) -- either way there's nothing left
+                     to play until tomorrow. --}}
+                <x-daily-countdown :resets-at="now()->addDay()->startOfDay()->timestamp" />
+            @elseif ($dailyDate === null)
+                <div class="flex gap-2 w-full">
+                    <input type="text" readonly value="{{ route('quartiles.play', ['seed' => $resolvedSeed]) }}"
+                        onclick="this.select()" style="flex: 1;">
+                    <button type="button" data-copy="{{ route('quartiles.play', ['seed' => $resolvedSeed]) }}">
+                        Copy
+                    </button>
+                </div>
+
+                @auth
+                    <livewire:challenge-friend :game-type="GameType::Quartiles"
+                        :link="route('quartiles.play', ['seed' => $resolvedSeed])"
+                        wire:key="challenge-friend-quartiles-{{ $resolvedSeed }}" />
+                @endauth
+            @endif
         </div>
     @endif
 </div>
