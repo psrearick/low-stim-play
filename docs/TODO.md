@@ -10,7 +10,6 @@ The Order of Work list is a separate, ordinary numbered list reflecting current 
 
 1. [Task 10: Spec and build NYT-style puzzle games](#10-spec-and-build-nyt-style-puzzle-games)
 2. [Task 11: Shared puzzle-game infrastructure](#11-shared-puzzle-game-infrastructure)
-3. [Task 14: Analytics — time-on-site and time-per-page](#14-analytics--time-on-site-and-time-per-page)
 
 ## Tasks
 
@@ -21,10 +20,4 @@ Add Wordle, Pips, Spelling Bee, Strands, and Connections. All need daily/random 
 ### 11. Shared puzzle-game infrastructure
 
 A cross-cutting set of features for the app's puzzle-style games (Boggle/Word Grid, Word Blocks, and the NYT-style games in Task 10 once built): give each individual puzzle a unique code so it can be shared and replayed identically by someone else (Word Blocks' `PuzzleGenerator` already supports a reproducible `#[Url] $seed`, unused by any UI yet — see `docs/DEVLOG.md`'s "Word Blocks" section); surface that code on the Friends page (see `docs/DEVLOG.md`'s "Friends & friend activity" section) too — e.g. a "Challenge a Friend" button at the end of a game, possibly emailing an invite; and add daily puzzles (one fixed puzzle per game per day, distinct from the existing random ones) with an archive of past days' puzzles. Depends on the relevant puzzle games actually existing.
-
-### 14. Analytics — time-on-site and time-per-page
-
-`docs/concerns.md` (2026-08-21): "analytics, include how long users stay on the website" and "...on each page, on average, if possible."
-
-Not currently trackable at all — the whole analytics system is single-event-per-pageview (`RecordPageview` middleware/job writes one `AnalyticsEvent` per request, no session/duration concept) by deliberate design: `docs/DEVLOG.md`'s Analytics section states the design goal is fully cookieless, consent-exempt, no client-side storage. Any real time-on-page/time-on-site measurement needs a client-side signal the server can't derive on its own (a heartbeat, `visibilitychange`, or `beforeunload` beacon) — a genuine architecture change, and one that sits in tension with the "no client-side tracking machinery" goal that made this analytics system consent-exempt in the first place. Deferred pending a decision on whether that tradeoff is worth making, and if so what mechanism (beacon vs. periodic ping) and what privacy story to tell about it.
 
