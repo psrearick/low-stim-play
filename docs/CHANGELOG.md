@@ -2,6 +2,13 @@
 
 A terse, commit-by-commit record of what changed, newest first. No rationale or decisions here — see `docs/DEVLOG.md` for the *why* behind anything listed here, organized by feature instead of by commit. See `docs/TODO.md` for what's still outstanding.
 
+## 2026-08-21
+
+- Split the dashboard/profile Boggle "avg score" stat into separate solo and rooms figures instead of blending two different score scales together.
+- Added a Word Grid stat: points earned from words over 4 letters, shown per-game and as a personal best.
+- Added a pending friend-request count badge to the navbar avatar dropdown.
+- Friend requests now send the recipient an email notification.
+
 ## 2026-08-20
 
 - Fixed the navbar avatar rendering as an oval instead of a circle on real mobile-width viewports (e.g. the homepage, which always sets `manyButtons`) — two unlayered CSS rules were silently overriding the avatar toggle's own zero-padding with horizontal-only padding.
