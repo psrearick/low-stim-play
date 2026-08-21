@@ -68,13 +68,11 @@ test('Logout actually logs the user out and returns to the guest homepage', func
 });
 
 /**
- * The badge is `absolute -top-1 -right-1` over the avatar toggle button
- * (docs/concerns.md's friend-request badge feature) -- a plain assertSee
- * would confirm the markup exists but not that it actually renders as a
- * visible, positioned dot rather than being clipped/hidden by the round
- * avatar it sits on top of, so this checks real visibility instead.
+ * The pending-request badge lives only next to "Friends" inside the
+ * dropdown panel, never on the avatar toggle itself (user-reported,
+ * 2026-08-21 -- an earlier version also put a dot on the avatar).
  */
-test('the pending friend request badge is visible and positioned over the avatar', function () {
+test('the pending friend request badge is visible next to Friends once the menu is open, not on the avatar toggle', function () {
     $user = User::factory()->create();
     $requester = User::factory()->create();
     Friendship::factory()->create(['requester_id' => $requester->id, 'addressee_id' => $user->id]);
@@ -82,32 +80,21 @@ test('the pending friend request badge is visible and positioned over the avatar
 
     $page = visit('/');
 
-    $page->assertVisible('#user-menu-friend-request-badge');
+    // Nothing rendered on the avatar toggle button itself.
+    $avatarBadgeCount = $page->script("document.getElementById('user-menu-toggle').querySelectorAll('span').length");
+    expect($avatarBadgeCount)->toBe(0);
 
-    $rects = $page->script(<<<'JS'
-        (() => {
-            const avatar = document.getElementById('user-menu-toggle').getBoundingClientRect();
-            const badge = document.getElementById('user-menu-friend-request-badge').getBoundingClientRect();
-            return {
-                badgeCenterX: badge.left + badge.width / 2,
-                badgeCenterY: badge.top + badge.height / 2,
-                avatarCenterX: avatar.left + avatar.width / 2,
-                avatarCenterY: avatar.top + avatar.height / 2,
-            };
-        })()
-    JS);
-
-    // The badge sits in the avatar's top-right quadrant, not centered over
-    // it or floating off to one side.
-    expect($rects['badgeCenterX'])->toBeGreaterThan($rects['avatarCenterX'])
-        ->and($rects['badgeCenterY'])->toBeLessThan($rects['avatarCenterY']);
+    $page->click('#user-menu-toggle')
+        ->assertVisible('#user-menu-friends-badge');
 });
 
 test('no badge is present when there are no pending friend requests', function () {
     $user = User::factory()->create();
     $this->actingAs($user);
 
-    visit('/')->assertMissing('#user-menu-friend-request-badge');
+    $page = visit('/')->click('#user-menu-toggle');
+
+    $page->assertMissing('#user-menu-friends-badge');
 });
 
 test('a guest visitor sees no avatar toggle at all', function () {

@@ -43,16 +43,8 @@
     --}}
     <div class="relative inline-flex ml-2 shrink-0">
         <button type="button" id="user-menu-toggle" aria-haspopup="true" aria-expanded="false"
-            aria-label="Account menu{{ $pendingFriendRequests > 0 ? " ({$pendingFriendRequests} pending friend request".($pendingFriendRequests === 1 ? '' : 's').')' : '' }}"
-            class="relative p-0 border-none bg-transparent rounded-full w-9 h-9 shrink-0">
+            aria-label="Account menu" class="p-0 border-none bg-transparent rounded-full w-9 h-9 shrink-0">
             <x-avatar :name="auth()->user()->name" :avatar-url="auth()->user()->avatarUrl()" size="w-full h-full text-sm" />
-
-            @if ($pendingFriendRequests > 0)
-                <span id="user-menu-friend-request-badge" aria-hidden="true"
-                    class="absolute -top-1 -right-1 min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-accent text-bg text-[0.65rem] font-bold leading-[1.1rem] text-center">
-                    {{ $pendingFriendRequests }}
-                </span>
-            @endif
         </button>
 
         {{--
@@ -72,7 +64,7 @@
             <a href="{{ route('friends') }}" class="flex items-center justify-between px-2 py-2 rounded text-sm text-text hover:bg-bg/60">
                 Friends
                 @if ($pendingFriendRequests > 0)
-                    <span class="min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-accent text-bg text-[0.65rem] font-bold leading-[1.1rem] text-center">
+                    <span id="user-menu-friends-badge" class="min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-accent text-bg text-[0.65rem] font-bold leading-[1.1rem] text-center">
                         {{ $pendingFriendRequests }}
                     </span>
                 @endif

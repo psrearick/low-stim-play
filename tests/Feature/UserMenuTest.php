@@ -50,10 +50,10 @@ test('no pending-request badge is shown when there are no pending friend request
 
     $this->actingAs($user)
         ->get('/')
-        ->assertDontSee('id="user-menu-friend-request-badge"', false);
+        ->assertDontSee('id="user-menu-friends-badge"', false);
 });
 
-test('the avatar toggle shows a badge with the count of pending received friend requests', function () {
+test('the Friends menu item shows a badge with the count of pending received friend requests, not the avatar itself', function () {
     $user = User::factory()->create();
     $requesterA = User::factory()->create();
     $requesterB = User::factory()->create();
@@ -64,10 +64,16 @@ test('the avatar toggle shows a badge with the count of pending received friend 
     // Sent by the user, not received -- shouldn't count.
     Friendship::factory()->create(['requester_id' => $user->id, 'addressee_id' => $sentByMe->id]);
 
-    $this->actingAs($user)
-        ->get('/')
-        ->assertSee('id="user-menu-friend-request-badge"', false)
-        ->assertSeeInOrder(['user-menu-friend-request-badge', '2']);
+    $response = $this->actingAs($user)->get('/');
+
+    $response->assertSee('id="user-menu-friends-badge"', false)
+        ->assertSeeInOrder(['user-menu-friends-badge', '2']);
+
+    // The badge only ever lives inside the dropdown panel, after
+    // #user-menu-panel opens -- never on #user-menu-toggle (the avatar)
+    // itself, which renders earlier in the markup.
+    $content = $response->getContent();
+    expect(strpos($content, 'user-menu-panel'))->toBeLessThan(strpos($content, 'user-menu-friends-badge'));
 });
 
 test('the toggle renders <x-avatar>, not a plain icon or the user\'s raw name', function () {
