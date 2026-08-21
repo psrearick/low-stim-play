@@ -7,8 +7,10 @@ use App\Models\Friendship;
 use App\Models\GameParticipant;
 use App\Models\GameSession;
 use App\Models\User;
+use App\Notifications\FriendRequestReceived;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
 use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
@@ -72,6 +74,34 @@ test('sendRequest creates a pending friendship from the current user', function 
     expect($friendship->requester_id)->toBe($user->id)
         ->and($friendship->addressee_id)->toBe($other->id)
         ->and($friendship->status)->toBe(FriendshipStatus::Pending);
+});
+
+test('sendRequest notifies the addressee by email', function () {
+    Notification::fake();
+
+    $user = User::factory()->create();
+    $other = User::factory()->create(['username' => 'target-user']);
+
+    Livewire::actingAs($user)
+        ->test('pages::friends')
+        ->call('sendRequest', $other->id);
+
+    Notification::assertSentTo($other, FriendRequestReceived::class, function (FriendRequestReceived $notification) use ($user) {
+        return $notification->requester->is($user);
+    });
+});
+
+test('sendRequest does not notify a guest addressee', function () {
+    Notification::fake();
+
+    $user = User::factory()->create();
+    $guest = User::createGuest('Guest Player');
+
+    Livewire::actingAs($user)
+        ->test('pages::friends')
+        ->call('sendRequest', $guest->id);
+
+    Notification::assertNothingSentTo($guest);
 });
 
 test('sendRequest is a no-op against yourself', function () {

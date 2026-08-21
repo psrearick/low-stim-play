@@ -23,7 +23,25 @@
             <p class="text-2xl font-bold text-text">{{ $stat['gamesPlayed'] }}</p>
             <p class="text-xs text-text/65">games played</p>
             <p class="text-sm text-text/80">{{ $stat['winRate'] }}% win rate</p>
-            <p class="text-sm text-text/80">{{ $stat['avgScore'] }} avg score</p>
+            {{--
+                Boggle's room score (an "exclusive" score -- a word found by
+                more than one player scores nothing for anyone) and solo
+                score (a raw point total) are different scales, so a single
+                blended avgScore would skew depending on how much of a
+                user's play is solo vs. rooms -- shown split instead, each
+                only when that mode has actually been played (soloGames/
+                onlineGames > 0).
+            --}}
+            @if ($stat['type'] === \App\Enums\GameType::Boggle)
+                @if ($stat['avgScoreByMode']['soloGames'] > 0)
+                    <p class="text-sm text-text/80">{{ $stat['avgScoreByMode']['soloAvg'] }} avg score (solo)</p>
+                @endif
+                @if ($stat['avgScoreByMode']['onlineGames'] > 0)
+                    <p class="text-sm text-text/80">{{ $stat['avgScoreByMode']['onlineAvg'] }} avg score (rooms)</p>
+                @endif
+            @else
+                <p class="text-sm text-text/80">{{ $stat['avgScore'] }} avg score</p>
+            @endif
         </{{ $tag }}>
     @empty
         <p class="text-sm text-text/65 text-center">No games recorded yet.</p>

@@ -6,6 +6,7 @@ use App\Enums\FriendshipStatus;
 use App\Models\Friendship;
 use App\Models\GameParticipant;
 use App\Models\User;
+use App\Notifications\FriendRequestReceived;
 use Illuminate\Support\Collection;
 
 class FriendService
@@ -88,6 +89,10 @@ class FriendService
             'addressee_id' => $to->id,
             'status' => FriendshipStatus::Pending,
         ]);
+
+        if (! $to->is_guest) {
+            $to->notify(new FriendRequestReceived($from));
+        }
     }
 
     public function accept(Friendship $friendship): void

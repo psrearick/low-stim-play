@@ -99,6 +99,28 @@ test('a boggle game detail page shows its stats and found words', function () {
         ->assertSee('20%'); // 2 of 10 words found
 });
 
+test('a boggle game detail page shows points earned from words over 4 letters', function () {
+    $user = User::factory()->create();
+    // cat (3) doesn't count; plate (5, 2pts) and dragon (6, 3pts) do.
+    $participant = boggleParticipantFor($user, ['cat' => 1, 'plate' => 2, 'dragon' => 3], 6);
+
+    $this->actingAs($user)
+        ->get("/profile/word-grid/{$participant->id}")
+        ->assertSee('Points from long words')
+        ->assertSee('5');
+});
+
+test('the boggle stats index surfaces the best points-from-long-words game as a personal best', function () {
+    $user = User::factory()->create();
+    $best = boggleParticipantFor($user, ['dragon' => 3], 3);
+    boggleParticipantFor($user, ['cat' => 1], 1);
+
+    $this->actingAs($user)
+        ->get('/profile/word-grid')
+        ->assertSee('Most points from long words')
+        ->assertSee(route('profile.boggle.show', $best), escape: false);
+});
+
 test('a boggle game detail page shows the result for an online game', function () {
     $user = User::factory()->create();
     $participant = boggleParticipantFor($user, ['cat' => 1], 5, mode: GameMode::Online, result: GameResult::Win);

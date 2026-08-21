@@ -32,7 +32,7 @@ class BoggleStatsService
      * stored redundantly -- this keeps it correct even for participants
      * recorded before a metric here existed.
      *
-     * @return array{wordsFound: int<0, max>, longestWord: ?string, longestWordLength: int<0, max>, byLength: array<int, int<0, max>>, totalValidWords: ?int, percentFound: ?float}
+     * @return array{wordsFound: int<0, max>, longestWord: ?string, longestWordLength: int<0, max>, byLength: array<int, int<0, max>>, totalValidWords: ?int, percentFound: ?float, longWordPoints: int<0, max>}
      */
     public function statsFor(GameParticipant $participant): array
     {
@@ -41,13 +41,18 @@ class BoggleStatsService
 
         $byLength = [];
         $longestWord = null;
+        $longWordPoints = 0;
 
-        foreach ($words as $word) {
+        foreach ($foundWords as $word => $points) {
             $length = mb_strlen($word);
             $byLength[$length] = ($byLength[$length] ?? 0) + 1;
 
             if ($longestWord === null || $length > mb_strlen($longestWord)) {
                 $longestWord = $word;
+            }
+
+            if ($length > 4) {
+                $longWordPoints += $points;
             }
         }
 
@@ -62,6 +67,7 @@ class BoggleStatsService
             'byLength' => $byLength,
             'totalValidWords' => $totalValidWords,
             'percentFound' => $totalValidWords ? round(count($words) / $totalValidWords * 100, 1) : null,
+            'longWordPoints' => $longWordPoints,
         ];
     }
 
@@ -100,6 +106,13 @@ class BoggleStatsService
             'label' => 'Most words found',
             'value' => (string) $mostWords['stats']['wordsFound'],
             'participant' => $mostWords['participant'],
+        ];
+
+        $mostLongWordPoints = $decorated->sortByDesc(fn (array $entry) => $entry['stats']['longWordPoints'])->first();
+        $metrics[] = [
+            'label' => 'Most points from long words (5+ letters)',
+            'value' => (string) $mostLongWordPoints['stats']['longWordPoints'],
+            'participant' => $mostLongWordPoints['participant'],
         ];
 
         $withLongest = $decorated->filter(fn (array $entry) => $entry['stats']['longestWord'] !== null);

@@ -82,6 +82,10 @@ new class extends Component
             <span class="text-xs text-text/65">Words found</span>
         </div>
         <div class="flex flex-col items-center gap-2 bg-surface border-2 border-surface-border rounded-lg px-5 py-4 flex-1 basis-32">
+            <span class="text-2xl font-bold text-text">{{ $this->stats['longWordPoints'] }}</span>
+            <span class="text-xs text-text/65">Points from long words (5+ letters)</span>
+        </div>
+        <div class="flex flex-col items-center gap-2 bg-surface border-2 border-surface-border rounded-lg px-5 py-4 flex-1 basis-32">
             <span class="text-2xl font-bold text-text">{{ $this->stats['longestWord'] ? strtoupper($this->stats['longestWord']) : '—' }}</span>
             <span class="text-xs text-text/65">Longest word</span>
         </div>

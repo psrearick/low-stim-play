@@ -16,6 +16,10 @@
     rather than reinvented.
 --}}
 @auth
+    @php
+        $pendingFriendRequests = app(\App\Services\Social\FriendService::class)->pendingReceived(auth()->user())->count();
+    @endphp
+
     {{--
         ml-2 -- a little extra room on top of .button-bar .right's own
         10px flex gap, so the avatar doesn't read as glued to the Rooms
@@ -39,8 +43,16 @@
     --}}
     <div class="relative inline-flex ml-2 shrink-0">
         <button type="button" id="user-menu-toggle" aria-haspopup="true" aria-expanded="false"
-            aria-label="Account menu" class="p-0 border-none bg-transparent rounded-full w-9 h-9 shrink-0">
+            aria-label="Account menu{{ $pendingFriendRequests > 0 ? " ({$pendingFriendRequests} pending friend request".($pendingFriendRequests === 1 ? '' : 's').')' : '' }}"
+            class="relative p-0 border-none bg-transparent rounded-full w-9 h-9 shrink-0">
             <x-avatar :name="auth()->user()->name" :avatar-url="auth()->user()->avatarUrl()" size="w-full h-full text-sm" />
+
+            @if ($pendingFriendRequests > 0)
+                <span id="user-menu-friend-request-badge" aria-hidden="true"
+                    class="absolute -top-1 -right-1 min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-accent text-bg text-[0.65rem] font-bold leading-[1.1rem] text-center">
+                    {{ $pendingFriendRequests }}
+                </span>
+            @endif
         </button>
 
         {{--
@@ -57,7 +69,14 @@
         <div id="user-menu-panel" hidden
             class="absolute right-0 top-full mt-2 w-48 rounded-lg border-2 border-surface-border bg-surface p-2 flex flex-col gap-1 z-10">
             <a href="{{ route('dashboard') }}" class="px-2 py-2 rounded text-sm text-text hover:bg-bg/60">Stats</a>
-            <a href="{{ route('friends') }}" class="px-2 py-2 rounded text-sm text-text hover:bg-bg/60">Friends</a>
+            <a href="{{ route('friends') }}" class="flex items-center justify-between px-2 py-2 rounded text-sm text-text hover:bg-bg/60">
+                Friends
+                @if ($pendingFriendRequests > 0)
+                    <span class="min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-accent text-bg text-[0.65rem] font-bold leading-[1.1rem] text-center">
+                        {{ $pendingFriendRequests }}
+                    </span>
+                @endif
+            </a>
             <a href="{{ route('profile') }}" class="px-2 py-2 rounded text-sm text-text hover:bg-bg/60">Edit Profile</a>
 
             <div class="border-t border-surface-border my-1"></div>

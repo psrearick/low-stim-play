@@ -149,6 +149,58 @@ test('a solo Boggle game is excluded from win rate even if it somehow has a non-
         ->and($stats['winRate'])->toBe(0);
 });
 
+/**
+ * docs/TODO.md's Task 12: Boggle's room score (an "exclusive" score, see
+ * SharedSessionFinalizer) and solo score (a raw point total) are different
+ * scales -- blending them into one avgScore skews it, so they're also
+ * exposed split by mode. avgScore itself is left computed exactly as
+ * before, for any other consumer that still wants the single number.
+ * Each mode's own game count is returned alongside its average rather
+ * than the average being null when unplayed -- see PlayerStatsService::
+ * avgScoreByMode()'s own docblock for why every field here is
+ * deliberately non-nullable (a confirmed Larastan false positive, not a
+ * design preference).
+ */
+test('avgScoreByMode splits Boggle\'s average score into solo and online, leaving avgScore blended as before', function () {
+    $user = User::factory()->create();
+
+    participantFor($user, GameType::Boggle, 40, null, GameMode::Solo);
+    participantFor($user, GameType::Boggle, 60, null, GameMode::Solo);
+    participantFor($user, GameType::Boggle, 100, GameResult::Win, GameMode::Online);
+
+    $stats = $this->service->forUser($user)->first();
+
+    expect($stats['avgScore'])->toBe(66.7)
+        ->and($stats['avgScoreByMode']['soloGames'])->toBe(2)
+        ->and($stats['avgScoreByMode']['soloAvg'])->toBe(50.0)
+        ->and($stats['avgScoreByMode']['onlineGames'])->toBe(1)
+        ->and($stats['avgScoreByMode']['onlineAvg'])->toBe(100.0);
+});
+
+test('avgScoreByMode reports a zero game count for a mode Boggle hasn\'t been played in yet', function () {
+    $user = User::factory()->create();
+
+    participantFor($user, GameType::Boggle, 40, null, GameMode::Solo);
+
+    $stats = $this->service->forUser($user)->first();
+
+    expect($stats['avgScoreByMode']['soloGames'])->toBe(1)
+        ->and($stats['avgScoreByMode']['soloAvg'])->toBe(40.0)
+        ->and($stats['avgScoreByMode']['onlineGames'])->toBe(0)
+        ->and($stats['avgScoreByMode']['onlineAvg'])->toBe(0.0);
+});
+
+test('avgScoreByMode is computed but ignored by the UI for non-Boggle game types', function () {
+    $user = User::factory()->create();
+
+    participantFor($user, GameType::Yahtzee, 200, GameResult::Win);
+
+    $stats = $this->service->forUser($user)->first();
+
+    expect($stats['avgScoreByMode']['soloGames'])->toBe(1)
+        ->and($stats['avgScoreByMode']['onlineGames'])->toBe(0);
+});
+
 test('recentGames only returns the given user\'s own participants, newest first', function () {
     $user = User::factory()->create();
     $otherUser = User::factory()->create();

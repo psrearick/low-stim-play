@@ -75,7 +75,18 @@ test('statsFor handles a game with no words found and no recorded board size', f
         ->and($stats['longestWord'])->toBeNull()
         ->and($stats['byLength'])->toBe([])
         ->and($stats['totalValidWords'])->toBeNull()
-        ->and($stats['percentFound'])->toBeNull();
+        ->and($stats['percentFound'])->toBeNull()
+        ->and($stats['longWordPoints'])->toBe(0);
+});
+
+test('statsFor sums points only from words over 4 letters long', function () {
+    $user = User::factory()->create();
+    // cat/dog (3) and plus (4) are excluded; plate (5) and dragon (6) count.
+    $participant = boggleGame($user, ['cat' => 1, 'dog' => 1, 'plus' => 1, 'plate' => 2, 'dragon' => 3], 8);
+
+    $stats = $this->service->statsFor($participant);
+
+    expect($stats['longWordPoints'])->toBe(5);
 });
 
 test('bestMetrics picks the game with the highest value for each metric', function () {
@@ -93,7 +104,9 @@ test('bestMetrics picks the game with the highest value for each metric', functi
         ->and($metrics['Longest word']['value'])->toBe('ELEPHANT')
         ->and($metrics['Longest word']['participant']->id)->toBe($longest->id)
         ->and($metrics['Most of the board found']['value'])->toBe('50%')
-        ->and($metrics['Most of the board found']['participant']->id)->toBe($bestPercent->id);
+        ->and($metrics['Most of the board found']['participant']->id)->toBe($bestPercent->id)
+        ->and($metrics['Most points from long words (5+ letters)']['value'])->toBe('11')
+        ->and($metrics['Most points from long words (5+ letters)']['participant']->id)->toBe($longest->id);
 });
 
 test('bestMetrics omits the percent-found metric entirely when no game has a recorded board size', function () {

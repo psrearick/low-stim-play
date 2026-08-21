@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Friendship;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -42,6 +43,31 @@ test('the avatar menu renders identically on a sidebar page, not just the homepa
         ->get('/dashboard')
         ->assertSee('id="user-menu-toggle"', false)
         ->assertSee('id="app-sidebar"', false);
+});
+
+test('no pending-request badge is shown when there are no pending friend requests', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->get('/')
+        ->assertDontSee('id="user-menu-friend-request-badge"', false);
+});
+
+test('the avatar toggle shows a badge with the count of pending received friend requests', function () {
+    $user = User::factory()->create();
+    $requesterA = User::factory()->create();
+    $requesterB = User::factory()->create();
+    $sentByMe = User::factory()->create();
+
+    Friendship::factory()->create(['requester_id' => $requesterA->id, 'addressee_id' => $user->id]);
+    Friendship::factory()->create(['requester_id' => $requesterB->id, 'addressee_id' => $user->id]);
+    // Sent by the user, not received -- shouldn't count.
+    Friendship::factory()->create(['requester_id' => $user->id, 'addressee_id' => $sentByMe->id]);
+
+    $this->actingAs($user)
+        ->get('/')
+        ->assertSee('id="user-menu-friend-request-badge"', false)
+        ->assertSeeInOrder(['user-menu-friend-request-badge', '2']);
 });
 
 test('the toggle renders <x-avatar>, not a plain icon or the user\'s raw name', function () {
