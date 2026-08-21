@@ -860,6 +860,12 @@ new class extends Component
     @endteleport
 
     <div id="game" class="{{ $ended ? 'with-list' : '' }}">
+        @if ($isDaily)
+            <p id="daily-badge" class="text-xs text-center text-accent font-bold" style="margin-bottom: 4px;">
+                Daily Puzzle — {{ Carbon::parse($dailyDate)->format('M j, Y') }}
+            </p>
+        @endif
+
         <div class="hud">
             <div class="hud-item">
                 <div class="hud-label">TIME</div>

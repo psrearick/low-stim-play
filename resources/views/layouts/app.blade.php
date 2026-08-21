@@ -45,6 +45,14 @@
         <div class="button-bar{{ isset($manyButtons) ? ' many-buttons' : '' }}">
             <div class="left">
                 <a href="{{ url('/') }}"><button type="button">Home</button></a>
+                {{--
+                    Site-wide, not just on the homepage or the two puzzle
+                    games' own pages -- the whole point of a daily puzzle is
+                    that it's easy to get to from anywhere, and guests can
+                    browse/play the archive same as any random puzzle, so
+                    this isn't gated @auth either.
+                --}}
+                <a href="{{ route('daily-puzzles') }}"><button type="button" id="daily-puzzles-nav-link">Daily Puzzles</button></a>
                 @isset($sidebar)
                     <button type="button" id="sidebar-menu-toggle" aria-label="Open navigation menu">Menu</button>
                 @endisset

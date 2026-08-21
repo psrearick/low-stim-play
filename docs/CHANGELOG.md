@@ -4,6 +4,7 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 
 ## 2026-08-21
 
+- Fixed the daily puzzles feature being unreachable: added a site-wide "Daily Puzzles" nav link, a prominent "play today's puzzle" card on the archive page, and an in-play badge showing when a game is a daily (and which date).
 - Added shared puzzle-game infrastructure: puzzle-code sharing for Word Blocks, daily puzzles with a 30-day archive for Word Grid and Word Blocks, and emailed Challenge-a-Friend invites from both games' reveal screens and the Friends page's activity feed.
 - Removed the analytics time-on-site/time-per-page TODO item.
 - Removed the pending-friend-request badge dot from the avatar toggle itself; it now only shows next to "Friends" inside the dropdown panel.

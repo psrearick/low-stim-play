@@ -16,6 +16,17 @@ test('a daily link produces a deterministic board regardless of who opens it', f
     expect($first->get('board'))->toBe($second->get('board'));
 });
 
+test('a daily puzzle shows an in-play badge naming it as such, unlike a random game', function () {
+    $date = now()->startOfDay()->toDateString();
+
+    Livewire::test('pages::boggle.play', ['dailyDate' => $date])
+        ->assertSee('Daily Puzzle')
+        ->assertSee(now()->startOfDay()->format('M j, Y'));
+
+    Livewire::test('pages::boggle.play', ['size' => 4, 'minutes' => 0])
+        ->assertDontSee('Daily Puzzle');
+});
+
 test('a daily always resolves to an untimed, size-4 board regardless of query overrides', function () {
     $date = now()->startOfDay()->toDateString();
 

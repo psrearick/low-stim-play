@@ -17,6 +17,17 @@ test('a daily link produces a deterministic puzzle regardless of who opens it', 
         ->and($first->get('groups'))->toBe($second->get('groups'));
 });
 
+test('a daily puzzle shows an in-play badge naming it as such, unlike a random game', function () {
+    $date = now()->startOfDay()->toDateString();
+
+    Livewire::test('pages::quartiles.play', ['dailyDate' => $date])
+        ->assertSee('Daily Puzzle')
+        ->assertSee(now()->startOfDay()->format('M j, Y'));
+
+    Livewire::test('pages::quartiles.play', ['seed' => 1])
+        ->assertDontSee('Daily Puzzle');
+});
+
 test("a signed-in user gets an early GameSession for today's daily, tagged is_daily", function () {
     $user = User::factory()->create();
     Livewire::actingAs($user);

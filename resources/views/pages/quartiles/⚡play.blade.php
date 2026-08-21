@@ -680,6 +680,12 @@ new class extends Component
         </div>
     @endteleport
 
+    @if ($dailyDate !== null)
+        <p id="daily-badge" class="text-xs text-center text-accent font-bold">
+            Daily Puzzle — {{ Carbon::parse($dailyDate)->format('M j, Y') }}
+        </p>
+    @endif
+
     <div class="flex flex-wrap items-center justify-center gap-4 w-full max-w-md">
         <div class="flex flex-col items-center gap-1 bg-surface border-2 border-surface-border rounded-lg px-4 py-2">
             <span class="text-xl font-bold text-text">{{ $score }}</span>
