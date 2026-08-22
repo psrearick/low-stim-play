@@ -112,8 +112,12 @@ it('ends the game via the End Game button and shows final scores', function () {
     // teleported New Game button had never actually been clicked in a
     // real browser -- only asserted visible. newGame() returns to the
     // local setup screen (confirmed by reading the method, same shape
-    // as Yahtzee's own), not straight into a fresh roll.
-    $page->click('New Game')
+    // as Yahtzee's own), not straight into a fresh roll. The confirm
+    // click above closes the Game dialog it lives in (see app.js's own
+    // comment on that), so New Game -- teleported into that same dialog
+    // -- needs it reopened first.
+    $page->click('#game-menu-toggle')
+        ->click('New Game')
         ->assertDontSee('Game Over')
         ->assertVisible('button[wire\\:click="startGame"]');
 });

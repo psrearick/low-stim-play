@@ -35,7 +35,16 @@ it('actually resets the game when New Game is clicked after ending', function ()
 
     $page->assertVisible('[data-copy]');
 
+    // End Game's own click closed the Game dialog it lives in (see
+    // app.js's own comment on that) -- New Game, teleported into that
+    // same dialog, needs it reopened first.
+    $page->click('#game-menu-toggle');
+
     $page->click('New Game');
+
+    // New Game's own click closes the Game dialog again -- reopen it to
+    // see the reset state.
+    $page->click('#game-menu-toggle');
 
     // Back to a fresh, in-progress game -- the End Game button (and its
     // id) is back, and the reveal screen's share-link box is gone.

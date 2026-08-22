@@ -10,11 +10,14 @@ use Illuminate\Support\Str;
 use Livewire\Component;
 
 /**
- * The one navbar entry point for everything room-related (docs/concerns.md
+ * The one entry point for everything room-related (docs/concerns.md
  * #8/#9): a list of rooms the current account belongs to, a "Join a Room"
  * dialog, and a "Create a Room" action -- available from every page (the
- * homepage included) since this lives in layouts/app.blade.php, not any
- * one game's own setup screen.
+ * homepage included) since this is rendered inside the site menu drawer
+ * (<x-app-sidebar />, itself rendered once in layouts/app.blade.php), not
+ * any one game's own setup screen. Folded into the drawer rather than
+ * kept as its own persistent bar dropdown (docs/concerns.md) -- one menu
+ * to open instead of two.
  */
 new class extends Component
 {
@@ -202,7 +205,7 @@ new class extends Component
 };
 ?>
 
-<div class="relative inline-flex">
+<div>
     @if (count($notifications) > 0)
         <div class="fixed top-16 right-3 z-50 flex flex-col gap-2 w-72 max-w-[90vw]">
             @foreach ($notifications as $notification)
@@ -220,54 +223,43 @@ new class extends Component
         </div>
     @endif
 
-    <button type="button" id="rooms-menu-toggle" wire:ignore.self aria-haspopup="true" aria-expanded="false">
-        Rooms <span aria-hidden="true">&#9662;</span>
+    <p class="text-xs text-text/65 font-bold px-1">Your rooms</p>
+
+    <ul class="flex flex-col gap-1">
+        @forelse ($this->myRooms as $member)
+            <li wire:key="rooms-menu-{{ $member->room->id }}">
+                <a href="{{ route('room.show', ['code' => $member->room->code]) }}"
+                    class="app-sidebar-link flex items-center justify-between gap-2">
+                    <span>{{ $member->room->code }}</span>
+                    <span class="flex items-center gap-1 text-xs text-text/65">
+                        {{ ucfirst($member->room->status->value) }}
+                        <span aria-hidden="true">&rsaquo;</span>
+                    </span>
+                </a>
+            </li>
+        @empty
+            <li class="px-2 py-1 text-sm text-text/65">You're not in any rooms.</li>
+        @endforelse
+    </ul>
+
+    @guest
+        {{--
+            Optional -- an empty value falls through to
+            User::createGuest()'s own "Guest" default exactly as
+            before. Shared by both Join and Create below rather than
+            two separate fields in two separate dialogs, since it's
+            the same "who am I" question either way.
+        --}}
+        <input type="text" id="rooms-menu-guest-name" wire:model="guestName" placeholder="Your name (optional)" maxlength="30" class="text-sm">
+    @endguest
+
+    <button type="button" id="rooms-menu-join-trigger" data-dialog-open="join-room-dialog" class="app-sidebar-link">
+        Join a Room
     </button>
 
-    <div id="rooms-menu-panel" wire:ignore.self hidden
-        class="absolute right-0 top-full mt-2 w-64 rounded-lg border-2 border-surface-border bg-surface p-3 flex flex-col gap-2 z-10">
-        <p class="text-xs text-text/65 font-bold px-1">Your rooms</p>
-
-        <ul class="flex flex-col gap-1">
-            @forelse ($this->myRooms as $member)
-                <li wire:key="rooms-menu-{{ $member->room->id }}">
-                    <a href="{{ route('room.show', ['code' => $member->room->code]) }}"
-                        class="flex items-center justify-between gap-2 px-2 py-2 rounded text-sm text-text hover:bg-bg/60">
-                        <span>{{ $member->room->code }}</span>
-                        <span class="flex items-center gap-1 text-xs text-text/65">
-                            {{ ucfirst($member->room->status->value) }}
-                            <span aria-hidden="true">&rsaquo;</span>
-                        </span>
-                    </a>
-                </li>
-            @empty
-                <li class="px-2 py-1 text-sm text-text/65">You're not in any rooms.</li>
-            @endforelse
-        </ul>
-
-        <div class="border-t border-surface-border my-1"></div>
-
-        @guest
-            {{--
-                Optional -- an empty value falls through to
-                User::createGuest()'s own "Guest" default exactly as
-                before. Shared by both Join and Create below rather than
-                two separate fields in two separate dialogs, since it's
-                the same "who am I" question either way.
-            --}}
-            <input type="text" id="rooms-menu-guest-name" wire:model="guestName" placeholder="Your name (optional)" maxlength="30" class="text-sm">
-        @endguest
-
-        <button type="button" id="rooms-menu-join-trigger" data-dialog-open="join-room-dialog"
-            class="text-left px-2 py-2 rounded text-sm text-text hover:bg-bg/60">
-            Join a Room
-        </button>
-
-        <button type="button" id="rooms-menu-create" wire:click="createRoom"
-            class="text-left px-2 py-2 rounded text-sm text-text hover:bg-bg/60">
-            Create a Room
-        </button>
-    </div>
+    <button type="button" id="rooms-menu-create" wire:click="createRoom" class="app-sidebar-link">
+        Create a Room
+    </button>
 
     {{--
         wire:ignore.self -- without it, a failed joinByCode() (invalid

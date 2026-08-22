@@ -39,14 +39,18 @@ test('the sidebar appears for guests too', function () {
     $this->get('/')->assertSee('id="app-sidebar"', false);
 });
 
-test('the sidebar lists Daily Puzzles, every game\'s stats, About, and Privacy', function () {
+test('the sidebar lists Home, Daily Puzzles, Rooms, every game\'s stats, About, and Privacy', function () {
     $user = User::factory()->create();
 
     $response = $this->actingAs($user)->get('/');
 
     $aside = appSidebarHtml($response->getContent());
 
-    expect($aside)->toContain('Daily Puzzles')
+    expect($aside)->toContain('id="sidebar-link-home"')
+        ->toContain('Daily Puzzles')
+        ->toContain("You're not in any rooms.")
+        ->toContain('Join a Room')
+        ->toContain('Create a Room')
         ->toContain('My Stats')
         ->toContain('All Games')
         ->toContain('Word Grid')
@@ -57,6 +61,15 @@ test('the sidebar lists Daily Puzzles, every game\'s stats, About, and Privacy',
         ->toContain('Privacy Policy')
         ->not->toContain('Edit Profile')
         ->not->toContain('Logout');
+});
+
+test('the Home sidebar link is marked active on the homepage', function () {
+    $response = $this->get('/');
+
+    $aside = appSidebarHtml($response->getContent());
+
+    expect(substr_count($aside, 'app-sidebar-link active'))->toBe(1);
+    expect($aside)->toContain('sidebar-link-home');
 });
 
 test('the sidebar shows Friends, with a badge, for an authenticated visitor with a pending request', function () {

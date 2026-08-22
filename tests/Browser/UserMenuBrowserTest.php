@@ -114,36 +114,33 @@ test('a guest visitor sees no avatar toggle at all', function () {
 });
 
 /**
- * The avatar used to be a fixed 36px circle (Tailwind's own w-9/h-9),
- * which happened not to match the Rooms button's own real height -- a
- * plain text button's height is font-size/padding-driven (see app.css's
- * clamp()-based `button` rule), not a fixed px value, so a fixed avatar
- * size could only ever match it by coincidence at one specific viewport
- * width. Fixed by stretching the toggle to the row's own height (.right
- * has no align-items override, so its default -- stretch -- already
- * sizes every child to the tallest sibling) and using aspect-square so
- * width follows whatever that stretched height turns out to be, rather
- * than hand-picking a size class per breakpoint.
+ * The avatar toggle uses the same `.icon-btn` clamp(34px, 7vmin, 46px)
+ * fixed size as the bar's other icon buttons (the hamburger Menu toggle,
+ * the fullscreen toggle on game pages) -- see user-menu.blade.php's own
+ * docblock for why this replaced an earlier JS-measured size that copied
+ * the Rooms button's height: Rooms moved into the Menu drawer
+ * (docs/concerns.md, 2026-08-22) and stopped being a sibling in `.right`
+ * at all, so there was nothing left to measure against.
  */
-test('the avatar toggle is the same height as the Rooms button, with real space between them', function () {
+test('the avatar toggle is square and matches the fullscreen toggle\'s height on a game page', function () {
     $user = User::factory()->create();
     $this->actingAs($user);
 
-    $page = visit('/');
+    $page = visit('/word-grid/play');
 
     $rects = $page->script(<<<'JS'
         (() => {
-            const room = document.getElementById('rooms-menu-toggle').getBoundingClientRect();
+            const chrome = document.getElementById('chrome-toggle-btn').getBoundingClientRect();
             const avatar = document.getElementById('user-menu-toggle').getBoundingClientRect();
-            return { roomHeight: room.height, avatarHeight: avatar.height, avatarWidth: avatar.width, gap: avatar.left - room.right };
+            return { chromeHeight: chrome.height, avatarHeight: avatar.height, avatarWidth: avatar.width, gap: avatar.left - chrome.right };
         })()
     JS);
 
-    expect($rects['avatarHeight'])->toEqualWithDelta($rects['roomHeight'], 1.0)
-        // Square, not squashed -- aspect-square tracking the stretched height.
+    expect($rects['avatarHeight'])->toEqualWithDelta($rects['chromeHeight'], 1.0)
+        // Square, not squashed.
         ->and($rects['avatarWidth'])->toEqualWithDelta($rects['avatarHeight'], 1.0)
-        // .right's own flex gap is 10px -- this should visibly exceed it.
-        ->and($rects['gap'])->toBeGreaterThan(10);
+        // .right's own flex gap is 10px -- this should be at least that.
+        ->and($rects['gap'])->toBeGreaterThanOrEqual(10);
 });
 
 /**

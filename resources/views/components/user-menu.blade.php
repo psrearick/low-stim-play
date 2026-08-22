@@ -13,36 +13,26 @@
     <livewire:rooms-menu>, there's no per-request server state here at
     all (two static links), so there's nothing a Livewire round trip
     would ever need to update. The toggle/panel open-close-position
-    behavior mirrors <livewire:rooms-menu>'s own #rooms-menu-toggle/
-    #rooms-menu-panel pattern exactly (see resources/js/app.js's shared
-    registerNavbarDropdown() helper) -- same interaction shape, reused
-    rather than reinvented.
+    behavior mirrors <livewire:rooms-menu>'s own room-list content's
+    sibling dropdowns (Game Menu's own toggle/panel) exactly (see
+    resources/js/app.js's shared registerNavbarDropdown() helper) --
+    same interaction shape, reused rather than reinvented.
 --}}
 @auth
     {{--
-        ml-2 -- a little extra room on top of .button-bar .right's own
-        10px flex gap, so the avatar doesn't read as glued to the Rooms
-        button next to it.
-
-        w-9/h-9 here is only a static fallback (in case app.js hasn't run
-        yet, or ever) -- the real sizing is set in JS. The Rooms button's
-        own height is font-size/padding-driven via clamp(vmin) (see
-        app.css's base `button` rule), not a fixed px value, so a fixed
-        size class could only ever match it by coincidence at one
-        specific viewport. A pure-CSS version of this (align-self:
-        stretch + aspect-ratio, letting <x-avatar> fill it with w-full/
-        h-full) was tried first and confirmed live *not* to work
-        reliably -- the percentage-height child of a flex-stretched,
-        aspect-ratio-sized parent collapsed to a single line's height
-        instead of actually stretching. resources/js/app.js's
-        syncAvatarToggleSize() measures the real Rooms button and copies
-        its height directly instead, the same "measure it, don't guess
-        it in CSS" approach this navbar already uses for the dropdown
-        panels' own position (see registerNavbarDropdown()'s docblock).
+        icon-btn -- the same clamp(34px, 7vmin, 46px) fixed size the
+        hamburger Menu and fullscreen-toggle icon buttons already use
+        (app.css), rather than the JS-measured size this used to need:
+        that measurement copied the Rooms button's own font/padding-
+        driven height so the avatar would visually match it, but Rooms
+        moved into the Menu drawer (docs/concerns.md) and is no longer a
+        sibling in .right at all, so there's nothing left to measure
+        against -- a fixed icon size matching the bar's other icon
+        buttons is simpler and correct now.
     --}}
-    <div class="relative inline-flex ml-2 shrink-0">
+    <div class="relative inline-flex shrink-0">
         <button type="button" id="user-menu-toggle" aria-haspopup="true" aria-expanded="false"
-            aria-label="Account menu" class="p-0 border-none bg-transparent rounded-full w-9 h-9 shrink-0">
+            aria-label="Account menu" class="p-0 border-none bg-transparent rounded-full icon-btn shrink-0">
             <x-avatar :name="auth()->user()->name" :avatar-url="auth()->user()->avatarUrl()" size="w-full h-full text-sm" />
         </button>
 

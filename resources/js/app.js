@@ -106,20 +106,17 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // ---- Navbar dropdowns (Rooms, Game Menu, Account -- every page) -------
-    // Delegated, not bound directly like the sidebar toggle above -- unlike
-    // the sidebar, <livewire:rooms-menu>'s own root re-renders on every
-    // action it takes (joinByCode's error message, for one), and a direct
-    // binding would silently stop working the first time that happens. The
-    // Account menu (<x-user-menu>) isn't a Livewire component at all and
-    // the Game Menu panel (layouts/app.blade.php) is plain markup too, but
-    // both share the exact same open/close/position behavior, so they
-    // reuse this same delegated setup rather than a second, near-identical
-    // direct-binding version. <livewire:rooms-menu>'s own toggle/panel
-    // carry wire:ignore.self so Livewire's morph never resets the open/
-    // closed state managed here out from under a re-render -- the same fix
-    // class as the scoreboard-drawer's dialog[open] bug documented in
-    // docs/DEVLOG.md, applied proactively here instead of after the fact.
+    // ---- Navbar dropdown (Account, every page) -----------------------------
+    // Delegated, not bound directly like the sidebar toggle above -- the
+    // Account menu (<x-user-menu>) isn't a Livewire component at all, but
+    // this is still the most robust place for its open/close/position
+    // behavior regardless. (Rooms and Game Menu used to be two other
+    // consumers of this same helper -- Rooms moved into the site menu
+    // drawer itself, and Game Menu became a real modal <x-dialog> instead
+    // of a dropdown, since an absolutely-positioned panel opening below
+    // its toggle button visually overlapped page content just below the
+    // bar -- see docs/concerns.md, 2026-08-22, and layouts/app.blade.php's
+    // own comment on the Game dialog.)
     const registerNavbarDropdown = (toggleId, panelId) => {
         document.addEventListener('click', (event) => {
             const toggle = event.target.closest(`#${toggleId}`);
@@ -169,53 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    registerNavbarDropdown('rooms-menu-toggle', 'rooms-menu-panel');
-    registerNavbarDropdown('game-menu-toggle', 'game-menu-panel');
     registerNavbarDropdown('user-menu-toggle', 'user-menu-panel');
-
-    // ---- Avatar toggle height sync (navbar, every page) --------------------
-    // <x-user-menu>'s avatar toggle needs to visually match the Rooms
-    // button's own height, but that height comes from clamp(vmin)
-    // padding/font-size (see app.css's base `button` rule), not a fixed px
-    // value. A pure-CSS version of this (align-self: stretch + aspect-
-    // ratio on the toggle, <x-avatar> filling it with w-full/h-full) was
-    // tried first and confirmed live *not* to work reliably -- a
-    // percentage-height child of a flex-stretched, aspect-ratio-sized
-    // parent collapsed to a single line's height instead of actually
-    // stretching. Measuring the real Rooms button and copying its height
-    // directly is simpler and actually correct at every viewport, the
-    // same "measure it, don't guess it in CSS" approach already used for
-    // the dropdown panels' own position above. Re-run on resize (the
-    // clamp(vmin) button height genuinely changes with viewport) and once
-    // web fonts finish loading (font-display: swap means the fallback
-    // font's metrics at first paint can differ slightly from the real
-    // one, which would otherwise leave the avatar sized against a
-    // momentarily-wrong button height).
-    const syncAvatarToggleSize = () => {
-        const roomsToggle = document.getElementById('rooms-menu-toggle');
-        const avatarToggle = document.getElementById('user-menu-toggle');
-
-        if (!roomsToggle || !avatarToggle) {
-            return;
-        }
-
-        // Rounded to a whole pixel, not the raw fractional
-        // getBoundingClientRect() value (clamp(vmin) math essentially never
-        // lands on a whole number) -- setting width/height from the same
-        // fractional string should be identical in principle, but a
-        // fractional CSS length rasterizes independently per axis, and two
-        // axes that are numerically equal can still snap to a different
-        // device-pixel count under certain zoom levels/DPRs, which reads as
-        // a hairline-oval circle rather than a true one. A whole pixel value
-        // rasterizes the same on both axes everywhere.
-        const size = `${Math.round(roomsToggle.getBoundingClientRect().height)}px`;
-        avatarToggle.style.width = size;
-        avatarToggle.style.height = size;
-    };
-
-    syncAvatarToggleSize();
-    window.addEventListener('resize', syncAvatarToggleSize);
-    document.fonts?.ready?.then(syncAvatarToggleSize);
 
     // ---- Generic low-stim dialogs (<x-dialog>/<x-confirm-dialog>) --------
     // Delegated on `document`, not bound per-element like the Rules dialog
@@ -245,6 +196,39 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (event.target instanceof HTMLDialogElement && event.target.classList.contains('js-dialog')) {
             event.target.close();
+        }
+    });
+
+    // ---- Close the Game dialog after a real action (game pages only) -----
+    // #game-menu-dialog is a real modal (layouts/app.blade.php's own
+    // comment explains why), so unlike the dropdown it replaced, it blocks
+    // interaction with the rest of the page while open -- confirmed live
+    // as a real bug, not just a theoretical one: Word Grid's own post-game
+    // "Challenge a Friend" button renders in the page body, not inside
+    // this dialog, and with the dialog left open on top of it after End
+    // Game, Playwright's click() on "Challenge a Friend" hung waiting for
+    // an element that was present but non-interactive behind the modal's
+    // own backdrop.
+    //
+    // Only closes on a click with a wire:click ancestor within
+    // #game-actions -- not on *every* click there. Farkle/Family Feud's
+    // own End Game/Reveal route through a <x-confirm-dialog> that's
+    // teleported *inside* #game-actions alongside its trigger (so it's
+    // nested inside #game-menu-dialog too): closing #game-menu-dialog
+    // unconditionally on the trigger's own click (data-dialog-open, no
+    // wire:click) made the nested confirm dialog invisible along with it,
+    // even though showModal() had opened it -- a closed ancestor <dialog>
+    // forces display:none on any descendant regardless of the
+    // descendant's own open state, confirmed live (the confirm dialog's
+    // "End the game?" text never appeared). A plain data-dialog-close
+    // Cancel button inside that confirm dialog has no wire:click either,
+    // so it's excluded the same way -- canceling returns to the Game
+    // dialog's own options instead of closing everything. Only the
+    // confirm button itself (wire:click + data-dialog-close together)
+    // actually takes the action, so that's what closes both dialogs.
+    document.addEventListener('click', (event) => {
+        if (event.target.closest('#game-actions') && event.target.closest('[wire\\:click]')) {
+            document.getElementById('game-menu-dialog')?.close();
         }
     });
 

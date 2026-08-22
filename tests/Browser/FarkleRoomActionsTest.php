@@ -59,12 +59,20 @@ it('toggles Watch only mid-turn to a read-only view, and back', function () {
         ->click('Watch only')
         ->wait(0.3);
 
-    $page->assertMissing('#rollBtn')
-        ->assertSee('Player view');
+    $page->assertMissing('#rollBtn');
 
-    $page->click('Player view')->wait(0.3);
+    // Watch only's own click closes the Game dialog it lives in (see
+    // app.js's own comment on that) -- Player view, teleported into that
+    // same dialog, needs it reopened first, and the same afterward for
+    // Watch only once Player view closes it again.
+    $page->click('#game-menu-toggle')
+        ->assertSee('Player view')
+        ->click('Player view')
+        ->wait(0.3);
 
-    $page->assertVisible('#rollBtn')
+    $page->assertVisible('#rollBtn');
+
+    $page->click('#game-menu-toggle')
         ->assertSee('Watch only');
 });
 

@@ -7,38 +7,21 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 uses(RefreshDatabase::class);
 
 /**
- * docs/concerns.md #9: the navbar "Rooms" dropdown -- open/close, the Join
- * a Room dialog, and Create a Room actually navigating. All clicks target
- * CSS ids, never button text, matching the reasoning in
+ * docs/concerns.md #9/#8: everything room-related -- a list of rooms the
+ * current account belongs to, a "Join a Room" dialog, and "Create a Room"
+ * actually navigating. Folded into the site menu drawer rather than kept
+ * as its own persistent bar dropdown (docs/concerns.md, 2026-08-22) -- one
+ * menu to open instead of two, so every action here starts by opening the
+ * drawer (`#sidebar-menu-toggle`) rather than a Rooms-specific toggle.
+ * All clicks target CSS ids, never button text, matching the reasoning in
  * tests/Browser/FamilyFeudConfirmDialogsTest.php's own docblock.
  */
-test('the Rooms button opens and closes the dropdown panel', function () {
+test('opening the site menu shows the rooms list', function () {
     $page = visit('/');
 
-    $page->assertMissing('#rooms-menu-panel:not([hidden])')
-        ->click('#rooms-menu-toggle')
-        ->assertVisible('#rooms-menu-panel');
-
-    // Clicking elsewhere on the page closes it again.
-    $page->click('.heading')
-        ->assertMissing('#rooms-menu-panel:not([hidden])');
-});
-
-test('the dropdown panel stays fully on-screen on a narrow mobile viewport', function () {
-    // .button-bar .right wraps onto its own line below 900px, and the
-    // Rooms toggle button (first in that group) can land anywhere on
-    // that wrapped line rather than at the screen's right edge -- a
-    // fixed right-0 CSS offset assumed it always would, and pushed the
-    // panel partly off the left edge of the screen entirely. Confirmed
-    // live via a real getBoundingClientRect() before this was fixed.
-    $page = visit('/')->resize(390, 844);
-
-    $page->click('#rooms-menu-toggle')->wait(0.3);
-
-    $rect = $page->script('document.getElementById("rooms-menu-panel").getBoundingClientRect()');
-
-    expect($rect['left'])->toBeGreaterThanOrEqual(0)
-        ->and($rect['right'])->toBeLessThanOrEqual(390);
+    $page->assertDontSee("You're not in any rooms.")
+        ->click('#sidebar-menu-toggle')
+        ->assertSee("You're not in any rooms.");
 });
 
 test('Create a Room navigates straight into the new room hub', function () {
@@ -46,7 +29,7 @@ test('Create a Room navigates straight into the new room hub', function () {
     $this->actingAs($user);
 
     $page = visit('/');
-    $page->click('#rooms-menu-toggle')
+    $page->click('#sidebar-menu-toggle')
         ->click('#rooms-menu-create')
         ->wait(0.5);
 
@@ -66,7 +49,7 @@ test('Join a Room opens a dialog and joining a valid code navigates into it', fu
     $this->actingAs($joiner);
 
     $page = visit('/');
-    $page->click('#rooms-menu-toggle')
+    $page->click('#sidebar-menu-toggle')
         ->click('#rooms-menu-join-trigger')
         ->assertSee('Join a Room')
         ->type('#join-room-code', $room->code)
@@ -83,7 +66,7 @@ test('joining an invalid code shows an error instead of navigating', function ()
     $this->actingAs($user);
 
     $page = visit('/');
-    $page->click('#rooms-menu-toggle')
+    $page->click('#sidebar-menu-toggle')
         ->click('#rooms-menu-join-trigger')
         ->type('#join-room-code', 'NOPE12')
         ->click('#join-room-submit')
@@ -93,7 +76,7 @@ test('joining an invalid code shows an error instead of navigating', function ()
         ->assertPathIs('/');
 });
 
-test('a room the user belongs to appears in the dropdown and links to its hub', function () {
+test('a room the user belongs to appears in the drawer and links to its hub', function () {
     $user = User::factory()->create();
     $room = Room::factory()->create();
     $room->addMember($user);
@@ -101,7 +84,7 @@ test('a room the user belongs to appears in the dropdown and links to its hub', 
     $this->actingAs($user);
 
     $page = visit('/');
-    $page->click('#rooms-menu-toggle')
+    $page->click('#sidebar-menu-toggle')
         ->assertSee($room->code)
         ->click($room->code)
         ->wait(0.5);

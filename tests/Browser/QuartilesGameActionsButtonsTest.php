@@ -19,7 +19,12 @@ test('End Game is shown during play; New Game only appears once the game has end
         ->assertMissing('#new-game-btn')
         ->assertMissing('#restart-game-btn');
 
-    $page->click('#end-game-btn')
+    $page->click('#end-game-btn');
+
+    // End Game's own click closes the Game dialog it lives in (see
+    // app.js's own comment on that) -- New Game, teleported into that
+    // same dialog, needs it reopened first.
+    $page->click('#game-menu-toggle')
         ->assertVisible('#new-game-btn')
         ->assertMissing('#end-game-btn');
 

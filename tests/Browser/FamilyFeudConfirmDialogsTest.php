@@ -117,7 +117,12 @@ test('confirming End Game shows the New Game button', function () {
         ->click('#end-game-confirm')
         ->wait(0.5);
 
-    $page->assertDontSee('End the game?')
+    $page->assertDontSee('End the game?');
+
+    // The confirm click above closes the Game dialog it lives in (see
+    // app.js's own comment on that), so New Game -- teleported into that
+    // same dialog -- needs it reopened first.
+    $page->click('#game-menu-toggle')
         ->assertSee('New Game');
 
     // Coverage audit gap (docs/DEVLOG.md's Boggle "New Game" bug): the

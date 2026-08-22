@@ -175,7 +175,12 @@ test('a seated player can toggle Watch only mid-turn to view read-only, and swit
         ->assertDontSee('Your hand')
         ->assertSee('Watching');
 
-    $page->click('Player view')->wait(0.3);
+    // Watch only's own click closed the Game dialog it lives in (see
+    // app.js's own comment on that) -- Player view, teleported into that
+    // same dialog, needs it reopened first.
+    $page->click('#game-menu-toggle')
+        ->click('Player view')
+        ->wait(0.3);
 
     $page->assertVisible('#play-cards')
         ->assertSee('Your hand');

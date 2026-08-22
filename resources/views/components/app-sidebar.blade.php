@@ -35,11 +35,27 @@
     being mixed in with content links.
 --}}
 <aside class="app-sidebar" id="app-sidebar" aria-label="Main navigation">
+    <a id="sidebar-link-home" href="{{ url('/') }}"
+        class="app-sidebar-link {{ request()->is('/') ? 'active' : '' }}"
+        data-sidebar-close>
+        Home
+    </a>
     <a id="sidebar-link-daily-puzzles" href="{{ route('daily-puzzles') }}"
         class="app-sidebar-link {{ request()->routeIs('daily-puzzles') ? 'active' : '' }}"
         data-sidebar-close>
         Daily Puzzles
     </a>
+
+    <div class="app-sidebar-divider"></div>
+
+    {{--
+        Folded in rather than kept as its own persistent bar dropdown
+        (docs/concerns.md) -- <livewire:rooms-menu>'s own markup no longer
+        has a toggle/panel wrapper of its own, so its content (room list,
+        Join/Create a Room) renders directly here, always visible once
+        this drawer is open.
+    --}}
+    <livewire:rooms-menu />
 
     <div class="app-sidebar-divider"></div>
 

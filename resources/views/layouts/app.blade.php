@@ -44,12 +44,14 @@
     <body class="scrollable{{ isset($bodyClass) ? ' '.$bodyClass : '' }}">
         {{--
             The top bar is a fixed, small set of buttons on every page --
-            [Home, Menu] on the left, [Rooms, Game Menu (game pages only),
+            a hamburger Menu icon on the left, [Game (game pages only),
             Avatar] on the right -- rather than a per-page mix of buttons
             that varied in count and grew crowded on game pages (see the
             navbar redesign entry in docs/DEVLOG.md, "Site-wide design
-            system & chrome"). Everything that used to add its own bar
-            button (Daily Puzzles, Rules, per-game action buttons, the
+            system & chrome"). Home and Rooms moved into the Menu drawer
+            itself (docs/concerns.md) rather than staying persistent bar
+            items -- everything that used to add its own bar button (Home,
+            Daily Puzzles, Rooms, Rules, per-game action buttons, the
             fullscreen toggle) now lives inside one of the two dropdown
             menus instead, so the bar itself never grows regardless of how
             many actions a given game needs, and never wraps onto a second
@@ -57,28 +59,19 @@
         --}}
         <div class="button-bar">
             <div class="left">
-                <a href="{{ url('/') }}"><button type="button">Home</button></a>
-                <button type="button" id="sidebar-menu-toggle" aria-label="Open navigation menu">Menu</button>
+                <button type="button" id="sidebar-menu-toggle" class="icon-btn" aria-label="Open navigation menu">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M4 6h16" />
+                        <path d="M4 12h16" />
+                        <path d="M4 18h16" />
+                    </svg>
+                </button>
             </div>
             <div class="right">
-                {{--
-                    Rendered directly here (not a teleport target) --
-                    unlike #game-actions below, this needs to appear on
-                    every page, including plain (non pages::) Blade views
-                    like welcome.blade.php that never trigger a Livewire
-                    round trip of their own for a teleport to react to.
-                    Kept as its own persistent bar icon rather than folded
-                    into the Menu drawer -- like the avatar, it carries
-                    live state (room notifications, an up-to-date room
-                    list) that benefits from being reachable in one click
-                    from anywhere, not two.
-                --}}
-                <livewire:rooms-menu />
-
                 @if (isset($rules) || isset($fullscreenToggle))
                     {{--
-                        The "Game Menu" dropdown -- the one place Rules and
-                        this game's own action buttons (End Game/New Game,
+                        The "Game" dialog -- the one place Rules and this
+                        game's own action buttons (End Game/New Game,
                         Reveal, Watch only, ...) live now, instead of each
                         being its own bar button. Gated on $rules or
                         $fullscreenToggle rather than a new dedicated slot --
@@ -92,17 +85,33 @@
                         teleport throws on a missing target the moment that
                         page's component tries to render into it, not a
                         silent no-op.
-                    --}}
-                    <div class="relative inline-flex">
-                        <button type="button" id="game-menu-toggle" wire:ignore.self aria-haspopup="true" aria-expanded="false">
-                            Game Menu <span aria-hidden="true">&#9662;</span>
-                        </button>
 
-                        <div id="game-menu-panel" wire:ignore.self hidden
-                            class="absolute right-0 top-full mt-2 w-56 rounded-lg border-2 border-surface-border bg-surface p-2 flex flex-col gap-1 z-10">
+                        A real modal (<x-dialog>), not an absolutely-
+                        positioned dropdown like Rooms/the avatar menu used
+                        to be -- a dropdown panel opening below its toggle
+                        button visually overlapped whatever page content
+                        sat just below the bar (docs/concerns.md, 2026-08-22:
+                        reported specifically on Word Grid, where it covered
+                        the score/time/words HUD while open). A modal makes
+                        that an obvious, deliberate full-screen takeover
+                        (same dimmed backdrop as Rules/Join a Room/every
+                        confirm dialog) instead of an ambiguous partial
+                        overlap that reads as a layout bug. Opened the same
+                        way as every other dialog in this app
+                        (data-dialog-open, the delegated handler in
+                        resources/js/app.js), not registerNavbarDropdown --
+                        it's not a dropdown anymore, so it doesn't need
+                        that helper's open/close/position machinery.
+                    --}}
+                    <button type="button" id="game-menu-toggle" data-dialog-open="game-menu-dialog">
+                        Game
+                    </button>
+
+                    <x-dialog id="game-menu-dialog" title="Game">
+                        <div class="flex flex-col gap-1 w-full">
                             @isset($rules)
-                                <button type="button" id="rules-btn" class="text-left px-2 py-2 rounded text-sm text-text hover:bg-bg/60">Rules</button>
-                                <div class="border-t border-surface-border my-1"></div>
+                                <button type="button" id="rules-btn" class="app-sidebar-link">Rules</button>
+                                <div class="app-sidebar-divider"></div>
                             @endisset
 
                             {{--
@@ -117,26 +126,24 @@
                                 element, so it's never touched by the AJAX
                                 diff a wire:click triggers afterwards.
                                 display: contents so teleported buttons lay
-                                out as direct flex items of this panel's
+                                out as direct flex items of this wrapper's
                                 own flex-col, picking up its gap, rather
                                 than as a nested box.
                             --}}
                             <div id="game-actions" style="display: contents;"></div>
                         </div>
-                    </div>
+                    </x-dialog>
 
                     @isset($fullscreenToggle)
                         {{--
                             Kept as its own persistent icon button,
-                            deliberately NOT inside the Game Menu dropdown
-                            above -- this is the one control that has to
-                            stay reachable even after it hides everything
-                            else in the bar (see app.css's body.chrome-hidden
-                            rules), including Game Menu's own toggle.
-                            Nesting it inside a panel that's itself hidden
-                            by default would leave no way back.
+                            deliberately NOT inside the Game dialog above --
+                            this is the one control that has to stay
+                            reachable even after it hides everything else
+                            in the bar (see app.css's body.chrome-hidden
+                            rules), including the Game button itself.
                         --}}
-                        <button type="button" id="chrome-toggle-btn" class="fullscreen-toggle" aria-pressed="false" aria-label="Hide menu bars for fullscreen">
+                        <button type="button" id="chrome-toggle-btn" class="icon-btn fullscreen-toggle" aria-pressed="false" aria-label="Hide menu bars for fullscreen">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                                 stroke-linejoin="round" aria-hidden="true">
                                 <g class="icon-expand">

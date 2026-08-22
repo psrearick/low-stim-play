@@ -56,6 +56,10 @@ it('actually navigates back to the room after the host ends the game', function 
         ->click('#end-game-trigger')
         ->assertSee('End the game?')
         ->click('#end-game-confirm')
+        // The confirm click above closes the Game dialog it lives in (see
+        // app.js's own comment on that), so "Back to room" -- teleported
+        // into that same dialog -- needs it reopened first.
+        ->click('#game-menu-toggle')
         ->assertSee('Back to room')
         ->click('Back to room')
         ->assertPathIs('/room/'.$room->code)

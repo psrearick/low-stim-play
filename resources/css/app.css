@@ -548,7 +548,10 @@ body.chrome-hidden .button-bar .right button:not(#chrome-toggle-btn) {
     border-right-width: 0;
 }
 
-.fullscreen-toggle {
+/* Shared by every icon-only button-bar button (the hamburger Menu toggle,
+   the fullscreen/chrome-hide toggle) -- a square, centered icon rather
+   than the base `button` rule's padded text-button look. */
+.icon-btn {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -558,10 +561,13 @@ body.chrome-hidden .button-bar .right button:not(#chrome-toggle-btn) {
     color: var(--ink);
 }
 
-.fullscreen-toggle svg {
+.icon-btn svg {
     display: block;
     width: clamp(18px, 3.4vmin, 24px);
     height: clamp(18px, 3.4vmin, 24px);
+}
+
+.fullscreen-toggle svg {
     transition: opacity 0.2s ease !important;
 }
 

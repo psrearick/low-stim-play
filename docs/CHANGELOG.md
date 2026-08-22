@@ -2,6 +2,12 @@
 
 A terse, commit-by-commit record of what changed, newest first. No rationale or decisions here — see `docs/DEVLOG.md` for the *why* behind anything listed here, organized by feature instead of by commit. See `docs/TODO.md` for what's still outstanding.
 
+## 2026-08-22
+
+- Moved Home and Rooms out of the top bar into the Menu drawer; the Rooms dropdown's own toggle/panel is gone, its content (room list, Join/Create a Room) now renders directly in the drawer.
+- Changed the Menu button to a hamburger icon instead of the word "Menu", and relabeled "Game Menu" to "Game".
+- Fixed the Game menu covering the score/timer HUD on mobile game pages by converting it from a dropdown into a proper modal dialog.
+
 ## 2026-08-21
 
 - Redesigned the top navigation bar: it's now a fixed, small set of items on every page (Home, Menu, Rooms, Game Menu, avatar) that never wraps on mobile, replacing the old per-page mix of buttons.
