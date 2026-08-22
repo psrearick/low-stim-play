@@ -4,6 +4,9 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 
 ## 2026-08-22
 
+- Added Wordle as "Five Letters": daily/random 5-letter word guessing, hard mode, a shared/ranked Challenge a Friend link, and profile stats. Wired into the daily-puzzles archive, homepage, and sidebar.
+- Added a shared `CommonWordFilter` word-commonness service, backed by a new `storage/app/word_frequency.txt` corpus, so Five Letters' daily/random answer is always drawn from common words rather than the full dictionary.
+- Added skeleton build specs for Pips, Spelling Bee, Connections, and Strands (`docs/TODO.md` #10).
 - Moved Home and Rooms out of the top bar into the Menu drawer; the Rooms dropdown's own toggle/panel is gone, its content (room list, Join/Create a Room) now renders directly in the drawer.
 - Changed the Menu button to a hamburger icon instead of the word "Menu", and relabeled "Game Menu" to "Game".
 - Fixed the Game menu covering the score/timer HUD on mobile game pages by converting it from a dropdown into a proper modal dialog.

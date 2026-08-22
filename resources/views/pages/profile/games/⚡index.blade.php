@@ -28,6 +28,7 @@ new class extends Component
             GameType::AppleMatch => 'profile.apple-match.show',
             GameType::ClearTheDeck => 'profile.clear-the-deck.show',
             GameType::Quartiles => 'profile.quartiles.show',
+            GameType::Wordle => 'profile.wordle.show',
         };
 
         return route($routeName, $participant);

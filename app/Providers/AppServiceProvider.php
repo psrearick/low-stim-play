@@ -10,6 +10,8 @@ use App\Models\User;
 use App\Services\Boggle\Solver;
 use App\Services\FamilyFeud\JudgeService;
 use App\Services\Quartiles\PuzzleGenerator;
+use App\Services\Wordle\AnswerPicker;
+use App\Services\Words\CommonWordFilter;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
@@ -30,6 +32,12 @@ class AppServiceProvider extends ServiceProvider
         // candidates should only happen once per worker, not once per
         // Quartiles puzzle generated.
         $this->app->singleton(PuzzleGenerator::class);
+
+        // Same reasoning: the frequency corpus (~61k words) and the
+        // filtered 5-letter answer pool built from it should only be read
+        // once per worker, not once per Wordle game.
+        $this->app->singleton(CommonWordFilter::class);
+        $this->app->singleton(AnswerPicker::class);
 
         // Same reasoning: the mmdb reader should only open its database
         // file once per worker, not once per request.

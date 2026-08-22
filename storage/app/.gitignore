@@ -3,3 +3,4 @@
 !public/
 !.gitignore
 !words.txt
+!word_frequency.txt

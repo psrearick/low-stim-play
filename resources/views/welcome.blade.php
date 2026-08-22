@@ -61,6 +61,13 @@
                 <a href="{{ route('quartiles.play') }}"><button type="button">Word Blocks</button></a>
             </div>
         </div>
+        <div class="game-card">
+            <div class="game-card-title">Five Letters</div>
+            <p class="game-card-desc">Guess the secret 5-letter word in 6 tries. Each guess shows which letters are right, in the wrong spot, or not in the word at all &mdash; solo, untimed.</p>
+            <div class="game-card-actions">
+                <a href="{{ route('wordle.play') }}"><button type="button">Five Letters</button></a>
+            </div>
+        </div>
     </div>
 
 @endcomponent

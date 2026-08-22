@@ -9,6 +9,7 @@
         ['id' => 'apple-match-stats', 'label' => \App\Enums\GameType::AppleMatch->label(), 'routes' => ['profile.apple-match', 'profile.apple-match.show']],
         ['id' => 'clear-the-deck-stats', 'label' => \App\Enums\GameType::ClearTheDeck->label(), 'routes' => ['profile.clear-the-deck', 'profile.clear-the-deck.show']],
         ['id' => 'quartiles-stats', 'label' => \App\Enums\GameType::Quartiles->label(), 'routes' => ['profile.quartiles', 'profile.quartiles.show']],
+        ['id' => 'wordle-stats', 'label' => \App\Enums\GameType::Wordle->label(), 'routes' => ['profile.wordle', 'profile.wordle.show']],
     ];
 
     $pendingFriendRequests = auth()->check()

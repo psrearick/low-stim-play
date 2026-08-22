@@ -15,7 +15,11 @@ class GameChallengeService
      * flow -- Boggle's is its existing shared/ranked session link (joining
      * $participant's own GameSession, same as the manual copy-link box on
      * its reveal screen); Word Blocks has no ranking, so its link just
-     * reproduces the same seed independently.
+     * reproduces the same seed independently. Five Letters follows
+     * Boggle's shared-session model, not Word Blocks' seed link -- its
+     * answer is secret, so there's no public seed to hand out at all (see
+     * docs/specs/wordle.md section 3); the friend instead joins the same
+     * GameSession and gets the identical secret word resolved server-side.
      */
     public function linkFor(GameParticipant $participant): string
     {
@@ -24,6 +28,7 @@ class GameChallengeService
         return match ($session->type) {
             GameType::Boggle => route('boggle.share', ['gameSession' => $session->id]),
             GameType::Quartiles => route('quartiles.play', ['seed' => $session->settings['seed']]),
+            GameType::Wordle => route('wordle.share', ['gameSession' => $session->id]),
             default => throw new LogicException("{$session->type->value} has no challenge link."),
         };
     }

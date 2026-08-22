@@ -11,6 +11,7 @@ enum GameType: string
     case AppleMatch = 'apple_match';
     case ClearTheDeck = 'clear_the_deck';
     case Quartiles = 'quartiles';
+    case Wordle = 'wordle';
 
     /**
      * The user-visible display name -- deliberately not the same as the
@@ -31,6 +32,7 @@ enum GameType: string
             self::AppleMatch => 'Best Match',
             self::ClearTheDeck => 'Clear the Deck (Tens)',
             self::Quartiles => 'Word Blocks',
+            self::Wordle => 'Five Letters',
         };
     }
 
@@ -57,6 +59,7 @@ enum GameType: string
             self::AppleMatch => 'apple-match.room',
             self::ClearTheDeck => 'clear-the-deck.room',
             self::Quartiles => throw new \LogicException('Quartiles has no online-room mode; check supportsRooms() before calling roomRoute().'),
+            self::Wordle => throw new \LogicException('Wordle has no online-room mode; check supportsRooms() before calling roomRoute().'),
         };
     }
 
@@ -82,22 +85,23 @@ enum GameType: string
             self::AppleMatch => 'apple-match.play',
             self::ClearTheDeck => 'clear-the-deck.play',
             self::Quartiles => 'quartiles.play',
+            self::Wordle => 'wordle.play',
         };
     }
 
     /**
-     * Whether this game has an online-room mode at all. False only for
-     * `self::Quartiles` -- unlike every other game (including solo-capable
-     * Boggle), it has no multiplayer mode to opt into, not even one that's
-     * merely unavailable the way Best Match/Clear the Deck lack a
-     * pass-and-play mode. Used to filter `GameType::cases()` everywhere a
-     * room might list "other games to switch to" (see
-     * `<livewire:game-lobby>`'s `getOtherGamesProperty()`), so `roomRoute()`
-     * above never actually needs a Quartiles case.
+     * Whether this game has an online-room mode at all. False for
+     * `self::Quartiles`/`self::Wordle` -- unlike every other game
+     * (including solo-capable Boggle), neither has a multiplayer mode to
+     * opt into, not even one that's merely unavailable the way Best
+     * Match/Clear the Deck lack a pass-and-play mode. Used to filter
+     * `GameType::cases()` everywhere a room might list "other games to
+     * switch to" (see `<livewire:game-lobby>`'s `getOtherGamesProperty()`),
+     * so `roomRoute()` above never actually needs either case.
      */
     public function supportsRooms(): bool
     {
-        return $this !== self::Quartiles;
+        return ! in_array($this, [self::Quartiles, self::Wordle], true);
     }
 
     /**
@@ -126,12 +130,16 @@ enum GameType: string
      * Whether this game has a "Challenge a Friend" link worth emailing --
      * true only for games with a reproducible/shareable solo puzzle
      * (Boggle's own async challenge link, Word Blocks' seed-based share
-     * link). The extensibility hook for Task 10's future NYT-style games:
-     * add a case here once one gets its own shareable puzzle code, nothing
-     * else needs to change (see GameChallengeService::linkFor()).
+     * link, Five Letters' own shared/ranked session link -- see
+     * docs/specs/wordle.md section 3, the same shared-session model Boggle
+     * uses rather than Word Blocks' plain seed link, since Five Letters'
+     * answer is secret and can't just be regenerated from a public seed).
+     * The extensibility hook for Task 10's future NYT-style games: add a
+     * case here once one gets its own shareable puzzle code, nothing else
+     * needs to change (see GameChallengeService::linkFor()).
      */
     public function isChallengeable(): bool
     {
-        return in_array($this, [self::Boggle, self::Quartiles], true);
+        return in_array($this, [self::Boggle, self::Quartiles, self::Wordle], true);
     }
 }

@@ -102,6 +102,15 @@ Route::livewire('/profile/word-blocks/{gameParticipant}', 'pages::profile.quarti
     ->name('profile.quartiles.show');
 
 // Same registration-order reasoning as /profile/word-grid etc. above.
+Route::livewire('/profile/five-letters', 'pages::profile.wordle.index')
+    ->middleware(['auth', 'verified'])
+    ->name('profile.wordle');
+
+Route::livewire('/profile/five-letters/{gameParticipant}', 'pages::profile.wordle.show')
+    ->middleware(['auth', 'verified'])
+    ->name('profile.wordle.show');
+
+// Same registration-order reasoning as /profile/word-grid etc. above.
 Route::livewire('/profile/games', 'pages::profile.games.index')
     ->middleware(['auth', 'verified'])
     ->name('profile.games');
@@ -214,6 +223,30 @@ Route::livewire('/clear-the-deck/room/{code}', 'pages::clear-the-deck.room')
 // same as an authenticated user, only gets a GameParticipant row if
 // Auth::check() at endGame().
 Route::livewire('/word-blocks', 'pages::quartiles.play')->name('quartiles.play');
+
+// Solo only, no room mode at all -- same reasoning as /word-blocks above
+// (GameType::Wordle::supportsRooms() is false). Unlike Word Blocks, this
+// game *does* have real hidden information (the secret answer), so its own
+// mount() still needs the guest-provisioning-free "just play, only get a
+// GameParticipant row if Auth::check() at finishGame()" shape Word Blocks
+// established -- the answer itself is resolved fresh from the database
+// inside submitGuess() rather than ever being derivable from a public
+// property (see docs/specs/wordle.md section 3).
+Route::livewire('/five-letters', 'pages::wordle.play')->name('wordle.play');
+
+// Async challenge link: joins a friend into the same GameSession so they
+// play the identical secret answer, ranked together via separate
+// GameParticipant rows -- mirrors boggle.share exactly (see
+// GameChallengeService::linkFor()), not quartiles.play's plain seed link,
+// since Five Letters' answer is secret and can't just be regenerated from a
+// public seed. Just a redirect (not its own Livewire page) since
+// pages::wordle.play already knows how to join an existing session via
+// $challenge.
+Route::get('/five-letters/share/{gameSession}', function (GameSession $gameSession) {
+    abort_unless($gameSession->type === GameType::Wordle, 404);
+
+    return redirect()->route('wordle.play', ['challenge' => $gameSession->id]);
+})->name('wordle.share');
 
 // Pure date math, no DB reads -- every day's puzzle is derived on the fly
 // by DailyPuzzle::seedFor(), so there's nothing here to gate behind auth;
