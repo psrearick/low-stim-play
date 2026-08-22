@@ -255,6 +255,35 @@ new class extends Component
     }
 
     /**
+     * The single source of truth for a tile/key's per-status look --
+     * shared by the guess grid, the on-screen keyboard, and the legend, so
+     * all three can never silently drift out of sync with each other.
+     */
+    public function tileClasses(?string $status): string
+    {
+        return match ($status) {
+            'correct' => 'bg-accent border-accent text-bg',
+            'present' => 'bg-warn/20 border-warn border-dashed text-text',
+            'absent' => 'bg-die border-die-border text-text/50',
+            default => 'bg-surface border-surface-border text-text',
+        };
+    }
+
+    /**
+     * The small non-color signal paired with each status (this app's
+     * "never rely on color alone" rule) -- see tileClasses()'s own
+     * docblock for why this is the one place it's defined.
+     */
+    public function tileMark(?string $status): string
+    {
+        return match ($status) {
+            'correct' => '✓',
+            'present' => '~',
+            default => '',
+        };
+    }
+
+    /**
      * Other players' final results for this same shared session -- empty
      * until they've also finished. Mirrors Boggle's own
      * getOtherParticipantsProperty().
@@ -631,7 +660,7 @@ new class extends Component
     <h3>How to Use This Page</h3>
     <ul>
         <li>Type a 5-letter word (or tap the on-screen keyboard) and press Enter/Submit to guess.</li>
-        <li>Each letter is marked correct (right spot), present (in the word, wrong spot), or absent.</li>
+        <li>Each letter is marked correct (right spot), present (in the word, wrong spot), or absent — a legend above the grid shows exactly what each color/mark means.</li>
         <li>You have 6 guesses to find the secret word.</li>
         <li>If you're signed in, leaving and coming back later picks up right where you left off.</li>
     </ul>
@@ -672,6 +701,28 @@ new class extends Component
         </div>
     @endunless
 
+    {{--
+        Explains what the color + corner mark on a guessed tile actually
+        means -- previously only described in prose inside the Rules
+        dialog, easy to miss entirely for a first-time player. Reuses
+        tileClasses()/tileMark() directly (same source the real grid/
+        keyboard render from below), so this can never silently drift out
+        of sync with what a real guessed tile actually looks like.
+    --}}
+    <div class="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-text/80" id="wordle-legend">
+        @foreach (['correct' => 'Correct spot', 'present' => 'Wrong spot', 'absent' => 'Not in word'] as $legendStatus => $legendLabel)
+            <span class="flex items-center gap-1.5" wire:key="legend-{{ $legendStatus }}">
+                <span class="relative flex items-center justify-center rounded border-2 text-[0.65rem] font-bold uppercase w-5 h-5 {{ $this->tileClasses($legendStatus) }}">
+                    A
+                    @if ($this->tileMark($legendStatus) !== '')
+                        <span class="absolute -top-0.5 -right-0.5 text-[0.5rem] leading-none" aria-hidden="true">{{ $this->tileMark($legendStatus) }}</span>
+                    @endif
+                </span>
+                {{ $legendLabel }}
+            </span>
+        @endforeach
+    </div>
+
     <div class="flex flex-col items-center gap-1" id="wordle-grid">
         @for ($row = 0; $row < self::MAX_GUESSES; $row++)
             <div class="grid grid-cols-5 gap-1.5" wire:key="row-{{ $row }}">
@@ -680,20 +731,10 @@ new class extends Component
                         $guessRow = $guesses[$row] ?? null;
                         $letter = $guessRow['word'][$col] ?? ($row === count($guesses) ? ($currentGuess[$col] ?? '') : '');
                         $status = $guessRow['result'][$col] ?? null;
-                        $tileClasses = match ($status) {
-                            'correct' => 'bg-accent border-accent text-bg',
-                            'present' => 'bg-warn/20 border-warn border-dashed text-text',
-                            'absent' => 'bg-die border-die-border text-text/50',
-                            default => 'bg-surface border-surface-border text-text',
-                        };
-                        $mark = match ($status) {
-                            'correct' => '✓',
-                            'present' => '~',
-                            default => '',
-                        };
+                        $mark = $this->tileMark($status);
                     @endphp
                     <div id="cell-{{ $row }}-{{ $col }}" wire:key="cell-{{ $row }}-{{ $col }}"
-                        class="relative aspect-square w-14 flex items-center justify-center rounded-lg border-2 text-xl font-bold uppercase {{ $tileClasses }}">
+                        class="relative aspect-square w-14 flex items-center justify-center rounded-lg border-2 text-xl font-bold uppercase {{ $this->tileClasses($status) }}">
                         {{ $letter }}
                         @if ($mark !== '')
                             <span class="absolute top-0.5 right-1 text-[0.6rem] leading-none" aria-hidden="true">{{ $mark }}</span>
@@ -731,17 +772,9 @@ new class extends Component
                 @foreach (['qwertyuiop', 'asdfghjkl', 'zxcvbnm'] as $rowLetters)
                     <div class="flex gap-1 justify-center">
                         @foreach (str_split($rowLetters) as $letter)
-                            @php
-                                $keyStatus = $this->keyboardStatus[$letter] ?? null;
-                                $keyClasses = match ($keyStatus) {
-                                    'correct' => 'bg-accent border-accent text-bg',
-                                    'present' => 'bg-warn/20 border-warn border-dashed text-text',
-                                    'absent' => 'bg-die border-die-border text-text/50',
-                                    default => 'bg-surface border-surface-border text-text',
-                                };
-                            @endphp
+                            @php $keyStatus = $this->keyboardStatus[$letter] ?? null; @endphp
                             <button type="button" id="key-{{ $letter }}" wire:key="key-{{ $letter }}" wire:click="pressKey('{{ $letter }}')"
-                                class="rounded border-2 text-xs font-bold uppercase px-2 py-2.5 {{ $keyClasses }}">
+                                class="rounded border-2 text-xs font-bold uppercase px-2 py-2.5 {{ $this->tileClasses($keyStatus) }}">
                                 {{ $letter }}
                             </button>
                         @endforeach
