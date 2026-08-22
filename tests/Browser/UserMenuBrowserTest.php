@@ -27,13 +27,17 @@ test('the avatar toggle opens and closes the account menu panel', function () {
         ->assertMissing('#user-menu-panel:not([hidden])');
 });
 
-test('Stats navigates to the dashboard', function () {
+// "My Stats" moved out of the avatar dropdown into the site menu drawer
+// as part of the navbar redesign (see docs/DEVLOG.md) -- covered here
+// instead of the avatar-specific tests above/below, since it's no longer
+// reachable through this component at all.
+test('My Stats, in the site menu drawer, navigates to the dashboard', function () {
     $user = User::factory()->create();
     $this->actingAs($user);
 
     $page = visit('/');
-    $page->click('#user-menu-toggle')
-        ->click('#user-menu-panel a[href$="/dashboard"]')
+    $page->click('#sidebar-menu-toggle')
+        ->click('#sidebar-link-dashboard')
         ->wait(0.3);
 
     $page->assertPathIs('/dashboard');
@@ -61,18 +65,26 @@ test('Logout actually logs the user out and returns to the guest homepage', func
         ->wait(0.3);
 
     $page->assertPathIs('/')
-        ->assertSee('Sign In')
         ->assertMissing('#user-menu-toggle');
+
+    // Sign In/Create an Account moved into the site menu drawer as part
+    // of the navbar redesign (see docs/DEVLOG.md) -- it has to be opened
+    // first now, rather than reading straight off the bar.
+    $page->click('#sidebar-menu-toggle')
+        ->assertSee('Sign In');
 
     $this->assertGuest();
 });
 
 /**
- * The pending-request badge lives only next to "Friends" inside the
- * dropdown panel, never on the avatar toggle itself (user-reported,
- * 2026-08-21 -- an earlier version also put a dot on the avatar).
+ * The pending-request badge lives only next to "Friends" inside the site
+ * menu drawer, never on the avatar toggle itself (user-reported,
+ * 2026-08-21 -- an earlier version also put a dot on the avatar). Friends
+ * itself moved out of the avatar dropdown into that same drawer as part
+ * of the navbar redesign (see docs/DEVLOG.md), so both live there now,
+ * not in this component at all.
  */
-test('the pending friend request badge is visible next to Friends once the menu is open, not on the avatar toggle', function () {
+test('the pending friend request badge is visible next to Friends in the site menu drawer, not on the avatar toggle', function () {
     $user = User::factory()->create();
     $requester = User::factory()->create();
     Friendship::factory()->create(['requester_id' => $requester->id, 'addressee_id' => $user->id]);
@@ -84,17 +96,17 @@ test('the pending friend request badge is visible next to Friends once the menu 
     $avatarBadgeCount = $page->script("document.getElementById('user-menu-toggle').querySelectorAll('span').length");
     expect($avatarBadgeCount)->toBe(0);
 
-    $page->click('#user-menu-toggle')
-        ->assertVisible('#user-menu-friends-badge');
+    $page->click('#sidebar-menu-toggle')
+        ->assertVisible('#sidebar-friends-badge');
 });
 
-test('no badge is present when there are no pending friend requests', function () {
+test('no badge is present in the site menu drawer when there are no pending friend requests', function () {
     $user = User::factory()->create();
     $this->actingAs($user);
 
-    $page = visit('/')->click('#user-menu-toggle');
+    $page = visit('/')->click('#sidebar-menu-toggle');
 
-    $page->assertMissing('#user-menu-friends-badge');
+    $page->assertMissing('#sidebar-friends-badge');
 });
 
 test('a guest visitor sees no avatar toggle at all', function () {

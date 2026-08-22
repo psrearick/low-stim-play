@@ -76,7 +76,13 @@ it('keeps the "Back to room" button on screen on a narrow phone at game end', fu
     $this->actingAs($host);
 
     $page = visit('/clear-the-deck?room='.$room->code)->resize(390, 844);
-    $page->assertSee('Back to room');
+
+    // "Back to room" now lives inside the Game Menu dropdown (see
+    // docs/DEVLOG.md's navbar redesign entry) rather than directly in
+    // .button-bar .right, so it has to be opened before the button is
+    // actually laid out/visible to measure.
+    $page->click('#game-menu-toggle')
+        ->assertSee('Back to room');
 
     $info = $page->script(
         <<<'JS'

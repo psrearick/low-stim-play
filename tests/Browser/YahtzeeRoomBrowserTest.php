@@ -145,6 +145,7 @@ test('a seated player can toggle Watch only mid-turn to view read-only, and swit
     $page = loginAsAndVisit($users->first(), "/yacht?room={$room->code}");
 
     $page->assertVisible('#rollBtn')
+        ->click('#game-menu-toggle')
         ->click('Watch only')
         ->wait(0.3);
 
@@ -170,7 +171,8 @@ test('Back to room actually navigates to the room hub once the game is over', fu
 
     $page = loginAsAndVisit($users->first(), "/yacht?room={$room->code}");
 
-    $page->assertSee('Back to room')
+    $page->click('#game-menu-toggle')
+        ->assertSee('Back to room')
         ->click('Back to room')
         ->assertPathIs('/room/'.$room->code);
 });

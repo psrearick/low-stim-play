@@ -55,6 +55,7 @@ it('toggles Watch only mid-turn to a read-only view, and back', function () {
     $page = visit('/10000?room='.$room->code);
 
     $page->assertVisible('#rollBtn')
+        ->click('#game-menu-toggle')
         ->click('Watch only')
         ->wait(0.3);
 
@@ -74,7 +75,8 @@ it('opens the Scores drawer showing every seat', function () {
 
     $page = visit('/10000?room='.$room->code);
 
-    $page->assertVisible('#scores-btn')
+    $page->click('#game-menu-toggle')
+        ->assertVisible('#scores-btn')
         ->click('#scores-btn')
         ->wait(0.3);
 

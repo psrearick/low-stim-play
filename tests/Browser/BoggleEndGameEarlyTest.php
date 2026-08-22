@@ -24,6 +24,7 @@ it('shows a "not saved" message and no share link when a timed game is ended ear
     // currently-closed <dialog> (see CLAUDE.md's Automated Browser
     // Testing section).
     $page->click('Start Solo Game')
+        ->click('#game-menu-toggle')
         ->assertVisible('#end-game-btn')
         ->click('#end-game-btn');
 
@@ -39,6 +40,7 @@ it('shows the share link and no "not saved" message for an untimed game', functi
 
     $page->click('Untimed')
         ->click('Start Solo Game')
+        ->click('#game-menu-toggle')
         ->assertVisible('#end-game-btn')
         ->click('#end-game-btn');
 

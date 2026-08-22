@@ -38,7 +38,8 @@ it('shows the locked, already-done state on reload instead of a fresh board', fu
 
     $page = loginAsAndVisitDailyBoggle($user, $date);
 
-    $page->assertVisible('#end-game-btn')
+    $page->click('#game-menu-toggle')
+        ->assertVisible('#end-game-btn')
         ->click('#end-game-btn');
 
     $page->assertSee('Next daily puzzle in')
@@ -48,6 +49,7 @@ it('shows the locked, already-done state on reload instead of a fresh board', fu
     $page->navigate("/word-grid/play?dailyDate={$date}");
 
     $page->assertSee('Next daily puzzle in')
+        ->click('#game-menu-toggle')
         ->assertMissing('#end-game-btn')
         ->assertSee('More Daily Puzzles');
 });

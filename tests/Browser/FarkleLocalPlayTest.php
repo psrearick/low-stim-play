@@ -102,7 +102,8 @@ it('ends the game via the End Game button and shows final scores', function () {
 
     $page->click('[aria-label="Fewer players"]')->click('Start Game');
 
-    $page->click('#end-game-trigger')
+    $page->click('#game-menu-toggle')
+        ->click('#end-game-trigger')
         ->assertSee('End the game?')
         ->click('#end-game-confirm')
         ->assertSee('Game Over');

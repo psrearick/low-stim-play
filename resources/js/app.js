@@ -79,7 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // ---- App sidebar navigation (Dashboard/Profile/Stats pages only) -----
+    // ---- App sidebar navigation (site-wide menu drawer, every page) ------
     // Bound directly (like the Rules dialog above), not delegated -- the
     // sidebar and its toggle button live in the layout itself, rendered
     // once per page load, never inside a Livewire component's own
@@ -106,20 +106,20 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // ---- Navbar dropdowns (Rooms menu, Account menu -- every page) --------
+    // ---- Navbar dropdowns (Rooms, Game Menu, Account -- every page) -------
     // Delegated, not bound directly like the sidebar toggle above -- unlike
     // the sidebar, <livewire:rooms-menu>'s own root re-renders on every
     // action it takes (joinByCode's error message, for one), and a direct
     // binding would silently stop working the first time that happens. The
     // Account menu (<x-user-menu>) isn't a Livewire component at all and
-    // so never actually needs this, but it shares the exact same open/
-    // close/position behavior, so it reuses this same delegated setup
-    // rather than a second, near-identical direct-binding version.
-    // <livewire:rooms-menu>'s own toggle/panel carry wire:ignore.self so
-    // Livewire's morph never resets the open/closed state managed here out
-    // from under a re-render -- the same fix class as the scoreboard-
-    // drawer's dialog[open] bug documented in docs/DEVLOG.md, applied
-    // proactively here instead of after the fact.
+    // the Game Menu panel (layouts/app.blade.php) is plain markup too, but
+    // both share the exact same open/close/position behavior, so they
+    // reuse this same delegated setup rather than a second, near-identical
+    // direct-binding version. <livewire:rooms-menu>'s own toggle/panel
+    // carry wire:ignore.self so Livewire's morph never resets the open/
+    // closed state managed here out from under a re-render -- the same fix
+    // class as the scoreboard-drawer's dialog[open] bug documented in
+    // docs/DEVLOG.md, applied proactively here instead of after the fact.
     const registerNavbarDropdown = (toggleId, panelId) => {
         document.addEventListener('click', (event) => {
             const toggle = event.target.closest(`#${toggleId}`);
@@ -170,6 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     registerNavbarDropdown('rooms-menu-toggle', 'rooms-menu-panel');
+    registerNavbarDropdown('game-menu-toggle', 'game-menu-panel');
     registerNavbarDropdown('user-menu-toggle', 'user-menu-panel');
 
     // ---- Avatar toggle height sync (navbar, every page) --------------------

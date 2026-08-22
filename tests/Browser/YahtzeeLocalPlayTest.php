@@ -40,8 +40,11 @@ it('plays a full solo game from setup through game over', function () {
     // a second one from scratch just to reach this button. Unlike
     // Boggle's own New Game (straight back into a fresh, already-started
     // game), Yahtzee's newGame() returns to the local setup screen --
-    // confirmed by reading the method, not assumed.
-    $page->click('New Game')
+    // confirmed by reading the method, not assumed. New Game now lives
+    // inside the Game Menu dropdown (see docs/DEVLOG.md's navbar
+    // redesign entry), so it has to be opened first.
+    $page->click('#game-menu-toggle')
+        ->click('New Game')
         ->assertDontSee('Game Over')
         ->assertVisible('button[wire\\:click="startGame"]');
 });

@@ -1435,10 +1435,6 @@ new class extends Component
     $wire.$watch('started', (started) => {
         document.body.classList.toggle('in-game', started);
     });
-
-    if ($wire.room !== null) {
-        document.querySelector('.button-bar')?.classList.add('many-buttons');
-    }
 </script>
 @endscript
 

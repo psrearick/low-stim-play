@@ -227,7 +227,8 @@ test('Back to room actually navigates to the room hub once the game is over', fu
 
     $page = loginAsAndVisitAppleMatch($users->first(), "/apple-match?room={$room->code}");
 
-    $page->assertSee('Back to room')
+    $page->click('#game-menu-toggle')
+        ->assertSee('Back to room')
         ->click('Back to room')
         ->assertPathIs('/room/'.$room->code);
 });

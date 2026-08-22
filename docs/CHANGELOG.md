@@ -4,6 +4,10 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 
 ## 2026-08-21
 
+- Redesigned the top navigation bar: it's now a fixed, small set of items on every page (Home, Menu, Rooms, Game Menu, avatar) that never wraps on mobile, replacing the old per-page mix of buttons.
+- Generalized the stats-only sidebar into a site-wide "Menu" drawer (Daily Puzzles, stats, Friends, About, Privacy, guest sign-in links), reachable from every page.
+- Added a "Game Menu" dropdown holding Rules and each game's own action buttons (End Game, Reveal, Watch only, etc.), replacing the loose buttons that used to sit directly in the bar.
+- Trimmed the navbar avatar dropdown to Edit Profile and Logout only; Stats and Friends moved into the Menu drawer.
 - Provisioned the missing Laravel Cloud queue worker in production — friend-request and Challenge-a-Friend emails were queuing correctly but never actually sending, since no worker had ever been running.
 - Added a crop-before-upload step to avatar uploads, using Cropper.js.
 - Raised the avatar upload size limit from 2MB to 10MB, and fixed nginx/php-fpm upload limits that were silently capping it below the old Laravel-side limit.

@@ -13,6 +13,8 @@ uses(RefreshDatabase::class);
 test('End Game is shown during play; New Game only appears once the game has ended', function () {
     $page = visit('/word-blocks');
 
+    $page->click('#game-menu-toggle');
+
     $page->assertVisible('#end-game-btn')
         ->assertMissing('#new-game-btn')
         ->assertMissing('#restart-game-btn');

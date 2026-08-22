@@ -50,6 +50,8 @@ it('replaces the disabled New Game button with a working Back to room link in a 
 
     $page = visit(route('boggle.play', ['size' => 4, 'minutes' => 3, 'seed' => 1, 'room' => $room->code]));
 
+    $page->click('#game-menu-toggle');
+
     $page->assertDontSee('New Game')
         ->assertSee('Back to room')
         ->click('Back to room')

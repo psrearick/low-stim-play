@@ -33,7 +33,8 @@ it('opens the challenge dialog, sends to a friend, and shows a confirmation', fu
 
     $page = loginAsAndVisitQuartiles($user);
 
-    $page->click('#end-game-btn')
+    $page->click('#game-menu-toggle')
+        ->click('#end-game-btn')
         ->assertVisible('[data-copy]');
 
     $page->click('Challenge a Friend')

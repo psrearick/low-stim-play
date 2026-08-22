@@ -1,80 +1,108 @@
 <?php
 
+use App\Models\Friendship;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Tests\TestCase;
 
 uses(RefreshDatabase::class);
 
 /**
- * Covers the new persistent sidebar (docs/TODO.md's former #1, "redesign
- * site navigation") that replaced each Dashboard/Profile/Stats page's own
- * one-off Dashboard-button teleport (or, on the individual game show
- * pages, a plain text link) with one consistent nav surface.
+ * Covers the site-wide menu drawer (<x-app-sidebar />) -- originally
+ * scoped to Dashboard/Profile/Stats pages only, now rendered on every
+ * page as the one consistent site-navigation surface (Daily Puzzles,
+ * Stats, Friends, About, Privacy, guest Sign In/Create an Account), per
+ * the navbar redesign in docs/DEVLOG.md's "Site-wide design system &
+ * chrome". "Edit Profile"/"Logout" stay out of it -- those live in the
+ * navbar's own avatar dropdown instead (see tests/Feature/UserMenuTest.php).
  */
-function assertHasSidebar(TestCase $test, string $path): void
+function appSidebarHtml(string $content): string
 {
-    // "Edit Profile"/"Log Out" moved out of the sidebar entirely, into the
-    // navbar's own avatar dropdown (see tests/Feature/UserMenuTest.php) --
-    // docs/TODO.md's former #24. The per-game labels also dropped their
-    // " Stats" suffix as part of the same change -- checked against just
-    // the <aside> fragment, not the whole page, since e.g. pages::profile.
-    // boggle.index's own <h1>/title legitimately still says "Word Grid
-    // Stats" (out of scope here, untouched), which a page-wide
-    // assertDontSee would otherwise collide with.
-    $response = $test->get($path)
-        ->assertSee('id="app-sidebar"', false)
-        ->assertSee('My Stats')
-        ->assertSee('All Games')
-        ->assertSee('Word Grid')
-        ->assertSee('Yacht')
-        ->assertSee('Survey Says')
-        ->assertSee('10,000');
+    preg_match('#<aside.*?</aside>#s', $content, $matches);
 
-    preg_match('#<aside.*?</aside>#s', $response->getContent(), $matches);
-    expect($matches[0] ?? null)
-        ->not->toBeNull()
-        ->not->toContain('Word Grid Stats')
-        ->not->toContain('Edit Profile')
-        ->not->toContain('Log Out');
+    expect($matches[0] ?? null)->not->toBeNull();
+
+    return $matches[0];
 }
 
-test('the sidebar appears on every Dashboard/Stats page', function () {
+test('the sidebar appears on every page type', function () {
     $user = User::factory()->create();
     $this->actingAs($user);
 
-    foreach (['/dashboard', '/profile/word-grid', '/profile/yacht', '/profile/survey-says', '/profile/10000', '/profile/games'] as $path) {
-        assertHasSidebar($this, $path);
+    $paths = ['/', '/dashboard', '/profile', '/profile/word-grid', '/word-grid/play', '/about'];
+
+    foreach ($paths as $path) {
+        $this->get($path)->assertSee('id="app-sidebar"', false);
     }
 });
 
-test('the sidebar does not appear on the homepage', function () {
-    $user = User::factory()->create();
-
-    $this->actingAs($user)
-        ->get('/')
-        ->assertDontSee('id="app-sidebar"', false);
+test('the sidebar appears for guests too', function () {
+    $this->get('/')->assertSee('id="app-sidebar"', false);
 });
 
-/**
- * Edit Profile is reached via the navbar's own avatar dropdown now, not
- * a sidebar entry (see tests/Feature/UserMenuTest.php) -- the sidebar is
- * stats navigation only, so this page shouldn't render one either.
- */
-test('the sidebar does not appear on the Edit Profile page', function () {
+test('the sidebar lists Daily Puzzles, every game\'s stats, About, and Privacy', function () {
     $user = User::factory()->create();
 
-    $this->actingAs($user)
-        ->get('/profile')
-        ->assertDontSee('id="app-sidebar"', false);
+    $response = $this->actingAs($user)->get('/');
+
+    $aside = appSidebarHtml($response->getContent());
+
+    expect($aside)->toContain('Daily Puzzles')
+        ->toContain('My Stats')
+        ->toContain('All Games')
+        ->toContain('Word Grid')
+        ->toContain('Yacht')
+        ->toContain('Survey Says')
+        ->toContain('10,000')
+        ->toContain('About')
+        ->toContain('Privacy Policy')
+        ->not->toContain('Edit Profile')
+        ->not->toContain('Logout');
 });
 
-test('the sidebar does not appear on a game-play page', function () {
+test('the sidebar shows Friends, with a badge, for an authenticated visitor with a pending request', function () {
+    $user = User::factory()->create();
+    $requester = User::factory()->create();
+    Friendship::factory()->create(['requester_id' => $requester->id, 'addressee_id' => $user->id]);
+
+    $response = $this->actingAs($user)->get('/');
+
+    $aside = appSidebarHtml($response->getContent());
+
+    expect($aside)->toContain('Friends')
+        ->toContain('sidebar-friends-badge');
+
+    $response->assertSeeInOrder(['sidebar-friends-badge', '1']);
+});
+
+test('no Friends badge is shown when there are no pending friend requests', function () {
     $user = User::factory()->create();
 
-    $this->actingAs($user)
-        ->get('/word-grid/play')
-        ->assertDontSee('id="app-sidebar"', false);
+    $response = $this->actingAs($user)->get('/');
+
+    $aside = appSidebarHtml($response->getContent());
+
+    expect($aside)->not->toContain('sidebar-friends-badge');
+});
+
+test('guests see Sign In/Create an Account in the sidebar instead of Friends', function () {
+    $response = $this->get('/');
+
+    $aside = appSidebarHtml($response->getContent());
+
+    expect($aside)->toContain('Sign In')
+        ->toContain('Create an Account')
+        ->not->toContain('Friends');
+});
+
+test('authenticated visitors do not see Sign In/Create an Account in the sidebar', function () {
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)->get('/');
+
+    $aside = appSidebarHtml($response->getContent());
+
+    expect($aside)->not->toContain('Sign In')
+        ->not->toContain('Create an Account');
 });
 
 test('exactly one sidebar link is marked active on a stats page', function () {
@@ -86,6 +114,15 @@ test('exactly one sidebar link is marked active on a stats page', function () {
     $response->assertSee('app-sidebar-link active', false);
 });
 
-test('guests are redirected to login rather than seeing the sidebar', function () {
+test('the Daily Puzzles sidebar link is marked active on the daily puzzles page', function () {
+    $response = $this->get('/daily-puzzles');
+
+    $aside = appSidebarHtml($response->getContent());
+
+    expect(substr_count($aside, 'app-sidebar-link active'))->toBe(1);
+    expect($aside)->toContain('sidebar-link-daily-puzzles');
+});
+
+test('guests are redirected to login rather than seeing the dashboard', function () {
     $this->get('/dashboard')->assertRedirect('/login');
 });

@@ -1,14 +1,17 @@
 {{--
-    The navbar-wide avatar dropdown (docs/TODO.md's former #24): "Edit
-    Profile" and "Log Out" used to only live in the sidebar (so only on
-    Dashboard/Profile/Stats pages, see app-sidebar.blade.php) or the
-    homepage's own one-off $barRight slot (welcome.blade.php) -- this
-    replaces both, rendered once here in layouts/app.blade.php so it
-    appears on every authenticated page, sidebar or not.
+    The navbar-wide avatar dropdown: identity/session actions only (Edit
+    Profile, Logout) -- everything else (Stats, Friends, Daily Puzzles, ...)
+    now lives in the site-wide menu drawer (<x-app-sidebar />) instead, so
+    the two navbar menus stay disjoint rather than both listing the same
+    destinations. See the navbar redesign entry in docs/DEVLOG.md ("Site-
+    wide design system & chrome") for why: the avatar's job is answering
+    "who am I logged in as, and how do I manage that" at a glance (the
+    rendered avatar image itself does that even before the dropdown opens),
+    which is a different job from browsing site content.
 
     Plain Blade, not a Livewire component, on purpose -- unlike
     <livewire:rooms-menu>, there's no per-request server state here at
-    all (three static links), so there's nothing a Livewire round trip
+    all (two static links), so there's nothing a Livewire round trip
     would ever need to update. The toggle/panel open-close-position
     behavior mirrors <livewire:rooms-menu>'s own #rooms-menu-toggle/
     #rooms-menu-panel pattern exactly (see resources/js/app.js's shared
@@ -16,10 +19,6 @@
     rather than reinvented.
 --}}
 @auth
-    @php
-        $pendingFriendRequests = app(\App\Services\Social\FriendService::class)->pendingReceived(auth()->user())->count();
-    @endphp
-
     {{--
         ml-2 -- a little extra room on top of .button-bar .right's own
         10px flex gap, so the avatar doesn't read as glued to the Rooms
@@ -60,15 +59,6 @@
         --}}
         <div id="user-menu-panel" hidden
             class="absolute right-0 top-full mt-2 w-48 rounded-lg border-2 border-surface-border bg-surface p-2 flex flex-col gap-1 z-10">
-            <a href="{{ route('dashboard') }}" class="px-2 py-2 rounded text-sm text-text hover:bg-bg/60">Stats</a>
-            <a href="{{ route('friends') }}" class="flex items-center justify-between px-2 py-2 rounded text-sm text-text hover:bg-bg/60">
-                Friends
-                @if ($pendingFriendRequests > 0)
-                    <span id="user-menu-friends-badge" class="min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-accent text-bg text-[0.65rem] font-bold leading-[1.1rem] text-center">
-                        {{ $pendingFriendRequests }}
-                    </span>
-                @endif
-            </a>
             <a href="{{ route('profile') }}" class="px-2 py-2 rounded text-sm text-text hover:bg-bg/60">Edit Profile</a>
 
             <div class="border-t border-surface-border my-1"></div>

@@ -52,6 +52,7 @@ it('actually navigates back to the room after the host ends the game', function 
 
     $page = visit('/10000?room='.$room->code);
     $page->assertSee('Roll')
+        ->click('#game-menu-toggle')
         ->click('#end-game-trigger')
         ->assertSee('End the game?')
         ->click('#end-game-confirm')

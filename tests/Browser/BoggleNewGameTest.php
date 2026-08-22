@@ -29,6 +29,7 @@ it('actually resets the game when New Game is clicked after ending', function ()
 
     $page->click('Untimed')
         ->click('Start Solo Game')
+        ->click('#game-menu-toggle')
         ->assertVisible('#end-game-btn')
         ->click('#end-game-btn');
 

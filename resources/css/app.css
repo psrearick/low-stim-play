@@ -175,8 +175,8 @@ body.scrollable {
     display: flex;
     justify-content: space-between;
     /* Without this, flex's default align-items: stretch makes .left match
-       .right's height whenever .right grows taller than one line (the
-       many-buttons wrap below) -- and since .left's own direct-child
+       .right's height whenever .right grows taller than one line -- and
+       since .left's own direct-child
        buttons (unlike Home, which is wrapped in an <a>) are themselves
        flex items, they stretched into tall, narrow rectangles rather than
        staying their normal button height. Confirmed live via a real
@@ -213,9 +213,9 @@ body.scrollable {
    (`.button-bar button` is (0,1,1) vs `.p-0`'s (0,1,0)), so without the
    exclusion they silently won on real mobile widths -- confirmed live via
    device emulation (iPhone SE viewport, not just a plain resize(): a
-   width-only resize() never triggers `.many-buttons`' own real device
-   metrics the same way, which is why an earlier attempt to reproduce this
-   bug via resize() alone came back clean). Left/right padding only (never
+   width-only resize() doesn't reproduce a real device's own metrics the
+   same way, which is why an earlier attempt to reproduce this bug via
+   resize() alone came back clean). Left/right padding only (never
    top/bottom, both rules), so the avatar's outer box stayed a perfect
    square (JS-set width === height) while its *inner* content box --
    what <x-avatar>'s w-full/h-full circle actually fills -- was squeezed
@@ -229,92 +229,19 @@ body.scrollable {
     }
 }
 
-@media (max-width: 480px) {
-    .button-bar.many-buttons {
-        gap: 6px;
-    }
-
-    .button-bar.many-buttons button:not(#user-menu-toggle) {
-        padding-left: clamp(6px, 1.6vmin, 18px);
-        padding-right: clamp(6px, 1.6vmin, 18px);
-        font-size: clamp(10px, 1.7vmin, 20px);
-    }
-
-    .button-bar.many-buttons .left,
-    .button-bar.many-buttons .right {
-        gap: 6px;
-        row-gap: 8px;
-    }
-
-    /* docs/concerns.md: an online-room game (Rooms + Scores + Watch only +
-       End Game + the fullscreen toggle, all in .right at once) had nowhere
-       left to shrink to at this width -- .right just overflowed the bar,
-       pushing the fullscreen toggle off screen and leaving End Game
-       crammed against its neighbors. flex-basis: 100% forces .right onto
-       its own full-width line below .left (rather than only wrapping once
-       it happens to overflow, which is harder to reason about and to
-       test), and its own flex-wrap lets its buttons spill onto a second
-       line if even the full bar width isn't enough, instead of overflowing
-       sideways. Confirmed live: this is the exact scenario a real online
-       Farkle game reproduces (see FarkleMobileLayoutTest.php). */
-    .button-bar.many-buttons .right {
-        flex: 1 1 100%;
-        flex-wrap: wrap;
-        justify-content: flex-end;
-    }
-
-    /* A little breathing room before the one button in this bar that
-       opens a confirmation dialog for something hard to undo -- so it
-       doesn't sit flush against Scores/Watch-only and invite an
-       accidental tap now that everything else here is packed tightly
-       (docs/concerns.md: "the end game button is too easy to hit because
-       it is so crowded"). Shared id across Farkle and Family Feud. */
-    .button-bar.many-buttons #end-game-trigger {
-        margin-left: 8px;
-    }
-}
-
-/* Reserves enough top padding for .button-bar's own taller, two-line
-   height once .right wraps onto its own line below .left -- without
-   this, the fixed-position bar's real height outgrows the page's fixed
-   clamp(80px, 10vmin, 96px) reservation and the top of the page's content
-   renders hidden underneath it. 108px is the real measured height for
-   Farkle's crowded online-room case (Home/Rules on one line, Rooms
-   /Scores/Watch only/End Game/fullscreen-toggle wrapped below) at both
-   375px and 320px wide, confirmed live via getBoundingClientRect() --
-   125px leaves a real margin above that without reserving so much it
-   visibly gaps on pages with fewer buttons.
-
-   Triggered structurally (.right actually having a 2nd child -- the
-   always-present <livewire:rooms-menu/> plus at least one teleported game
-   button), not by the .many-buttons class -- .right's own flex-wrap above
-   is unconditional now, so any game with 2+ right-side buttons can wrap
-   onto a second line regardless of whether it happens to add
-   .many-buttons, and this reservation needs to cover all of them, not
-   just the two games that opt into that class. */
-@media (max-width: 480px) {
-    body.scrollable:has(.button-bar .right > :nth-child(2)) {
-        padding-top: clamp(125px, 26vmin, 150px);
-    }
-}
-
+/* .button-bar's right side is now a fixed, small set of items on every
+   page -- Rooms, Game Menu (game pages only), the fullscreen toggle,
+   avatar -- rather than a variable pile of per-game action buttons, so it
+   no longer needs its own crowding-driven compact mode or wrap-reservation
+   (both previously lived here; see docs/DEVLOG.md's navbar redesign entry
+   for what replaced them: game-specific actions now live inside the Game
+   Menu dropdown instead of directly in .right). flex-wrap below is kept
+   as an unconditional safety net, not a mode this app expects to actually
+   trigger anymore. */
 .button-bar .left,
 .button-bar .right {
     display: flex;
     gap: 10px;
-    /* Unconditional, not just under .many-buttons below -- docs/concerns.md:
-       Clear the Deck's own "Back to room" link (only the Rooms-menu button
-       plus one teleported game-action button, never enough to trigger any
-       game's own opt-in .many-buttons JS toggle) still overflowed .right
-       off the right edge of the viewport entirely on a narrow phone,
-       confirmed live via getBoundingClientRect() (right edge 63px past
-       window.innerWidth). Only Farkle and Yahtzee ever add .many-buttons
-       themselves -- Boggle, Family Feud, Apple Match, and Clear the Deck
-       never did, so all four were equally exposed to this any time their
-       own online-room .right grew past one line's worth of width. Wrapping
-       here unconditionally costs nothing when everything already fits (it
-       only engages once content doesn't), so it closes the whole bug class
-       without every game needing to remember its own JS opt-in. */
     flex-wrap: wrap;
 }
 
@@ -2511,29 +2438,33 @@ body.scrollable.family-feud-play {
     border-top: 2px solid var(--die-border);
 }
 
-/* ---- App sidebar navigation (Dashboard/Profile/Stats pages only --
-   game-play pages keep their own existing button-bar chrome untouched).
-   Persistent on desktop; on narrower screens it becomes an off-canvas
-   panel toggled by a "Menu" button in the button-bar, using the same
-   900px breakpoint already used throughout this app. Toggling is an
-   instant display swap, not an animated slide -- this app avoids motion
-   everywhere else (see the Rules dialog's own backdrop above, and
-   family-feud-spec's "no fast or bouncing animation" rule), so a sliding
-   drawer would be inconsistent with that. ---- */
-.app-shell {
-    display: flex;
-    align-items: flex-start;
-    gap: 24px;
-    width: 100%;
-}
-
+/* ---- Site menu drawer (every page) -- an off-canvas panel toggled by
+   the "Menu" button in the button-bar. Used to be persistent-on-desktop/
+   off-canvas-on-mobile and scoped to Dashboard/Profile/Stats pages only;
+   now it's the one site-wide navigation drawer on every page (see
+   docs/DEVLOG.md's navbar redesign entry), so it's an overlay at every
+   viewport width instead of two different layouts to keep in sync.
+   Toggling is an instant display swap, not an animated slide -- this app
+   avoids motion everywhere else (see the Rules dialog's own backdrop
+   above, and family-feud-spec's "no fast or bouncing animation" rule), so
+   a sliding drawer would be inconsistent with that. ---- */
 .app-sidebar {
-    display: flex;
+    display: none;
     flex-direction: column;
     gap: 4px;
-    width: 220px;
-    flex-shrink: 0;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 20;
+    width: min(80vw, 280px);
     padding: 16px;
+    padding-top: calc(16px + env(safe-area-inset-top, 0px));
+    overflow-y: auto;
+    border-radius: 0;
+    border-top: none;
+    border-bottom: none;
+    border-left: none;
     /* --die/--die-border, not --surface/--surface-border -- see this
        file's own @theme inline block up top: --color-surface (the
        Tailwind-consumable token bg-surface/border-surface-border
@@ -2544,7 +2475,15 @@ body.scrollable.family-feud-play {
        rgba(0, 0, 0, 0)) rather than assumed. */
     background: var(--die);
     border: 2px solid var(--die-border);
-    border-radius: 10px;
+}
+
+.app-sidebar.open {
+    display: flex;
+}
+
+.app-sidebar-divider {
+    border-top: 1px solid var(--die-border);
+    margin: 6px 4px;
 }
 
 .app-sidebar-link {
@@ -2573,58 +2512,16 @@ body.scrollable.family-feud-play {
     color: var(--bar);
 }
 
-.app-main {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-}
-
-#sidebar-menu-toggle {
-    display: none;
-}
-
 .app-sidebar-backdrop {
     display: none;
 }
 
-@media (max-width: 899px) {
-    #sidebar-menu-toggle {
-        display: inline-flex;
-    }
-
-    .app-shell {
-        gap: 0;
-    }
-
-    .app-sidebar {
-        display: none;
-        position: fixed;
-        top: 0;
-        left: 0;
-        bottom: 0;
-        z-index: 20;
-        width: min(80vw, 280px);
-        border-radius: 0;
-        border-top: none;
-        border-bottom: none;
-        border-left: none;
-        overflow-y: auto;
-        padding-top: calc(16px + env(safe-area-inset-top, 0px));
-    }
-
-    .app-sidebar.open {
-        display: flex;
-    }
-
-    .app-sidebar-backdrop.open {
-        display: block;
-        position: fixed;
-        inset: 0;
-        z-index: 19;
-        background: oklch(from var(--bg) calc(l - 0.2) c h / 0.6);
-    }
+.app-sidebar-backdrop.open {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 19;
+    background: oklch(from var(--bg) calc(l - 0.2) c h / 0.6);
 }
 
 /* =====================================================================

@@ -168,10 +168,14 @@ it('keeps a full row of six banked dice on screen on a narrow mobile viewport', 
 it('keeps every button-bar button reachable and the fullscreen toggle on screen in a crowded online-room Farkle game', function () {
     // docs/concerns.md: "The navbar buttons are too tight on mobile in a
     // farkle game and the full screen button is off the screen, and the
-    // end game button is too easy to hit because it is so crowded." An
-    // online-room game (as host, mid-turn) is the crowded case: Rooms,
-    // Scores, Watch only, End Game, and the fullscreen toggle all render
-    // in .button-bar .right at once, alongside Home + Rules in .left.
+    // end game button is too easy to hit because it is so crowded." Fixed
+    // for good by the navbar redesign in docs/DEVLOG.md -- Scores/Watch
+    // only/End Game now live inside the Game Menu dropdown instead of
+    // directly in .button-bar .right, so .right itself is always just
+    // Rooms, Game Menu, the fullscreen toggle, and the avatar, regardless
+    // of how many actions a given game needs. This test still guards the
+    // regression: an online-room game (as host, mid-turn) is the busiest
+    // case this bar ever renders.
     $host = User::factory()->create();
     $room = Room::factory()->create(['host_user_id' => $host->id]);
     $session = GameSession::create([

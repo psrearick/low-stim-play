@@ -42,23 +42,23 @@
         @livewireStyles
     </head>
     <body class="scrollable{{ isset($bodyClass) ? ' '.$bodyClass : '' }}">
-        <div class="button-bar{{ isset($manyButtons) ? ' many-buttons' : '' }}">
+        {{--
+            The top bar is a fixed, small set of buttons on every page --
+            [Home, Menu] on the left, [Rooms, Game Menu (game pages only),
+            Avatar] on the right -- rather than a per-page mix of buttons
+            that varied in count and grew crowded on game pages (see the
+            navbar redesign entry in docs/DEVLOG.md, "Site-wide design
+            system & chrome"). Everything that used to add its own bar
+            button (Daily Puzzles, Rules, per-game action buttons, the
+            fullscreen toggle) now lives inside one of the two dropdown
+            menus instead, so the bar itself never grows regardless of how
+            many actions a given game needs, and never wraps onto a second
+            line on mobile.
+        --}}
+        <div class="button-bar">
             <div class="left">
                 <a href="{{ url('/') }}"><button type="button">Home</button></a>
-                {{--
-                    Site-wide, not just on the homepage or the two puzzle
-                    games' own pages -- the whole point of a daily puzzle is
-                    that it's easy to get to from anywhere, and guests can
-                    browse/play the archive same as any random puzzle, so
-                    this isn't gated @auth either.
-                --}}
-                <a href="{{ route('daily-puzzles') }}"><button type="button" id="daily-puzzles-nav-link">Daily Puzzles</button></a>
-                @isset($sidebar)
-                    <button type="button" id="sidebar-menu-toggle" aria-label="Open navigation menu">Menu</button>
-                @endisset
-                @isset($rules)
-                    <button type="button" id="rules-btn" aria-label="Rules">?</button>
-                @endisset
+                <button type="button" id="sidebar-menu-toggle" aria-label="Open navigation menu">Menu</button>
             </div>
             <div class="right">
                 {{--
@@ -67,57 +67,100 @@
                     every page, including plain (non pages::) Blade views
                     like welcome.blade.php that never trigger a Livewire
                     round trip of their own for a teleport to react to.
+                    Kept as its own persistent bar icon rather than folded
+                    into the Menu drawer -- like the avatar, it carries
+                    live state (room notifications, an up-to-date room
+                    list) that benefits from being reachable in one click
+                    from anywhere, not two.
                 --}}
                 <livewire:rooms-menu />
-                {{--
-                    A stable teleport target (see Livewire's @teleport
-                    directive), not a slot -- game-specific right-side
-                    buttons (End Game/New Game, Reveal, ...) depend on
-                    Livewire state that changes after the initial page
-                    load, and a named layout slot like the old $barRight
-                    is only ever evaluated once at that first render: it
-                    lives outside the component's own root element, so
-                    it's never touched by the AJAX diff a wire:click
-                    triggers afterwards. display: contents so teleported
-                    buttons still lay out as direct flex items of .right,
-                    picking up its gap, rather than as a nested box.
-                --}}
-                <div id="game-actions" style="display: contents;"></div>
-                {{--
-                    A plain slot, not a teleport target -- #game-actions
-                    above exists specifically because a Livewire round trip
-                    only re-renders that component's own root, never the
-                    surrounding layout. Non-Livewire pages (currently just
-                    welcome.blade.php's guest/auth links) never trigger that
-                    round trip in the first place, so a normal slot works
-                    exactly like $rules/$fullscreenToggle below.
-                --}}
-                {{ $barRight ?? '' }}
-                @isset($fullscreenToggle)
-                    <button type="button" id="chrome-toggle-btn" class="fullscreen-toggle" aria-pressed="false" aria-label="Hide menu bars for fullscreen">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                            stroke-linejoin="round" aria-hidden="true">
-                            <g class="icon-expand">
-                                <path d="M8 3H5a2 2 0 0 0-2 2v3" />
-                                <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
-                                <path d="M3 16v3a2 2 0 0 0 2 2h3" />
-                                <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
-                            </g>
-                            <g class="icon-collapse">
-                                <path d="M8 3v3a2 2 0 0 1-2 2H3" />
-                                <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
-                                <path d="M3 16h3a2 2 0 0 1 2 2v3" />
-                                <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
-                            </g>
-                        </svg>
-                    </button>
-                @endisset
+
+                @if (isset($rules) || isset($fullscreenToggle))
+                    {{--
+                        The "Game Menu" dropdown -- the one place Rules and
+                        this game's own action buttons (End Game/New Game,
+                        Reveal, Watch only, ...) live now, instead of each
+                        being its own bar button. Gated on $rules or
+                        $fullscreenToggle rather than a new dedicated slot --
+                        every game-play page that needs either already sets
+                        it (Quartiles sets only $rules, no fullscreen
+                        toggle; every other game-play page sets both), and
+                        room-lobby pages (which need neither) set neither.
+                        #game-actions below has to exist whenever a page
+                        might @teleport into it regardless of which of the
+                        two this particular page sets -- Livewire's own
+                        teleport throws on a missing target the moment that
+                        page's component tries to render into it, not a
+                        silent no-op.
+                    --}}
+                    <div class="relative inline-flex">
+                        <button type="button" id="game-menu-toggle" wire:ignore.self aria-haspopup="true" aria-expanded="false">
+                            Game Menu <span aria-hidden="true">&#9662;</span>
+                        </button>
+
+                        <div id="game-menu-panel" wire:ignore.self hidden
+                            class="absolute right-0 top-full mt-2 w-56 rounded-lg border-2 border-surface-border bg-surface p-2 flex flex-col gap-1 z-10">
+                            @isset($rules)
+                                <button type="button" id="rules-btn" class="text-left px-2 py-2 rounded text-sm text-text hover:bg-bg/60">Rules</button>
+                                <div class="border-t border-surface-border my-1"></div>
+                            @endisset
+
+                            {{--
+                                A stable teleport target (see Livewire's
+                                @teleport directive), not a slot --
+                                game-specific action buttons (End Game/New
+                                Game, Reveal, ...) depend on Livewire state
+                                that changes after the initial page load,
+                                and a named layout slot is only ever
+                                evaluated once at that first render: it
+                                lives outside the component's own root
+                                element, so it's never touched by the AJAX
+                                diff a wire:click triggers afterwards.
+                                display: contents so teleported buttons lay
+                                out as direct flex items of this panel's
+                                own flex-col, picking up its gap, rather
+                                than as a nested box.
+                            --}}
+                            <div id="game-actions" style="display: contents;"></div>
+                        </div>
+                    </div>
+
+                    @isset($fullscreenToggle)
+                        {{--
+                            Kept as its own persistent icon button,
+                            deliberately NOT inside the Game Menu dropdown
+                            above -- this is the one control that has to
+                            stay reachable even after it hides everything
+                            else in the bar (see app.css's body.chrome-hidden
+                            rules), including Game Menu's own toggle.
+                            Nesting it inside a panel that's itself hidden
+                            by default would leave no way back.
+                        --}}
+                        <button type="button" id="chrome-toggle-btn" class="fullscreen-toggle" aria-pressed="false" aria-label="Hide menu bars for fullscreen">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round" aria-hidden="true">
+                                <g class="icon-expand">
+                                    <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+                                    <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
+                                    <path d="M3 16v3a2 2 0 0 0 2 2h3" />
+                                    <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+                                </g>
+                                <g class="icon-collapse">
+                                    <path d="M8 3v3a2 2 0 0 1-2 2H3" />
+                                    <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
+                                    <path d="M3 16h3a2 2 0 0 1 2 2v3" />
+                                    <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
+                                </g>
+                            </svg>
+                        </button>
+                    @endisset
+                @endif
+
                 {{--
                     Always the last item in .right -- rendered after every
-                    game-specific/page-specific button above (#game-actions,
-                    $barRight, the fullscreen toggle) so the avatar's own
-                    position never shifts depending on how many other
-                    buttons a given page adds next to it.
+                    other page-specific control above so the avatar's own
+                    position never shifts depending on what a given page
+                    adds next to it.
                 --}}
                 <x-user-menu />
             </div>
@@ -134,18 +177,10 @@
             </dialog>
         @endisset
 
-        @isset($sidebar)
-            <div class="app-shell">
-                <x-app-sidebar />
-                <main class="app-main">
-                    {{ $slot ?? '' }}
-                    @yield('content')
-                </main>
-            </div>
-        @else
-            {{ $slot ?? '' }}
-            @yield('content')
-        @endisset
+        <x-app-sidebar />
+
+        {{ $slot ?? '' }}
+        @yield('content')
 
         <footer class="site-footer">
             <a href="{{ route('about') }}">About</a>

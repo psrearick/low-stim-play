@@ -74,7 +74,8 @@ test('confirming Skip Question actually skips and closes the options panel', fun
 test('Reveal opens a confirm dialog that Cancel closes without revealing', function () {
     $page = startLocalFeudGame();
 
-    $page->click('#reveal-trigger');
+    $page->click('#game-menu-toggle')
+        ->click('#reveal-trigger');
 
     $page->assertSee('Reveal answers?')
         ->click('#reveal-confirm-dialog-cancel')
@@ -85,7 +86,8 @@ test('Reveal opens a confirm dialog that Cancel closes without revealing', funct
 test('confirming Reveal shows the manual-scoring panel', function () {
     $page = startLocalFeudGame();
 
-    $page->click('#reveal-trigger')
+    $page->click('#game-menu-toggle')
+        ->click('#reveal-trigger')
         ->assertSee('Reveal answers?')
         ->click('#reveal-confirm')
         ->wait(0.5);
@@ -97,7 +99,8 @@ test('confirming Reveal shows the manual-scoring panel', function () {
 test('End Game opens a confirm dialog that Cancel closes without ending the game', function () {
     $page = startLocalFeudGame();
 
-    $page->click('#end-game-trigger');
+    $page->click('#game-menu-toggle')
+        ->click('#end-game-trigger');
 
     $page->assertSee('End the game?')
         ->click('#end-game-confirm-dialog-cancel')
@@ -108,7 +111,8 @@ test('End Game opens a confirm dialog that Cancel closes without ending the game
 test('confirming End Game shows the New Game button', function () {
     $page = startLocalFeudGame();
 
-    $page->click('#end-game-trigger')
+    $page->click('#game-menu-toggle')
+        ->click('#end-game-trigger')
         ->assertSee('End the game?')
         ->click('#end-game-confirm')
         ->wait(0.5);

@@ -7,11 +7,12 @@ use Pest\Browser\Api\PendingAwaitablePage;
 uses(RefreshDatabase::class);
 
 /**
- * Covers the mobile off-canvas version of the new sidebar (see
- * resources/views/components/app-sidebar.blade.php and the "App sidebar
- * navigation" section of resources/css/app.css) -- CSS visibility can't
- * be verified by a Feature/HTTP test, so this drives it in a real
- * browser at a real 375px viewport.
+ * Covers the site-wide menu drawer's off-canvas open/close behavior (see
+ * resources/views/components/app-sidebar.blade.php and the "Site menu
+ * drawer" section of resources/css/app.css) -- CSS visibility can't be
+ * verified by a Feature/HTTP test, so this drives it in a real browser.
+ * Run at a 375px viewport, though the drawer is an overlay at every width
+ * now, not just mobile.
  */
 function loginAndVisitDashboard(User $user): PendingAwaitablePage
 {

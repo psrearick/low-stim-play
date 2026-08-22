@@ -3,24 +3,6 @@
         Low Stim Play
     @endslot
 
-    @slot('manyButtons')
-        1
-    @endslot
-
-    {{--
-        "My Stats"/"Log Out" moved into the navbar-wide avatar dropdown
-        (<x-user-menu />, layouts/app.blade.php) -- docs/TODO.md's former
-        #24 -- so this slot is guest-only now; an authenticated visitor
-        gets the dropdown instead, rendered unconditionally by the layout
-        itself rather than duplicated here too.
-    --}}
-    @slot('barRight')
-        @guest
-            <a href="{{ route('login') }}"><button type="button">Sign In</button></a>
-            <a href="{{ route('register') }}"><button type="button">Create an Account</button></a>
-        @endguest
-    @endslot
-
     <div class="heading">Low Stim Play</div>
 
     <div class="intro">

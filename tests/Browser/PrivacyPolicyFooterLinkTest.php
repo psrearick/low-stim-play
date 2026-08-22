@@ -22,6 +22,12 @@ it('keeps the site footer from overflowing horizontally on a narrow phone viewpo
 it('links from the footer to a working privacy policy page', function () {
     $page = visit('/');
 
-    $page->click('Privacy Policy')->assertSee('Privacy Policy');
+    // A CSS selector scoped to the footer, not a plain text click() -- the
+    // site menu drawer (see docs/DEVLOG.md's navbar redesign entry) added
+    // its own "Privacy Policy" link too, and Pest's browser plugin doesn't
+    // fail fast when a text click() matches more than one element on the
+    // page (see e.g. tests/Browser/FamilyFeudConfirmDialogsTest.php's own
+    // docblock for this exact class of hang).
+    $page->click('.site-footer a[href$="/privacy"]')->assertSee('Privacy Policy');
     $page->assertPathIs('/privacy');
 });
