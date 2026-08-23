@@ -65,6 +65,26 @@ class CommonWordFilter
     }
 
     /**
+     * Drops only the words in $words that are on the excluded-words list --
+     * no frequency requirement, no limit, every other word kept as-is
+     * (including one absent from the frequency corpus entirely). For a
+     * game like Spelling Bee that needs the *full* set of words a given
+     * letter combination supports, not a top-N-by-commonness subset --
+     * `mostCommon()` above is the wrong shape for that, since it also drops
+     * anything missing frequency data and truncates to a limit.
+     *
+     * @param  list<string>  $words
+     * @return list<string>
+     */
+    public function excluding(array $words): array
+    {
+        return array_values(array_filter(
+            $words,
+            fn (string $word): bool => ! isset($this->excludedWords[strtolower($word)]),
+        ));
+    }
+
+    /**
      * @return array<string, int>
      */
     private function loadFrequencies(string $path): array

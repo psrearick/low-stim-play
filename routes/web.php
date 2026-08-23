@@ -111,6 +111,15 @@ Route::livewire('/profile/five-letters/{gameParticipant}', 'pages::profile.wordl
     ->name('profile.wordle.show');
 
 // Same registration-order reasoning as /profile/word-grid etc. above.
+Route::livewire('/profile/word-hive', 'pages::profile.spelling-bee.index')
+    ->middleware(['auth', 'verified'])
+    ->name('profile.spelling-bee');
+
+Route::livewire('/profile/word-hive/{gameParticipant}', 'pages::profile.spelling-bee.show')
+    ->middleware(['auth', 'verified'])
+    ->name('profile.spelling-bee.show');
+
+// Same registration-order reasoning as /profile/word-grid etc. above.
 Route::livewire('/profile/games', 'pages::profile.games.index')
     ->middleware(['auth', 'verified'])
     ->name('profile.games');
@@ -247,6 +256,16 @@ Route::get('/five-letters/share/{gameSession}', function (GameSession $gameSessi
 
     return redirect()->route('wordle.play', ['challenge' => $gameSession->id]);
 })->name('wordle.share');
+
+// Solo only, no room mode at all -- same reasoning as /word-blocks above
+// (GameType::SpellingBee::supportsRooms() is false). No hidden information
+// from a server's perspective either (docs/specs/spelling-bee.md section 1):
+// every findable word is discoverable by the player from the moment the
+// page loads, so -- like Word Blocks, unlike Wordle -- there's no need for
+// a dedicated share/challenge redirect route at all: Challenge a Friend
+// just reproduces the same seed independently (see GameChallengeService::
+// linkFor()'s own Quartiles/SpellingBee arms).
+Route::livewire('/word-hive', 'pages::spelling-bee.play')->name('spelling-bee.play');
 
 // Pure date math, no DB reads -- every day's puzzle is derived on the fly
 // by DailyPuzzle::seedFor(), so there's nothing here to gate behind auth;

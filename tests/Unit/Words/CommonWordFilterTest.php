@@ -75,3 +75,23 @@ test('mostCommon does not let an excluded word take up a limit slot', function (
 
     expect($result)->toBe(['crane', 'adieu']);
 });
+
+test('excluding drops only excluded words, with no frequency requirement or limit', function () {
+    $result = $this->filter->excluding(['slave', 'crane', 'zzzzz', 'wwwww']);
+
+    // "zzzzz"/"wwwww" have no frequency data at all -- kept anyway, unlike
+    // mostCommon(), since excluding() has no commonness requirement.
+    expect($result)->toBe(['crane', 'zzzzz', 'wwwww']);
+});
+
+test('excluding matches case-insensitively', function () {
+    $result = $this->filter->excluding(['SLAVE', 'crane']);
+
+    expect($result)->toBe(['crane']);
+});
+
+test('excluding preserves order and keeps everything when nothing is excluded', function () {
+    $result = $this->filter->excluding(['zzzzz', 'crane', 'wwwww']);
+
+    expect($result)->toBe(['zzzzz', 'crane', 'wwwww']);
+});

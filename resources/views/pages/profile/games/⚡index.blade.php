@@ -29,6 +29,7 @@ new class extends Component
             GameType::ClearTheDeck => 'profile.clear-the-deck.show',
             GameType::Quartiles => 'profile.quartiles.show',
             GameType::Wordle => 'profile.wordle.show',
+            GameType::SpellingBee => 'profile.spelling-bee.show',
         };
 
         return route($routeName, $participant);

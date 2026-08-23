@@ -10,6 +10,7 @@
         ['id' => 'clear-the-deck-stats', 'label' => \App\Enums\GameType::ClearTheDeck->label(), 'routes' => ['profile.clear-the-deck', 'profile.clear-the-deck.show']],
         ['id' => 'quartiles-stats', 'label' => \App\Enums\GameType::Quartiles->label(), 'routes' => ['profile.quartiles', 'profile.quartiles.show']],
         ['id' => 'wordle-stats', 'label' => \App\Enums\GameType::Wordle->label(), 'routes' => ['profile.wordle', 'profile.wordle.show']],
+        ['id' => 'spelling-bee-stats', 'label' => \App\Enums\GameType::SpellingBee->label(), 'routes' => ['profile.spelling-bee', 'profile.spelling-bee.show']],
     ];
 
     $pendingFriendRequests = auth()->check()

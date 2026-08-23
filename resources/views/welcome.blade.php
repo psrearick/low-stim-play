@@ -68,6 +68,13 @@
                 <a href="{{ route('wordle.play') }}"><button type="button">Five Letters</button></a>
             </div>
         </div>
+        <div class="game-card">
+            <div class="game-card-title">Word Hive</div>
+            <p class="game-card-desc">Spell words of 4 or more letters using 7 given letters, every word must include the center letter. Longer words and a pangram (using all 7) score more &mdash; solo, untimed.</p>
+            <div class="game-card-actions">
+                <a href="{{ route('spelling-bee.play') }}"><button type="button">Word Hive</button></a>
+            </div>
+        </div>
     </div>
 
 @endcomponent

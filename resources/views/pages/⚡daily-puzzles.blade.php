@@ -27,13 +27,13 @@ new class extends Component
 ?>
 
 <x-slot:title>Daily Puzzles — Low Stim Play</x-slot>
-<x-slot:description>Play today's Word Grid, Word Blocks, and Five Letters daily puzzle, or catch up on a past day from the archive.</x-slot:description>
+<x-slot:description>Play today's Word Grid, Word Blocks, Five Letters, and Word Hive daily puzzle, or catch up on a past day from the archive.</x-slot:description>
 
 <div class="flex flex-col items-center w-full gap-6" style="max-width: 640px;">
     <div class="heading">Daily Puzzles</div>
 
     <p class="text-sm text-text/65 text-center">
-        A new puzzle every day for Word Grid, Word Blocks, and Five Letters — everyone gets the same board. Signed in, each day can only be played once; browse back through the archive any time.
+        A new puzzle every day for Word Grid, Word Blocks, Five Letters, and Word Hive — everyone gets the same board. Signed in, each day can only be played once; browse back through the archive any time.
     </p>
 
     {{--
@@ -55,13 +55,16 @@ new class extends Component
             <a href="{{ route('wordle.play', ['dailyDate' => now()->toDateString()]) }}" id="daily-wordle-today">
                 <button type="button">Play Today's Five Letters</button>
             </a>
+            <a href="{{ route('spelling-bee.play', ['dailyDate' => now()->toDateString()]) }}" id="daily-spelling-bee-today">
+                <button type="button">Play Today's Word Hive</button>
+            </a>
         </div>
     </div>
 
     <div class="flex flex-col gap-2 w-full">
         <p class="text-sm text-text/80 font-bold">Archive</p>
         <div class="w-full overflow-x-auto bg-surface border-2 border-surface-border rounded-lg">
-            <div class="grid min-w-[560px]" style="grid-template-columns: 1fr 1fr 1fr 1fr;">
+            <div class="grid min-w-[700px]" style="grid-template-columns: 1fr 1fr 1fr 1fr 1fr;">
                 @foreach ($this->days->skip(1) as $date)
                     <div wire:key="day-{{ $date->toDateString() }}" class="contents">
                         <span class="pl-6 pr-3 py-3 {{ $loop->first ? '' : 'border-t border-surface-border' }} text-sm text-text">
@@ -73,8 +76,11 @@ new class extends Component
                         <span class="px-3 py-3 {{ $loop->first ? '' : 'border-t border-surface-border' }} text-sm">
                             <a href="{{ route('quartiles.play', ['dailyDate' => $date->toDateString()]) }}" id="daily-quartiles-{{ $date->toDateString() }}">Word Blocks</a>
                         </span>
-                        <span class="pl-3 pr-6 py-3 {{ $loop->first ? '' : 'border-t border-surface-border' }} text-sm">
+                        <span class="px-3 py-3 {{ $loop->first ? '' : 'border-t border-surface-border' }} text-sm">
                             <a href="{{ route('wordle.play', ['dailyDate' => $date->toDateString()]) }}" id="daily-wordle-{{ $date->toDateString() }}">Five Letters</a>
+                        </span>
+                        <span class="pl-3 pr-6 py-3 {{ $loop->first ? '' : 'border-t border-surface-border' }} text-sm">
+                            <a href="{{ route('spelling-bee.play', ['dailyDate' => $date->toDateString()]) }}" id="daily-spelling-bee-{{ $date->toDateString() }}">Word Hive</a>
                         </span>
                     </div>
                 @endforeach

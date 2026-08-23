@@ -20,6 +20,9 @@ class GameChallengeService
      * answer is secret, so there's no public seed to hand out at all (see
      * docs/specs/wordle.md section 3); the friend instead joins the same
      * GameSession and gets the identical secret word resolved server-side.
+     * Word Hive has no hidden information either (docs/specs/
+     * spelling-bee.md section 1), so it follows Word Blocks' plain-seed
+     * shape, not Wordle's/Boggle's shared-session one.
      */
     public function linkFor(GameParticipant $participant): string
     {
@@ -29,6 +32,7 @@ class GameChallengeService
             GameType::Boggle => route('boggle.share', ['gameSession' => $session->id]),
             GameType::Quartiles => route('quartiles.play', ['seed' => $session->settings['seed']]),
             GameType::Wordle => route('wordle.share', ['gameSession' => $session->id]),
+            GameType::SpellingBee => route('spelling-bee.play', ['seed' => $session->settings['seed']]),
             default => throw new LogicException("{$session->type->value} has no challenge link."),
         };
     }

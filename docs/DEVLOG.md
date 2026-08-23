@@ -680,6 +680,128 @@ A solo, daily/random 5-letter word-guessing puzzle (`docs/TODO.md` #10, the firs
 **Added a sensitive-word exclusion list (2026-08-23, user-reported: a daily answer of "slave" wasn't obscure — it's plenty common — but was off-putting to see as a puzzle answer).** `CommonWordFilter` only ever screened for *obscurity* (frequency in a web corpus), which doesn't screen for content that's common but distressing. Rather than a Wordle-only fix, added the exclusion check directly inside `CommonWordFilter::mostCommon()` against a new hand-curated `storage/app/excluded_words.txt` (slurs, profanity, and words tied to slavery, violence, sexual content, self-harm) — the same choke point `Wordle\AnswerPicker` already routes every candidate through, so Word Blocks' still-pending integration (`docs/TODO.md`) inherits the exclusion for free once it's wired up, with no separate mechanism to keep in sync. Exclusion is checked before ranking, not after truncating to the pool size, so a blocked word never displaces another candidate's spot in the returned pool.
 - **Real bug this surfaced, unrelated to the legend's own logic: the tile grid had been rendering at the wrong size all along.** A live screenshot check (prompted by wanting to actually eyeball the new legend, not just check class-name strings the existing browser test already asserted) showed the whole 6×5 grid collapsed to a thin sliver — `getBoundingClientRect()` confirmed a `w-14` (56px) tile was actually rendering at **4px**, just its own border width with zero content box. Root cause: `w-14`/`w-12`/`w-5`/`h-5`/`aspect-square`/`border-dashed` and a few other utility classes used throughout this game's Blade files had never appeared anywhere else in the app, and `npm run build` was never run after adding them — Tailwind v4's content-scanning build never saw them, so they were silently absent from the shipped CSS. `tests/Browser/WordleGuessTileBrowserTest.php`'s own assertions (`className` containing `bg-warn/20`, etc.) still passed the whole time, since checking a class *name* doesn't prove the CSS that class depends on was actually compiled and loaded — only a real geometry check (`getBoundingClientRect()`) or an actual screenshot catches this class of bug. Fixed by running `npm run build`; see the "Automated browser testing" section below and this session's own memory update for the general rule this establishes.
 
+## Spec resolution: Word Hive (Spelling Bee) and Pips (2026-08-23)
+
+`docs/TODO.md` Task 10's two skeleton specs (`docs/specs/spelling-bee.md`,
+`docs/specs/pips.md`) went from "not ready to build from" to full build specs — no
+implementation yet, just the design-decision pass every other game in this app got
+before building started (`docs/specs/clear-the-deck.md`'s own precedent). Four decisions
+genuinely needed a product call rather than a technical default, confirmed with the user
+before writing either spec: Spelling Bee's candidate words route through the same
+`CommonWordFilter`/`excluded_words.txt` exclusion list Wordle just got (this game
+surfaces *every* valid word as a target, not just one secret answer, so an off-putting
+word is a bigger exposure here); the new display name is **"Word Hive"** (keeps the
+hive/hexagon visual theme without any bee-specific trademark language, which also
+answered the rank-ladder naming question — no "Queen Bee," a new "Hive Master" instead);
+Pips gets true drag-and-drop built *together with* a full tap-to-select/tap-to-place
+alternative, not one built first and the other bolted on later; and Pips gets a real
+solution-uniqueness solver for v1 rather than accepting non-unique puzzles as a launch
+trade-off.
+
+**That last decision is the one with a real architectural consequence, caught while
+writing the spec rather than decided upfront:** a uniqueness solver makes generation
+expensive enough (a full board fill, region growth, and a second-solution search,
+potentially retried several times) that redoing it on every request for the same seed —
+fine for Wordle/Spelling Bee's plain dictionary-pick generators — isn't viable anymore.
+Pips therefore needed its own new persisted `pips_puzzles` table (generated once per
+seed, cached from then on) instead of the zero-persistence `DailyPuzzle::seedFor()`
+model every other game in this task uses, including its own sibling task Spelling Bee.
+Despite that, nothing about a Pips board is ever secret from the player the way Wordle's
+answer is — a solution row exists only to make the expensive generation step reusable
+and to back a future "reveal solution" hint, not to hide anything during play; board
+completion is checked live against each region's own rule, never by comparing to a
+stored solution directly, so the persisted-table need is purely a performance answer,
+not a secrecy one.
+
+Also new: `CommonWordFilter::excluding(array $words): array`, a sibling to the existing
+`mostCommon()` — exclusion-only, no frequency requirement or limit, since Spelling
+Bee needs the *full* set of words a given 7-letter combination supports (not a
+top-N-by-commonness subset the way Wordle's answer pool is) with only the sensitive-word
+list applied on top.
+
+## Word Hive
+
+Built from `docs/specs/spelling-bee.md`'s full spec (2026-08-23), the first of Task 10's
+two remaining games (Pips is still outstanding). Ships under the display name **"Word
+Hive"** — see the spec resolution entry above for why. `App\Services\SpellingBee\
+PuzzleGenerator` picks a pangram (7-distinct-letter word) from `storage/app/words.txt`,
+already filtered through the new `CommonWordFilter::excluding()`, then tries each of its
+7 letters as center (in a seeded-`Randomizer`-shuffled order) until one clears a 20-word
+minimum answer count, retrying with a fresh pangram (consuming more of the same seeded
+randomness) up to 100 attempts before throwing — same retry-cap shape as
+`Quartiles\PuzzleGenerator::attemptUniqueFragments()`. Against the real dictionary this
+runs in ~15ms per puzzle (measured directly, 50 seeds, no failures, no excluded word ever
+surfacing as a pangram or answer), confirming it fits the zero-persistence
+`DailyPuzzle::seedFor()` model exactly like Wordle, unlike its sibling task Pips.
+
+- **No hidden information from a server's perspective, unlike Wordle** — every findable
+  word is discoverable by the player from the moment the puzzle loads, so this follows
+  Word Blocks' resumable-game shape (`docs/specs/quartiles.md` section 4a: nullable
+  `game_sessions.user_id`, auto-resume, New Game only offered once ended) rather than
+  Wordle's answer-must-never-touch-a-public-property treatment. `pages::spelling-bee.play`
+  mirrors `pages::quartiles.play`'s `mount()`/`resumeInProgressGame()`/`startNewSession()`/
+  `mountDaily()`/`findDailySession()`/`restoreDailySession()`/`startDailySession()`/
+  `persistState()` shape almost line for line.
+- **The full answer-word list is deliberately never a persisted or public Livewire
+  property, even though nothing about the puzzle is secret** — computing it once at
+  generation time and stashing it in `$state`/a public property would let a player inspect
+  the Livewire payload and see every answer before finding it themselves, the same spoiler
+  concern Word Blocks' own `$allValidWords` (null until `endGame()`) already established.
+  Resolved with a new `PuzzleGenerator::wordsFor(array $letters, string $center): array`
+  — a public wrapper around the existing private `enumerate()` — that cheaply (~15ms)
+  re-derives the same answer list on demand at `endGame()` reveal time from `$letters`/
+  `$center` (both already public/safe, since they reveal nothing about which *combinations*
+  are valid words). `$maxScore` (a single int, needed live throughout play for the rank
+  ladder) is computed once at generation and kept public directly — exposing a point total
+  reveals nothing about the word list the way the list itself would.
+- **Real-time word submission re-applies the same exclusion filter generation uses, not
+  just a dictionary check** — without this, a player could still score an excluded word
+  (a slur, say) by typing it directly, even though `PuzzleGenerator` would never generate
+  it as an answer. Caught while implementing `submitWord()`, not left as an assumed given:
+  `CommonWordFilter::excluding([$word]) === []` runs alongside `Boggle\Solver::
+  isValidWord()`, both folded into the same generic "Not a word." rejection message (no
+  distinct message for the exclusion case, so it reads exactly like any other non-word —
+  matching how NYT's own curated answer list quietly rejects a word it excludes, not a
+  special "that word is banned" callout).
+- **Rank ladder compares "best rank reached" across different puzzles by tier
+  *position*, not raw score or `maxScore`** — `App\Services\SpellingBee\RankCalculator`'s
+  9-tier ladder (Beginner → Getting Started → Making Progress → Solid → Nice → Great →
+  Amazing → Genius → Hive Master) is looked up by score/maxScore ratio, and
+  `SpellingBeeStatsService::bestMetrics()` picks the best game by `tierIndex()`, not by
+  score — two different puzzles' raw point totals aren't comparable (`maxScore` varies
+  with how many answer words a given letter set happens to support), but "reached Amazing"
+  vs. "reached Genius" is, the same reasoning `PlayerStatsService::avgScoreByMode()`
+  already established for Boggle's solo-vs-room score split.
+- **Real bug caught by a geometry check, not proactively, while building the hexagon
+  input layout:** the center letter's `w-16`/`min-h-16` and each outer letter's
+  `w-14`/`min-h-14` were meant to render the center as a visibly larger square, but
+  `getBoundingClientRect()` showed both at an identical 66.53px — neither matched their
+  own declared size. Root cause: `<button>` elements carry an intrinsic minimum size
+  driven by their own padding/content that CSS `width` cannot shrink below without also
+  reducing that padding; this app's global `button { padding: clamp(...) }` rule (`app.css`)
+  supplies enough padding on its own to make both differently-sized letter buttons collapse
+  to the same padding-driven minimum, silently overriding both `w-*` utilities at once.
+  Fixed with `p-0` on both button classes, confirmed back to the exact intended 64px/56px
+  via the same geometry check. **This is a latent, pre-existing instance of the identical
+  bug in Word Blocks' own `.quartile-tile` buttons** (confirmed live: a real tile measures
+  99px wide despite `min-h-14`/no `w-*` class at all, `aspect-square` then stretching
+  height to match that oversized width instead of the intended 56px square) — not fixed
+  here, since it's cosmetic-only (tiles still function, still render as consistent
+  same-sized squares across the whole grid) and out of scope for this game's own build;
+  worth a follow-up pass across every `aspect-square` button in the app rather than a
+  one-off patch.
+- Test coverage: `tests/Unit/Words/CommonWordFilterTest.php` (`excluding()` cases);
+  `tests/Unit/SpellingBee/{PuzzleGeneratorTest,ScorerTest,RankCalculatorTest}.php`;
+  `tests/Unit/Stats/SpellingBeeStatsServiceTest.php`; `tests/Feature/Games/
+  SpellingBeeGameTest.php` (word accept/reject in every failure mode, pangram bonus,
+  resumable state, End Game reveal); `tests/Feature/Games/SpellingBeeDailyTest.php`
+  (deterministic daily puzzle, the signed-in lock/resume, a random game and a daily
+  coexisting without clobbering each other); `tests/Feature/Games/
+  SpellingBeeChallengeFriendTest.php`; `tests/Feature/ProfileSpellingBeeTest.php`;
+  `tests/Browser/SpellingBeeLetterTapTest.php` (the center-letter sizing bug above, plus a
+  real tap-to-spell-and-score flow) — the exact bug class `CLAUDE.md`'s "Automated Browser
+  Testing" section flags a Livewire-only test can't catch, confirmed live this session.
+
 ## User profiles & stats
 
 - `/dashboard` (own stats) and `/profile/{username}` (public, `is_public`-gated).

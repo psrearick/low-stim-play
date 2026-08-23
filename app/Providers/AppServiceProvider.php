@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\Boggle\Solver;
 use App\Services\FamilyFeud\JudgeService;
 use App\Services\Quartiles\PuzzleGenerator;
+use App\Services\SpellingBee\PuzzleGenerator as SpellingBeePuzzleGenerator;
 use App\Services\Wordle\AnswerPicker;
 use App\Services\Words\CommonWordFilter;
 use Illuminate\Support\Facades\Gate;
@@ -38,6 +39,12 @@ class AppServiceProvider extends ServiceProvider
         // once per worker, not once per Wordle game.
         $this->app->singleton(CommonWordFilter::class);
         $this->app->singleton(AnswerPicker::class);
+
+        // Same reasoning: scanning the ~79k-word dictionary down to every
+        // 4+-letter, excluded-words-filtered candidate (and the 7-distinct-
+        // letter pangram subset of it) should only happen once per worker,
+        // not once per Word Hive puzzle generated.
+        $this->app->singleton(SpellingBeePuzzleGenerator::class);
 
         // Same reasoning: the mmdb reader should only open its database
         // file once per worker, not once per request.

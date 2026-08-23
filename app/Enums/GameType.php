@@ -12,6 +12,7 @@ enum GameType: string
     case ClearTheDeck = 'clear_the_deck';
     case Quartiles = 'quartiles';
     case Wordle = 'wordle';
+    case SpellingBee = 'spelling_bee';
 
     /**
      * The user-visible display name -- deliberately not the same as the
@@ -33,6 +34,7 @@ enum GameType: string
             self::ClearTheDeck => 'Clear the Deck (Tens)',
             self::Quartiles => 'Word Blocks',
             self::Wordle => 'Five Letters',
+            self::SpellingBee => 'Word Hive',
         };
     }
 
@@ -60,6 +62,7 @@ enum GameType: string
             self::ClearTheDeck => 'clear-the-deck.room',
             self::Quartiles => throw new \LogicException('Quartiles has no online-room mode; check supportsRooms() before calling roomRoute().'),
             self::Wordle => throw new \LogicException('Wordle has no online-room mode; check supportsRooms() before calling roomRoute().'),
+            self::SpellingBee => throw new \LogicException('SpellingBee has no online-room mode; check supportsRooms() before calling roomRoute().'),
         };
     }
 
@@ -86,22 +89,24 @@ enum GameType: string
             self::ClearTheDeck => 'clear-the-deck.play',
             self::Quartiles => 'quartiles.play',
             self::Wordle => 'wordle.play',
+            self::SpellingBee => 'spelling-bee.play',
         };
     }
 
     /**
      * Whether this game has an online-room mode at all. False for
-     * `self::Quartiles`/`self::Wordle` -- unlike every other game
-     * (including solo-capable Boggle), neither has a multiplayer mode to
-     * opt into, not even one that's merely unavailable the way Best
-     * Match/Clear the Deck lack a pass-and-play mode. Used to filter
-     * `GameType::cases()` everywhere a room might list "other games to
-     * switch to" (see `<livewire:game-lobby>`'s `getOtherGamesProperty()`),
-     * so `roomRoute()` above never actually needs either case.
+     * `self::Quartiles`/`self::Wordle`/`self::SpellingBee` -- unlike every
+     * other game (including solo-capable Boggle), none of them has a
+     * multiplayer mode to opt into, not even one that's merely unavailable
+     * the way Best Match/Clear the Deck lack a pass-and-play mode. Used to
+     * filter `GameType::cases()` everywhere a room might list "other games
+     * to switch to" (see `<livewire:game-lobby>`'s
+     * `getOtherGamesProperty()`), so `roomRoute()` above never actually
+     * needs any of these cases.
      */
     public function supportsRooms(): bool
     {
-        return ! in_array($this, [self::Quartiles, self::Wordle], true);
+        return ! in_array($this, [self::Quartiles, self::Wordle, self::SpellingBee], true);
     }
 
     /**
@@ -140,6 +145,6 @@ enum GameType: string
      */
     public function isChallengeable(): bool
     {
-        return in_array($this, [self::Boggle, self::Quartiles, self::Wordle], true);
+        return in_array($this, [self::Boggle, self::Quartiles, self::Wordle, self::SpellingBee], true);
     }
 }
