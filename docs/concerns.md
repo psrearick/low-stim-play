@@ -1,0 +1,9 @@
+- What do points mean in Wordle? Shouldn't the score just be how many attempts it took you and the lower score is better.
+- Challenging people doesn't seem to do anything. Should it email them and send them a notification in the app, and have a badge on the friends link in the menu, and a section in the friends page that shows your challenges.
+- sign in with google
+- rename "Word Blocks" to "Quads"
+- Homepage layout, 3 columns, 2 columns, 1 column depending on screen size, all columns the same width
+- Word grid stats, add average percent of the board
+- The score in word grid should be distinct from the points you get in rooms, in that solo points are don't deduct other peoples words. Combining the two scoring methods would cause incorrect stats. So, there should be multiplayer scores and solo scores as two separate stats. I think it is already set up this way on the backend, but it doesn't look like the frontend reflect this. Both stats should be shown on the frontend.
+- Wordle/Five Letters needs a setup screen like the other games where Hard Mode an be selected. Hard Mode should not be a toggle on the actual game, but selected before beginning the game. 
+- Wordle/Five Letters - user should be able to tap the square of a letter in the current row and change just that letter before submitting, in addition to just typing the whole word. 

@@ -1,0 +1,90 @@
+# Words excluded from puzzle-answer selection in App\Services\Words\CommonWordFilter.
+# These are otherwise valid, common English words that are off-putting or
+# distressing to see as the answer to a puzzle (slurs, profanity, and words
+# tied to slavery, violence, sexual content, or self-harm), not obscure
+# words -- commonness alone doesn't screen for this.
+#
+# One lowercase word per line. Lines starting with # are comments and blank
+# lines are ignored. Add to this list as new cases turn up; there's no need
+# to be exhaustive up front.
+
+# Slavery / oppression
+slave
+slaves
+slavery
+enslave
+lynch
+lynched
+lynching
+
+# Slurs and profanity
+nigger
+nigga
+faggot
+fag
+retard
+retarded
+spic
+chink
+gook
+kike
+tranny
+whore
+slut
+bitch
+bastard
+cunt
+fuck
+fucks
+fucked
+fucker
+shit
+shits
+shitty
+piss
+pissed
+dick
+dicks
+cock
+cocks
+pussy
+twat
+damn
+goddamn
+asshole
+bugger
+
+# Violence / death / self-harm
+kill
+kills
+killed
+killer
+murder
+murders
+murdered
+murderer
+rape
+raped
+rapist
+raping
+suicide
+suicidal
+molest
+molested
+torture
+tortured
+corpse
+corpses
+gunned
+massacre
+massacred
+genocide
+terrorist
+terrorism
+
+# Hate ideology
+nazi
+nazis
+hitler
+racist
+racism

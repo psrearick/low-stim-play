@@ -2,6 +2,11 @@
 
 A terse, commit-by-commit record of what changed, newest first. No rationale or decisions here — see `docs/DEVLOG.md` for the *why* behind anything listed here, organized by feature instead of by commit. See `docs/TODO.md` for what's still outstanding.
 
+## 2026-08-23
+
+- Added a color/mark legend above Five Letters' guess grid explaining what each tile's color and corner mark mean; fixed the grid rendering at the wrong size due to a stale Tailwind build.
+- Excluded slurs, profanity, and words tied to slavery, violence, sexual content, and self-harm from `CommonWordFilter`'s answer pool via a new curated `storage/app/excluded_words.txt`, so Five Letters (and, later, Word Blocks) never picks one as a puzzle answer.
+
 ## 2026-08-22
 
 - Added Wordle as "Five Letters": daily/random 5-letter word guessing, hard mode, a shared/ranked Challenge a Friend link, and profile stats. Wired into the daily-puzzles archive, homepage, and sidebar.

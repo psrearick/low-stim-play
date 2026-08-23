@@ -12,6 +12,13 @@ namespace App\Services\Words;
  * concern -- since Word Blocks' answer-word selection is meant to reuse
  * this same service later (see docs/specs/wordle.md section 3), not just
  * Wordle's.
+ *
+ * Also excludes anything in `storage/app/excluded_words.txt`, a hand-curated
+ * list of words that are valid and common but off-putting or distressing as
+ * a puzzle answer (slurs, profanity, and words tied to violence, slavery,
+ * self-harm, etc.) -- commonness alone doesn't screen for that. Exclusion
+ * happens before ranking so a blocked word never displaces another
+ * candidate's spot in the returned list.
  */
 class CommonWordFilter
 {
@@ -20,16 +27,23 @@ class CommonWordFilter
      */
     private readonly array $frequencies;
 
-    public function __construct(?string $frequencyPath = null)
+    /**
+     * @var array<string, true> lowercase word => present
+     */
+    private readonly array $excludedWords;
+
+    public function __construct(?string $frequencyPath = null, ?string $excludedWordsPath = null)
     {
-        $this->frequencies = $this->load($frequencyPath ?? storage_path('app/word_frequency.txt'));
+        $this->frequencies = $this->loadFrequencies($frequencyPath ?? storage_path('app/word_frequency.txt'));
+        $this->excludedWords = $this->loadExcludedWords($excludedWordsPath ?? storage_path('app/excluded_words.txt'));
     }
 
     /**
      * Keeps only the words in $words that appear in the frequency corpus
-     * at all, ranks them by descending occurrence count, and returns at
-     * most $limit of the most common. Order is significant: index 0 is the
-     * single most common word in $words.
+     * and are not on the excluded-words list, ranks what's left by
+     * descending occurrence count, and returns at most $limit of the most
+     * common. Order is significant: index 0 is the single most common word
+     * in $words.
      *
      * @param  list<string>  $words
      * @return list<string>
@@ -38,7 +52,8 @@ class CommonWordFilter
     {
         $ranked = array_values(array_filter(
             $words,
-            fn (string $word): bool => isset($this->frequencies[strtolower($word)]),
+            fn (string $word): bool => isset($this->frequencies[strtolower($word)])
+                && ! isset($this->excludedWords[strtolower($word)]),
         ));
 
         usort(
@@ -52,7 +67,7 @@ class CommonWordFilter
     /**
      * @return array<string, int>
      */
-    private function load(string $path): array
+    private function loadFrequencies(string $path): array
     {
         $frequencies = [];
         $handle = fopen($path, 'r');
@@ -71,5 +86,28 @@ class CommonWordFilter
         fclose($handle);
 
         return $frequencies;
+    }
+
+    /**
+     * @return array<string, true>
+     */
+    private function loadExcludedWords(string $path): array
+    {
+        $excluded = [];
+        $handle = fopen($path, 'r');
+
+        while (($line = fgets($handle)) !== false) {
+            $word = strtolower(trim($line));
+
+            if ($word === '' || str_starts_with($word, '#')) {
+                continue;
+            }
+
+            $excluded[$word] = true;
+        }
+
+        fclose($handle);
+
+        return $excluded;
     }
 }

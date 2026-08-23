@@ -10,13 +10,22 @@ beforeEach(function () {
         "adieu\t400",
         "rebus\t10",
         "xylyl\t1",
+        "slave\t50",
     ]));
 
-    $this->filter = new CommonWordFilter($this->path);
+    $this->excludedPath = tempnam(sys_get_temp_dir(), 'excluded-words-');
+    file_put_contents($this->excludedPath, implode("\n", [
+        '# a comment, and a blank line below',
+        '',
+        'slave',
+    ]));
+
+    $this->filter = new CommonWordFilter($this->path, $this->excludedPath);
 });
 
 afterEach(function () {
     unlink($this->path);
+    unlink($this->excludedPath);
 });
 
 test('mostCommon drops words with no frequency data at all', function () {
@@ -47,4 +56,22 @@ test('mostCommon returns an empty list when nothing in the candidate list has fr
     $result = $this->filter->mostCommon(['zzzzz', 'wwwww'], limit: 10);
 
     expect($result)->toBe([]);
+});
+
+test('mostCommon drops words on the excluded-words list even when they have frequency data', function () {
+    $result = $this->filter->mostCommon(['slave', 'crane'], limit: 10);
+
+    expect($result)->toBe(['crane']);
+});
+
+test('mostCommon excludes case-insensitively', function () {
+    $result = $this->filter->mostCommon(['SLAVE', 'crane'], limit: 10);
+
+    expect($result)->toBe(['crane']);
+});
+
+test('mostCommon does not let an excluded word take up a limit slot', function () {
+    $result = $this->filter->mostCommon(['slave', 'crane', 'adieu'], limit: 2);
+
+    expect($result)->toBe(['crane', 'adieu']);
 });
