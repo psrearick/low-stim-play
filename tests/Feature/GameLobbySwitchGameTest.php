@@ -25,7 +25,8 @@ test('GameType::roomRoute() maps every case to its own room route name', functio
         ->and(GameType::FamilyFeud->roomRoute())->toBe('family-feud.room')
         ->and(GameType::Farkle->roomRoute())->toBe('farkle.room')
         ->and(GameType::AppleMatch->roomRoute())->toBe('apple-match.room')
-        ->and(GameType::ClearTheDeck->roomRoute())->toBe('clear-the-deck.room');
+        ->and(GameType::ClearTheDeck->roomRoute())->toBe('clear-the-deck.room')
+        ->and(GameType::Punchline->roomRoute())->toBe('punchline.room');
 });
 
 test('otherGames excludes only the current game', function () {
@@ -35,7 +36,7 @@ test('otherGames excludes only the current game', function () {
     $component = Livewire::actingAs($host)
         ->test('game-lobby', ['room' => $room, 'currentGame' => GameType::Boggle]);
 
-    expect($component->get('otherGames'))->toBe([GameType::Yahtzee, GameType::FamilyFeud, GameType::Farkle, GameType::AppleMatch, GameType::ClearTheDeck]);
+    expect($component->get('otherGames'))->toBe([GameType::Yahtzee, GameType::FamilyFeud, GameType::Farkle, GameType::AppleMatch, GameType::ClearTheDeck, GameType::Punchline]);
 });
 
 test('otherGames never includes Quartiles, which has no room mode at all', function () {

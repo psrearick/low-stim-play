@@ -24,5 +24,6 @@ class DatabaseSeeder extends Seeder
 
         $this->call(FamilyFeudQuestionSeeder::class);
         $this->call(AppleMatchCardSeeder::class);
+        $this->call(PunchlinePromptSeeder::class);
     }
 }

@@ -48,6 +48,13 @@
             </div>
         </div>
         <div class="game-card">
+            <div class="game-card-title">Punchline</div>
+            <p class="game-card-desc">Write funny answers to prompts, then vote on the funniest &mdash; each matchup's points split by vote share, escalating round to round, for 3&ndash;8 players. Online rooms only, since everyone writes privately.</p>
+            <div class="game-card-actions">
+                <a href="{{ route('punchline.play') }}"><button type="button">Punchline</button></a>
+            </div>
+        </div>
+        <div class="game-card">
             <div class="game-card-title">Clear the Deck (Tens)</div>
             <p class="game-card-desc">A shared pile, a private hand, and table cards hidden even from you until you play them, for 3&ndash;10 players. Match or beat the pile, clear it with four of a kind, and try to be first to empty your hand. Online rooms only.</p>
             <div class="game-card-actions">

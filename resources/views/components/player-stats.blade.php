@@ -13,6 +13,7 @@
                 \App\Enums\GameType::Quartiles => 'profile.quartiles',
                 \App\Enums\GameType::Wordle => 'profile.wordle',
                 \App\Enums\GameType::SpellingBee => 'profile.spelling-bee',
+                \App\Enums\GameType::Punchline => 'profile.punchline',
             };
             $tag = $linkable && $statsRoute ? 'a' : 'div';
         @endphp

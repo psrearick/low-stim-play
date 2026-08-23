@@ -21,6 +21,7 @@ The Order of Work list is a separate, ordinary numbered list reflecting current 
 11. [Task 28: Add a pre-game setup screen for Wordle's Hard Mode](#28-add-a-pre-game-setup-screen-for-wordles-hard-mode)
 12. [Task 29: Support tapping a tile to edit a single letter mid-guess](#29-support-tapping-a-tile-to-edit-a-single-letter-mid-guess)
 13. [Task 30: Fix the Game Menu's dangling divider, and consider making it a right-side sidebar](#30-fix-the-game-menus-dangling-divider-and-consider-making-it-a-right-side-sidebar)
+14. [Task 32: Spec and build Fibbage](#32-spec-and-build-fibbage)
 
 ## Tasks
 
@@ -119,4 +120,12 @@ Moved from `docs/concerns.md` (2026-08-23): "The Game menu has a divider that do
 Bug: `resources/views/layouts/app.blade.php`'s `#game-menu-dialog` renders a `.app-sidebar-divider` unconditionally whenever `$rules` is set, immediately after the Rules button, regardless of whether the `#game-actions` teleport target below it actually has any content at that moment (e.g. Wordle's own action buttons only render `@if ($ended)` — during active play the divider sits above nothing). Needs the divider conditioned on `#game-actions` actually having children — not directly checkable in Blade since that target is populated client-side via Alpine `@teleport`, so likely either a per-page PHP flag or a CSS/JS `:empty`-driven toggle.
 
 Broader ask: replace the Game Menu's current modal (`<x-dialog id="game-menu-dialog">`, adopted specifically to stop it overlapping the score/timer HUD — see `docs/DEVLOG.md`'s navbar redesign entries) with an off-canvas sidebar like the main Menu drawer (`resources/views/components/app-sidebar.blade.php`, a real `<aside>` + backdrop, not a `<dialog>`), anchored to the right instead of the left. Reuses the same `#game-actions` teleport target and Rules button; adopting the main drawer's real `.app-sidebar-link`/`.app-sidebar-divider` structure (dividers there sit between always-rendered groups, never in front of a possibly-empty target) would resolve the divider bug as a side effect rather than needing a separate fix.
+
+### 32. Spec and build Fibbage
+
+Raised while building Punchline (2026-08-23): the user wants another submit-then-vote room game, Fibbage-style — players write a plausible-sounding fake answer to a trivia question, the real answer is seeded among the lies, and everyone votes on which one they think is true (two-sided scoring: points for fooling other players *and* for finding the real answer, not just "did you win a vote" the way Punchline/Best Match work).
+
+Needs its own real design pass before a build spec, not just a copy of Punchline's shape — see `docs/specs/punchline.md` section 4 ("Abstraction scope") for why: Fibbage's defining trick (a real answer planted among player-submitted lies, plus the two-sided fooled-vs-found scoring) doesn't fit either Best Match's single-judge-pick or Punchline's proportional-vote-share-per-matchup shape, so the round/scoring model is a genuinely open question, not a known quantity. Also needs a trivia-question content source resolved (a static curated bank, matching Best Match's cards and Punchline's prompts, is the established low-risk default in this app — see `docs/specs/punchline.md` section 2's own reasoning for why LLM-authored content was deliberately avoided there) with real answers attached, which no existing seed data in this app provides.
+
+Once Fibbage's actual shape is designed, revisit whether `App\Services\Punchline\BallotService`'s submit → anonymize-reveal → vote → tally cycle is still a good fit to extract into a shared class both games use — it was deliberately built decoupled from Punchline-specific concepts for exactly this reason (see `docs/DEVLOG.md`'s Punchline section), but the decision to actually extract it was deferred until there's a second real consumer to design the shared shape against, rather than guessed at with only one.
 

@@ -11,6 +11,7 @@
         ['id' => 'quartiles-stats', 'label' => \App\Enums\GameType::Quartiles->label(), 'routes' => ['profile.quartiles', 'profile.quartiles.show']],
         ['id' => 'wordle-stats', 'label' => \App\Enums\GameType::Wordle->label(), 'routes' => ['profile.wordle', 'profile.wordle.show']],
         ['id' => 'spelling-bee-stats', 'label' => \App\Enums\GameType::SpellingBee->label(), 'routes' => ['profile.spelling-bee', 'profile.spelling-bee.show']],
+        ['id' => 'punchline-stats', 'label' => \App\Enums\GameType::Punchline->label(), 'routes' => ['profile.punchline', 'profile.punchline.show']],
     ];
 
     $pendingFriendRequests = auth()->check()

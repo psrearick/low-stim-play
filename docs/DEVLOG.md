@@ -836,6 +836,151 @@ surfacing as a pangram or answer), confirming it fits the zero-persistence
   real tap-to-spell-and-score flow) — the exact bug class `CLAUDE.md`'s "Automated Browser
   Testing" section flags a Livewire-only test can't catch, confirmed live this session.
 
+## Punchline
+
+A Quiplash-style room game (players privately write funny answers to prompts, then vote,
+scored by vote share), ships under the display name **"Punchline"** — "Quiplash" is Jackbox
+Games' trademark. Unlike Boggle/Yahtzee/Family Feud/Word Blocks, the safe name was chosen
+*before* any code existed, so there's no internal-vs-display-name split to maintain: the enum
+case, routes, and DB values are all just `Punchline`/`punchline`. Full build spec, including
+every resolved design decision: `docs/specs/punchline.md`.
+
+- **The one genuinely new problem this game posed: concurrent, independently-progressing
+  matchups within a single round.** Every other room game in this app (Boggle rooms, Yahtzee,
+  Family Feud, Farkle, Best Match, Clear the Deck) has exactly one shared phase for the whole
+  table at a time. Punchline's rounds 1–2 run several 2-or-3-player matchups in parallel, each
+  moving through writing → voting → closed on its own clock — an early-finishing matchup can be
+  mid-vote while a slower one is still being written. Modeled with two independent enums
+  (`PunchlinePhase` for the round-wide shell, `PunchlineMatchupStatus` per matchup) rather than
+  one — a matchup's own `status` can be ahead of the round-level `phase`, which is the entire
+  mechanism behind early voting, not a special case bolted on top.
+- **A real contradiction in the original ask, caught and resolved before writing any pairing
+  code, not discovered by a failing test.** The request called for "one prompt answered by 3
+  players" per odd-player-count round *and* "every player answers exactly 2 prompts, each with
+  a different partner" — these can't both hold: total seat-appearances in a round must equal
+  `2 × playerCount`, and `3·(triples) + 2·(pairs) = 2 × playerCount` only balances with an
+  **even** number of triples. One triple for a whole round is mathematically impossible.
+  Resolved as two triples per odd round (one per pairing "pass"), which for 3 players is simply
+  the same trio answering both prompts — actually simpler than the single-triple reading would
+  have been, and still matches the "three-way matchup is simpler and reads fine on screen"
+  preference behind the original ask. Documented explicitly in `docs/specs/punchline.md` §2 so
+  a future reader doesn't "fix" it back to one triple.
+- `App\Services\Punchline\PairingService::generateRoundMatchups()` builds each pairing round via
+  the standard round-robin **circle method** (fix one seat, rotate the rest between the two
+  passes) — hand-verified for 4 players against the exact pairs Best Match's own precedent
+  established this style of proof against, then generalized to a `range(3, 8)` dataset test
+  asserting the real invariants (every seat appears in exactly 2 matchups, matchup/prompt count
+  matches parity, odd counts produce exactly one triple per pass). **5 players' core pair
+  provably can't avoid repeating across both passes** (hand-verified by full case enumeration,
+  not assumed) — accepted and documented as an unavoidable result of the underlying
+  combinatorics, not a bug, rather than chasing a "rotate the triple for fairness" nicety that
+  a from-scratch check showed buys nothing for 3 or 5 players anyway.
+- **Scoring: each matchup's point pool (1000 / 2000 / 3000 across rounds 1–3, escalating
+  specifically so a slow start never eliminates a player) splits proportional to vote share**,
+  rounded to the nearest 50. `App\Services\Punchline\ScoringService::scoreMatchup()` is a pure
+  function with no knowledge of voter identity — the caller aggregates a Cache-backed vote tally
+  into counts first, keeping this class testable in complete isolation. **Rounding is
+  deliberately not remainder-corrected back to an exact pool total** — a hand-traced 1/1/4-of-6
+  vote split leaves a real 50-point shortfall — accepted as bounded, cosmetic drift rather than
+  adding a largest-remainder correction pass, the same "simplest correct thing, document the
+  edge case" bias `Farkle\Scorer` already established. A 100%-of-votes answer ("sweep") gets a
+  flat `round50(pool × 0.2)` bonus on top of its already-full pool share; the same unanimous
+  definition applies at round 3's much larger scale (up to `3 × playerCount` total votes) rather
+  than inventing a lower "landslide" threshold for that round specifically.
+- **Round 3 is not a separate game mode — it's one matchup with an unusual shape.** Every
+  seated player answers the same shared prompt with `answersPerSeat = 3` instead of `1`, and
+  `seatIndices` covers every seat instead of 2–3, but it's the exact same submit → anonymize →
+  vote → tally machinery as a pairing-round matchup. This fell out naturally once voting
+  eligibility was written as one general rule (`eligibleVoters = allSeats - matchup.seatIndices`,
+  falling back to `matchup.seatIndices` with self-votes disallowed whenever that set is empty)
+  rather than a `playerCount === 3` special case — round 3 and a 3-player game's degenerate
+  pairing-round trio both hit the exact same fallback for the exact same reason (the matchup
+  already contains everyone), so there's only ever one rule to test, not two.
+- **A new pattern for this app: a countdown timer synchronized across multiple devices in one
+  room.** Boggle's own timer (the only prior precedent) is single-shared-screen pass-and-play
+  only. Generalized its `wire:poll`/`tick()` idea: `writingEndsAt`/`votingEndsAt` are plain
+  epoch timestamps broadcast in `GameSession.state`, so every browser renders its own local
+  countdown without a per-tick round trip; every connected client (not just a turn-holder) polls
+  `wire:poll.2s="checkTimeout"`. **Because any client can trigger it concurrently — unlike every
+  other mutating action here, which is naturally exclusive to one seat's own turn —
+  `checkTimeout()` needed a stronger correctness guarantee than `syncOnlineState()`'s existing
+  lock-then-write pattern**: it re-locks and re-hydrates the entire component from the database
+  *inside* the transaction, re-checking the deadline against that fresh read rather than
+  whichever properties this connection already had loaded, so a second concurrent poll tick
+  arriving just after the first already applied the timeout finds it already handled and does
+  nothing (double-awarding points was the concrete risk a naive read-then-write would have
+  hit). A missing answer at the writing deadline is auto-filled from
+  `App\Services\Punchline\FillerAnswers` (deterministic per missing slot, not random, so a
+  round-3 player who timed out partway through their 3 answers gets 3 *different* filler lines,
+  not the same one repeated) — no default score is ever awarded to an absent author.
+- **Shared-abstraction question, asked and answered before writing any game code, not
+  retrofitted afterward.** The user is also planning a future Fibbage-style submit-then-vote
+  game and asked whether Punchline, Best Match, and that future game should share a "submit →
+  vote" skeleton now. Decided **not to build one yet**: below the room-lifecycle layer already
+  generic and shared by every room game, the three diverge more than they overlap (Best Match's
+  judge makes a single subjective pick with no vote tally at all; Fibbage's defining trick — a
+  real answer seeded among the lies, two-sided scoring for fooling people vs. finding the truth
+  — fits neither this game's nor Best Match's shape). The one genuine overlap — track who's
+  submitted, reveal anonymized once complete, track who's voted, tally votes — is real but had
+  exactly one confirmed consumer. Built as `App\Services\Punchline\BallotService`, deliberately
+  decoupled from Punchline-specific pairing/scoring concepts in its own public API (plain ids/
+  seats/text, no `Prompt`/`Matchup` types) so a future extraction is a mechanical move once
+  Fibbage is a second real consumer — but it stays inside `app/Services/Punchline/`, not a new
+  shared namespace, and **Best Match's own working, tested judge-pick flow was not touched**.
+  Retrofitting an abstraction against one real game plus a guess at a second, undesigned one's
+  needs would have been the premature-abstraction version of the same decision.
+- **Extends Best Match's own secret-attribution-via-`Cache` pattern one level further: two
+  independent secret lifecycles, not one.** Answer text and its author mapping are revealed
+  together at a matchup's writing→voting transition (author names still withheld, text made
+  public) and fully at close (`results.authorsByAnswerId`) — the deliberate "reveal" moment,
+  mirroring Best Match's `roundAttribution()` exactly, just keyed per-matchup instead of
+  per-round since matchups close independently. **Who-voted-for-what is a second, stricter
+  secret that's never revealed, not even at close** — only the aggregated per-answer vote count
+  ever leaves `BallotService::tally()`; secret-ballot norms mean an individual vote shouldn't
+  surface publicly the way authorship deliberately does as the game's own payoff moment. Covered
+  by a dedicated test asserting the entire broadcast `GameSession.state` blob never contains a
+  `votes` key, and that no still-open matchup's `results` is populated early.
+- **No new `room_seats` columns needed at all — genuinely simpler than Best Match here.**
+  Unlike Best Match's `hand`, nothing in this game needs durable per-seat DB storage:
+  in-progress draft text is an ordinary Livewire property (never broadcast, since Livewire only
+  ever broadcasts the explicit `RoomGameStateUpdated` payload, not a component's own properties)
+  and submitted-but-unrevealed state lives entirely in `BallotService`'s own Cache keys.
+- **Player count: min 3, max 8 — enforced**, a deliberate, explicit deviation from every other
+  room game's unenforced soft ceiling, because `PairingService`'s circle-method construction is
+  only defined and tested for that range; going higher needs new combinatorics work first, not
+  just a UI suggestion. Surfaced the same way Best Match surfaces its own minimum-player
+  check — a `$startError` string on the host's own connection, not a 403 abort.
+- Prompt content is a flat, hand-written 153-prompt JSON bank (`database/seeders/data/
+  punchline_prompts.json` + `PunchlinePromptSeeder`), no deck/set concept — deliberately the
+  same static-bank approach Best Match's own cards already established, not new LLM-generated
+  content. This app's only existing LLM use (`FamilyFeud\JudgeService`) judges a guess against a
+  fixed answer list rather than *authoring* content, and `docs/TODO.md`'s Task 19 already
+  deferred Connections/Strands specifically because this app has no resolved precedent for AI
+  content authoring — reusing the proven static-bank pattern here avoided reopening that
+  question for a game that didn't need to reopen it.
+- No content moderation on player-submitted answers, matching the app's one existing
+  precedent exactly: Family Feud's free-text team names are already broadcast to other players
+  unfiltered.
+- `GameParticipant.stats` gets `pointsByRound` (a 3-int array) and `sweepsWon`, read back out by
+  `App\Services\Stats\PunchlineStatsService` (`bestMetrics()`: Highest score, Most sweeps won,
+  omitted rather than shown as a misleading zero if nobody ever swept — same rule every other
+  stats service already follows). New `profile.punchline`/`profile.punchline.show` pages adapted
+  directly from Best Match's own pair, including a new per-round points breakdown panel on the
+  detail page.
+- Tests: `tests/Unit/Punchline/{PairingServiceTest,ScoringServiceTest,BallotServiceTest,
+  FillerAnswersTest}.php` (68 + 13 + assorted assertions, pure-function coverage with no
+  Livewire/DB involved beyond `BallotServiceTest`'s own documented need for a booted app to use
+  `Cache`/`now()`, the same `uses(TestCase::class)` pattern `tests/Unit/FamilyFeud/
+  JudgeServiceTest.php` already established for `Http::fake()`); `tests/Feature/Games/
+  PunchlineRoomTest.php` (12 tests: pairing/min-max gating, matchup reveal-on-complete,
+  authorization including the P=3 self-matchup-voting fallback, secret-attribution-never-leaks,
+  writing/voting timeout behavior, round-3 vote stacking, a full 3-round game producing correct
+  `GameParticipant` rows); `tests/Browser/PunchlineRoomBrowserTest.php` (5 tests covering the one
+  genuinely new CSS/DOM-driven behavior here — several matchups rendering independent
+  writing/voting/closed states on the same page at once — the exact class of bug
+  `CLAUDE.md`'s "Automated Browser Testing" section flags a Livewire-only test can't see);
+  `tests/Unit/Stats/PunchlineStatsServiceTest.php`; `tests/Feature/ProfilePunchlineTest.php`.
+
 ## User profiles & stats
 
 - `/dashboard` (own stats) and `/profile/{username}` (public, `is_public`-gated).

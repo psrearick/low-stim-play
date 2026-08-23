@@ -4,6 +4,8 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 
 ## 2026-08-23
 
+- Fixed Word Blocks' `.quartile-tile` buttons rendering oversized due to a `<button>` padding-vs-sizing bug (found while building Word Hive), via a new shared `.tile-btn` CSS class also adopted by Word Hive's own letter buttons; added a browser geometry regression test.
+- Added Punchline, a new Quiplash-style multiplayer room game: players privately write funny answers to prompts across a fixed 3-round game (2 head-to-head pairing rounds plus an everyone-answers-the-same-prompt final round), vote, and score by proportional vote share with an escalating point pool and a sweep bonus. Online rooms only. New `punchline_prompts` bank (153 prompts), `PairingService`/`ScoringService`/`BallotService`/`FillerAnswers`, profile stats, and homepage/sidebar wiring.
 - Added a color/mark legend above Five Letters' guess grid explaining what each tile's color and corner mark mean; fixed the grid rendering at the wrong size due to a stale Tailwind build.
 - Excluded slurs, profanity, and words tied to slavery, violence, sexual content, and self-harm from `CommonWordFilter`'s answer pool via a new curated `storage/app/excluded_words.txt`, so Five Letters (and, later, Word Blocks) never picks one as a puzzle answer.
 - Split `docs/TODO.md`'s Task 10 into three (Pips/Spelling Bee, Connections/Strands, and the Word Blocks `CommonWordFilter` follow-up) and moved all 10 items from `docs/concerns.md` into `docs/TODO.md` as Tasks 21–30, each with concrete file/method references.
