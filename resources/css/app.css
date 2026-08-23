@@ -567,6 +567,18 @@ body.chrome-hidden .button-bar .right button:not(#chrome-toggle-btn) {
     height: clamp(18px, 3.4vmin, 24px);
 }
 
+/* Shared by every fixed-size square game-tile <button> (Word Blocks'
+   quartile-tile grid, Word Hive's hex-letter input, any future button-based
+   tile grid). Like `.icon-btn` above, overrides the base `button` rule's
+   own padding -- which otherwise supplies enough padding on its own to
+   silently override a smaller explicit `w-*`/`aspect-square` Tailwind size,
+   with no visual error and no class-based test able to catch it (confirmed
+   live in both games above; see docs/TODO.md's button-padding sizing
+   audit). Use instead of an ad hoc `p-0` utility on each tile button. */
+.tile-btn {
+    padding: 0;
+}
+
 .fullscreen-toggle svg {
     transition: opacity 0.2s ease !important;
 }

@@ -728,7 +728,7 @@ new class extends Component
                         @foreach ($groups[$groupIndex] as $tileId)
                             <button type="button" id="tile-{{ $tileId }}" wire:key="tile-{{ $tileId }}" wire:click="toggleTile({{ $tileId }})"
                                 aria-pressed="{{ in_array($tileId, $selected, true) ? 'true' : 'false' }}"
-                                class="quartile-tile quartile-tile-found aspect-square min-h-14 flex items-center justify-center rounded-lg border-2 text-base font-bold tracking-wide bg-accent/15 border-accent text-accent {{ in_array($tileId, $selected, true) ? 'ring-2 ring-accent' : '' }}">
+                                class="quartile-tile quartile-tile-found tile-btn aspect-square min-h-14 w-14 flex items-center justify-center rounded-lg border-2 text-base font-bold tracking-wide bg-accent/15 border-accent text-accent {{ in_array($tileId, $selected, true) ? 'ring-2 ring-accent' : '' }}">
                                 {{ $tiles[$tileId]['display'] }}
                             </button>
                         @endforeach
@@ -739,7 +739,7 @@ new class extends Component
                     @foreach ($unfoundOrder as $tileId)
                         <button type="button" id="tile-{{ $tileId }}" wire:key="tile-{{ $tileId }}" wire:click="toggleTile({{ $tileId }})"
                             aria-pressed="{{ in_array($tileId, $selected, true) ? 'true' : 'false' }}"
-                            class="quartile-tile aspect-square min-h-14 flex items-center justify-center rounded-lg border-2 text-base font-bold tracking-wide bg-surface border-surface-border text-text {{ in_array($tileId, $selected, true) ? 'ring-2 ring-accent border-accent' : '' }}">
+                            class="quartile-tile tile-btn aspect-square min-h-14 w-14 flex items-center justify-center rounded-lg border-2 text-base font-bold tracking-wide bg-surface border-surface-border text-text {{ in_array($tileId, $selected, true) ? 'ring-2 ring-accent border-accent' : '' }}">
                             {{ $tiles[$tileId]['display'] }}
                         </button>
                     @endforeach

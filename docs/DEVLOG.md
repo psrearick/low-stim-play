@@ -658,6 +658,40 @@ longer served a purpose. `docs/specs/quartiles.md` section 4b has the full reaso
 - New shared `/daily-puzzles` route/page (`pages::daily-puzzles`) lists the last 30 days with a link into each game's own `?dailyDate=...`, built once and reused by both games rather than duplicated — see Boggle's own DEVLOG entry above for why it's one page, not two.
 - Tests: `tests/Unit/Puzzles/DailyPuzzleTest.php` (same game+date always the same seed; a different date or game type differs), `tests/Feature/Games/QuartilesGameTest.php` (the reveal screen's copy-link box), `tests/Feature/Games/QuartilesDailyTest.php` (deterministic puzzle for a date; early row tagged `is_daily`; a finished daily restores read-only on reload; an in-progress daily resumes; the random/daily coexistence regression test; a past date is always freely replayable; the New Game button links to the archive; the countdown replaces the copy-link box), `tests/Feature/Games/QuartilesChallengeFriendTest.php` (button visibility including the daily exclusion, notification recipient/link), `tests/Feature/Puzzles/DailyPuzzlesArchiveTest.php` (30 days listed, reachable by guests), `tests/Browser/QuartilesChallengeFriendDialogTest.php` (real click-through: open, send, confirm).
 
+**App-wide button-padding sizing audit, and a real fix here (`docs/TODO.md`'s former Task
+31, 2026-08-23).** Word Hive's own build (see its section below) found and fixed a
+`<button>`-specific bug live — a `<button>`'s intrinsic minimum size, driven by its own
+padding/content, silently overrides a smaller explicit `w-*`/`aspect-square` Tailwind
+size, with no visual error and no class-based test able to catch it — and flagged that
+this game's own `.quartile-tile` buttons were a confirmed, unfixed instance of the exact
+same bug (a live tile measured 99px wide instead of the intended 56px square). Auditing
+every `<button>` element app-wide (grepping `aspect-square`/fixed `w-*`/`h-*` classes,
+then checking each hit's actual tag) found only two real instances, both already
+identified: this game's two `.quartile-tile` buttons and Word Hive's two hex-letter
+buttons. Every other fixed-size clickable tile in the app (Wordle's guess grid, its
+profile history tiles, Yahtzee/Farkle's dice, Family Feud's answer tiles, Clear the
+Deck's cards) is a `<div>` with a `wire:click`, not a `<button>`, so none are affected —
+confirmed directly per game rather than assumed from one example.
+- **Fixed with a new shared `.tile-btn` class (`padding: 0`, `app.css`), not another
+  ad hoc `p-0` utility** — same shape as the existing `.icon-btn` class solves for
+  icon-only buttons, so any future button-based tile grid (Pips' domino cells, per
+  `docs/TODO.md`'s Task 10) has a ready-made class instead of re-discovering this bug.
+  Word Hive's own two buttons were switched from their original inline `p-0` fix to the
+  same shared class, so the fix isn't split across two different mechanisms for the
+  identical problem.
+- **`padding: 0` alone wasn't sufficient here, unlike Word Hive** — this game's tiles had
+  no explicit `w-*` class at all (`aspect-square min-h-14` only), so with padding removed
+  the button's width was still governed by the grid item's own stretch-to-fill-column
+  sizing (~99px in a 4-column grid), with `aspect-square` then matching height to that,
+  same wrong-size symptom via a different mechanism than the padding-driven one Word Hive
+  hit. Needed an explicit `w-14` alongside `min-h-14` (matching Word Hive's own outer
+  letter buttons) so the grid item has a definite width instead of stretching. Caught by
+  the same `getBoundingClientRect()` geometry check, not assumed fixed after adding the
+  class alone — the first attempt (`.tile-btn` with no `w-14`) still measured 99px live.
+- New `tests/Browser/QuartilesTileSizingTest.php` asserts a real tile's rendered
+  `getBoundingClientRect()` is exactly 56×56px, the same geometry-check pattern
+  `tests/Browser/SpellingBeeLetterTapTest.php` already established.
+
 ## Wordle
 
 A solo, daily/random 5-letter word-guessing puzzle (`docs/TODO.md` #10, the first of five NYT-style games in that task), ships under the display name **"Five Letters"** — "Wordle" is NYT Games' trademarked name, same category as Boggle/Yahtzee/Family Feud/Quartiles/Apples-to-Apples (see "Game renaming" below). Full build spec, including every resolved design decision: `docs/specs/wordle.md`.

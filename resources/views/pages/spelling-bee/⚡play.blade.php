@@ -603,7 +603,7 @@ new class extends Component
                 <div class="flex flex-col items-center gap-2 w-full">
                     <button type="button" id="letter-center" wire:click="pressLetter('{{ $center }}')"
                         @disabled($ended)
-                        class="aspect-square min-h-16 w-16 p-0 flex items-center justify-center rounded-lg border-2 text-xl font-bold tracking-wide bg-accent/15 border-accent text-accent">
+                        class="tile-btn aspect-square min-h-16 w-16 flex items-center justify-center rounded-lg border-2 text-xl font-bold tracking-wide bg-accent/15 border-accent text-accent">
                         {{ strtoupper($center) }}
                     </button>
 
@@ -611,7 +611,7 @@ new class extends Component
                         @foreach ($outerLetters as $letter)
                             <button type="button" id="letter-{{ $letter }}" wire:key="letter-{{ $letter }}" wire:click="pressLetter('{{ $letter }}')"
                                 @disabled($ended)
-                                class="aspect-square min-h-14 w-14 p-0 flex items-center justify-center rounded-lg border-2 text-lg font-bold tracking-wide bg-surface border-surface-border text-text">
+                                class="tile-btn aspect-square min-h-14 w-14 flex items-center justify-center rounded-lg border-2 text-lg font-bold tracking-wide bg-surface border-surface-border text-text">
                                 {{ strtoupper($letter) }}
                             </button>
                         @endforeach
