@@ -2,6 +2,10 @@
 
 A terse, commit-by-commit record of what changed, newest first. No rationale or decisions here — see `docs/DEVLOG.md` for the *why* behind anything listed here, organized by feature instead of by commit. See `docs/TODO.md` for what's still outstanding.
 
+## 2026-08-24
+
+- Fixed Punchline sometimes redirecting to the homepage when submitting an answer or casting a vote, caused by validating against a stale client-side snapshot instead of the current database state; both actions now re-sync and quietly no-op on a benign race instead of erroring. Increased the writing timer from 75s/150s to 120s/240s after real-play feedback found it too short.
+
 ## 2026-08-23
 
 - Fixed Word Blocks' `.quartile-tile` buttons rendering oversized due to a `<button>` padding-vs-sizing bug (found while building Word Hive), via a new shared `.tile-btn` CSS class also adopted by Word Hive's own letter buttons; added a browser geometry regression test.

@@ -93,8 +93,10 @@ bigger too), not a gap to patch.
 ### Timing — a real per-round countdown, not per-answer
 
 No per-answer/per-matchup timer; one round-wide writing deadline and one round-wide voting
-deadline. **Writing: 75s** (rounds 1–2) / **150s** (round 3 — 3 answers instead of 1).
-**Voting: 30s** (rounds 1–2 — 2–3 short answers to read) / **90s** (round 3 — up to `3P`
+deadline. **Writing: 120s** (rounds 1–2) / **240s** (round 3 — 3 answers instead of 1) —
+raised from an initial 75s/150s after real play found that too tight to actually think of
+something funny; the round-3-needs-3-answers-so-double-it relationship was kept. **Voting:
+30s** (rounds 1–2 — 2–3 short answers to read) / **90s** (round 3 — up to `3P`
 answers). A player still missing an answer when writing ends is auto-filled from a small
 canned filler-answer list (deterministic per missing slot, so a partial round-3 timeout gets
 distinct fillers, not the same line repeated); **no default score is awarded** to an absent

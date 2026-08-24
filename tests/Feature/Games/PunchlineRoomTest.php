@@ -287,7 +287,7 @@ test('an author cannot vote on their own matchup, but an eligible non-author can
     expect($session->state['scores'][$seats[$p2->id]->seat_index])->toBe(0);
 });
 
-test('nobody can vote twice, and votes for an answer id from a different matchup are rejected', function () {
+test('a second vote from the same seat is a quiet no-op (a benign double-tap/stale-click race, not a violation), and an unknown answer id is rejected', function () {
     seedPunchlinePrompts();
     $host = User::factory()->create();
     $p1 = User::factory()->create();
@@ -308,7 +308,12 @@ test('nobody can vote twice, and votes for an answer id from a different matchup
     Livewire::actingAs($host)->test('pages::punchline.play', ['room' => $room->code])
         ->call('castVote', 'r1-1', [$answerId])
         ->call('castVote', 'r1-1', [$answerId])
-        ->assertForbidden();
+        ->assertOk();
+
+    $session = GameSession::find($room->game_session_id);
+    $matchup = collect($session->state['matchups'])->firstWhere('id', 'r1-1');
+    // Only counted once, not twice, despite the second call succeeding as a no-op.
+    expect($matchup['votedSeats'])->toBe([0]);
 
     Livewire::actingAs($p3)->test('pages::punchline.play', ['room' => $room->code])
         ->call('castVote', 'r1-1', ['not-a-real-answer-id'])
@@ -553,4 +558,90 @@ test('a voting timeout closes every still-open matchup using the zero-vote fallb
             expect($points)->toBe((int) round(1000 / count($matchup['seatIndices']) / 50) * 50);
         }
     }
+});
+
+test('voting on a matchup that closed elsewhere while this connection was stale re-syncs quietly instead of erroring (the reported "sometimes redirects home" bug)', function () {
+    seedPunchlinePrompts();
+    $host = User::factory()->create();
+    $p1 = User::factory()->create();
+    $p2 = User::factory()->create();
+    $p3 = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    startPunchlineRoom($room, [$host, $p1, $p2, $p3]);
+    $room->refresh();
+
+    // Every matchup needs to leave writing for the round-level phase to
+    // actually become Voting (only then does votingEndsAt get set at all)
+    // -- r1-1's own status can lead the round, but checkTimeout()'s voting
+    // branch is gated on the round-level phase, not any one matchup's.
+    autoplayPunchlineWriting($room, [$host, $p1, $p2, $p3]);
+
+    $session = GameSession::find($room->game_session_id);
+    expect($session->state['phase'])->toBe(PunchlinePhase::Voting->value);
+    $answerId = collect($session->state['matchups'])->firstWhere('id', 'r1-1')['answers'][0]['answerId'];
+
+    // host's own connection mounts here, while the matchup is still open --
+    // its properties reflect exactly this moment and nothing after.
+    $hostComponent = Livewire::actingAs($host)->test('pages::punchline.play', ['room' => $room->code]);
+    expect(collect($hostComponent->get('matchups'))->firstWhere('id', 'r1-1')['status'])->toBe(PunchlineMatchupStatus::Voting->value);
+
+    // The voting deadline passes and someone else's connection (p3's)
+    // triggers checkTimeout(), force-closing every still-open matchup --
+    // host's already-mounted component has no way to know this happened.
+    $state = $session->state;
+    $state['votingEndsAt'] = now()->subSecond()->timestamp;
+    GameSession::find($room->game_session_id)->update(['state' => $state]);
+    Livewire::actingAs($p3)->test('pages::punchline.play', ['room' => $room->code])->call('checkTimeout');
+
+    // host clicks a vote against their own stale ("still voting") view of
+    // r1-1 -- must not 403 (which this app's global JS error handler turns
+    // into a silent redirect to the homepage).
+    $hostComponent->call('castVote', 'r1-1', [$answerId])->assertOk();
+
+    $session = GameSession::find($room->game_session_id);
+    $matchup = collect($session->state['matchups'])->firstWhere('id', 'r1-1');
+    expect($matchup['status'])->toBe(PunchlineMatchupStatus::Closed->value);
+    // host's late vote never actually got counted -- the matchup closed
+    // via the timeout's zero-vote fallback before it arrived.
+    expect($matchup['results']['totalVotes'])->toBe(0);
+});
+
+test('submitting an answer to a matchup that already moved on to voting while this connection was stale re-syncs quietly instead of erroring', function () {
+    seedPunchlinePrompts();
+    $host = User::factory()->create();
+    $p1 = User::factory()->create();
+    $p2 = User::factory()->create();
+    $p3 = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    startPunchlineRoom($room, [$host, $p1, $p2, $p3]);
+    $room->refresh();
+
+    // p1's own connection mounts here, while r1-1 is still writing -- its
+    // properties reflect exactly this moment and nothing after.
+    $p1Component = Livewire::actingAs($p1)->test('pages::punchline.play', ['room' => $room->code]);
+    expect(collect($p1Component->get('matchups'))->firstWhere('id', 'r1-1')['status'])->toBe(PunchlineMatchupStatus::Writing->value);
+
+    // The writing deadline passes and p2's connection triggers
+    // checkTimeout(), auto-filling p1's own still-missing answer and
+    // force-closing writing on every matchup -- p1's already-mounted
+    // component has no way to know this happened.
+    $session = GameSession::find($room->game_session_id);
+    $state = $session->state;
+    $state['writingEndsAt'] = now()->subSecond()->timestamp;
+    GameSession::find($room->game_session_id)->update(['state' => $state]);
+    Livewire::actingAs($p2)->test('pages::punchline.play', ['room' => $room->code])->call('checkTimeout');
+
+    // p1 submits against their own stale ("still writing") view of r1-1 --
+    // must not 403 (which this app's global JS error handler turns into a
+    // silent redirect to the homepage).
+    $p1Component->set('drafts.r1-1-0', 'too late now')->call('submitAnswer', 'r1-1')->assertOk();
+
+    $session = GameSession::find($room->game_session_id);
+    $matchup = collect($session->state['matchups'])->firstWhere('id', 'r1-1');
+    expect($matchup['status'])->toBe(PunchlineMatchupStatus::Voting->value);
+    // p1's late text never actually got submitted -- the auto-fill already
+    // took that slot before it arrived.
+    expect(collect($matchup['answers'])->pluck('text'))->not->toContain('too late now');
 });

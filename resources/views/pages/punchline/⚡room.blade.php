@@ -156,7 +156,13 @@ new class extends Component
             'scores' => array_fill(0, $playerCount, 0),
             'pointsByRound' => [],
             'sweepsWon' => [],
-            'writingEndsAt' => now()->addSeconds(75)->timestamp,
+            // Same duration as pages::punchline.play's own WRITING_SECONDS
+            // constant (round 1 is always a plain pairing round) -- kept as
+            // a literal here rather than importing the other page's class
+            // just for one constant, matching this app's existing
+            // room-vs-play duplication tolerance (see Best Match's own
+            // room/play split).
+            'writingEndsAt' => now()->addSeconds(120)->timestamp,
             'votingEndsAt' => null,
             'usedPromptIds' => $usedPromptIds,
             'matchups' => $matchups,

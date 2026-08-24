@@ -22,9 +22,13 @@ use Livewire\Component;
 
 new class extends Component
 {
-    public const int WRITING_SECONDS = 75;
+    // 75s/150s (docs/specs/punchline.md's original "roughly 60-90s" estimate,
+    // doubled for round 3) felt too tight in real play -- bumped to give
+    // real breathing room to actually think of something funny, keeping
+    // the same round-3-needs-3-answers-so-double-it relationship.
+    public const int WRITING_SECONDS = 120;
 
-    public const int ROUND3_WRITING_SECONDS = 150;
+    public const int ROUND3_WRITING_SECONDS = 240;
 
     public const int VOTING_SECONDS = 30;
 
@@ -177,6 +181,25 @@ new class extends Component
         $this->matchups = $state['matchups'];
         $this->message = $state['message'];
         $this->started = true;
+    }
+
+    /**
+     * Re-reads GameSession.state fresh from the database and re-hydrates
+     * every property from it -- used at the top of submitAnswer()/
+     * castVote() specifically because this connection's last-known
+     * snapshot can be stale (see both methods' own docblocks) in a way no
+     * other room game in this app is exposed to at the same frequency.
+     * No lock needed here (unlike checkTimeout()'s own DB::transaction +
+     * lockForUpdate) -- this is a plain read to catch up with reality
+     * before validating, not a read-modify-write race.
+     */
+    private function refreshFromDatabase(): void
+    {
+        $state = GameSession::find($this->gameSessionId)?->state;
+
+        if ($state !== null) {
+            $this->hydrateFromState($state);
+        }
     }
 
     /**
@@ -377,20 +400,39 @@ new class extends Component
      * pass it as a parameter). The slot index is derived server-side from
      * how many this seat has already filed, so a client can't skip/repeat
      * a slot by hand-crafting the call.
+     *
+     * Re-hydrates from the database first (see castVote()'s own note on
+     * why) -- with several matchups progressing independently plus
+     * checkTimeout()'s own 2s poll, this connection's last-known snapshot
+     * can genuinely be stale (another author just finished writing and
+     * flipped this matchup to Voting, or a fast double-tap on Submit beat
+     * the DOM update back). A stale "matchup already left Writing" or
+     * "already filed this slot" is a moot no-op, not a violation, so both
+     * return quietly instead of a hard 403 -- which this app's global
+     * Livewire error handler (resources/js/app.js) otherwise turns into a
+     * silent redirect to the homepage, exactly the reported bug.
      */
     public function submitAnswer(string $matchupId): void
     {
         abort_unless($this->mySeatIndex !== null, 403);
 
+        $this->refreshFromDatabase();
+
         $i = $this->findMatchupIndex($matchupId);
         $matchup = $this->matchups[$i];
 
-        abort_unless($matchup['status'] === PunchlineMatchupStatus::Writing->value, 403);
         abort_unless(in_array($this->mySeatIndex, $matchup['seatIndices'], true), 403);
+
+        if ($matchup['status'] !== PunchlineMatchupStatus::Writing->value) {
+            return;
+        }
 
         $ballotKey = $this->ballotKey($matchupId);
         $slot = $this->ballotService->submittedCount($ballotKey, $this->mySeatIndex);
-        abort_unless($slot < $matchup['answersPerSeat'], 403);
+
+        if ($slot >= $matchup['answersPerSeat']) {
+            return;
+        }
 
         $text = trim($this->drafts["{$matchupId}-{$slot}"] ?? '');
         abort_unless($text !== '', 422);
@@ -411,19 +453,36 @@ new class extends Component
 
     /**
      * @param  list<string>  $answerIds
+     *
+     * Re-hydrates from the database first, same reasoning as
+     * submitAnswer() -- unlike every other room game here (one shared
+     * phase for the whole table, so a click is almost always still valid
+     * by the time it lands), Punchline has several matchups closing
+     * independently, any of which can flip to Closed between this
+     * connection's last update and this click landing (another voter's
+     * vote, or checkTimeout()'s own 2s poll elsewhere firing first). A
+     * stale "matchup already closed" or "already voted" is a moot no-op
+     * -- the UI will already show the real state once this re-hydrate
+     * runs -- not a violation worth a hard 403, which this app's global
+     * Livewire error handler (resources/js/app.js) otherwise turns into a
+     * silent redirect to the homepage on any non-422 failure.
      */
     public function castVote(string $matchupId, array $answerIds): void
     {
         abort_unless($this->mySeatIndex !== null, 403);
 
+        $this->refreshFromDatabase();
+
         $i = $this->findMatchupIndex($matchupId);
         $matchup = $this->matchups[$i];
 
-        abort_unless($matchup['status'] === PunchlineMatchupStatus::Voting->value, 403);
         abort_unless(in_array($this->mySeatIndex, $this->eligibleVoters($matchup), true), 403);
 
         $ballotKey = $this->ballotKey($matchupId);
-        abort_unless(! $this->ballotService->hasVoted($ballotKey, $this->mySeatIndex), 403);
+
+        if ($matchup['status'] !== PunchlineMatchupStatus::Voting->value || $this->ballotService->hasVoted($ballotKey, $this->mySeatIndex)) {
+            return;
+        }
 
         $votesAllowed = $this->matchupVotesAllowed($matchup);
         abort_unless(count($answerIds) >= 1 && count($answerIds) <= $votesAllowed, 422);

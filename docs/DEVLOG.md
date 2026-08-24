@@ -981,6 +981,31 @@ every resolved design decision: `docs/specs/punchline.md`.
   `CLAUDE.md`'s "Automated Browser Testing" section flags a Livewire-only test can't see);
   `tests/Unit/Stats/PunchlineStatsServiceTest.php`; `tests/Feature/ProfilePunchlineTest.php`.
 
+**Same-day follow-up: a real "sometimes voting bounces you to the homepage" bug, reported from
+actual play (2026-08-24), plus a writing-timer increase.** Root cause: this app already has a
+global Livewire error handler (`resources/js/app.js`, predates this game) that silently
+redirects to `/` on any failed Livewire request other than a 422 — a deliberate choice to avoid
+flashing a raw HTML error dump, and correct for the rest of the app's turn-based, one-
+phase-at-a-time games. `submitAnswer()`/`castVote()` validated against `$this->matchups`, this
+connection's *last-known* snapshot, not a fresh read — and unlike every other room game here,
+Punchline has several matchups progressing independently plus `checkTimeout()`'s own 2s poll
+running on every connected browser, so that snapshot can genuinely go stale in the gap between
+a broadcast update and a click landing: another player's vote or a timeout elsewhere can close a
+matchup, or a fast double-tap can beat the DOM's own re-render, and either one hit an
+`abort_unless(..., 403)` that the global handler turned into a silent redirect. **Fixed by
+re-hydrating fresh from `GameSession.state` at the top of both actions** (`refreshFromDatabase()`,
+a plain read, not `checkTimeout()`'s own locked read-modify-write, since this is just catching up
+before validating) **and treating "this specific thing already happened" — matchup already
+closed, already voted, already filed this slot — as a quiet no-op instead of a hard 403.** A
+genuine violation (wrong seat entirely, invalid answer id, self-vote) still aborts for real.
+Reproduced directly rather than assumed: two new regression tests in `tests/Feature/Games/
+PunchlineRoomTest.php` mount a Livewire test component, mutate the database out from under it on
+a *separate* connection (closing a matchup / triggering a writing timeout), then call the
+original stale component's own action and assert it no longer 403s. Also bumped the writing
+timer from 75s/150s to 120s/240s (same round-3-doubles-it relationship kept) after the same
+real-play feedback found the original "roughly 60-90s" estimate too tight to actually think of
+something funny — voting's own 30s/90s was left as reported, unaffected.
+
 ## User profiles & stats
 
 - `/dashboard` (own stats) and `/profile/{username}` (public, `is_public`-gated).
