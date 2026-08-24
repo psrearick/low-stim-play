@@ -386,6 +386,37 @@ new class extends Component
             && ! $this->ballotService->hasVoted($this->ballotKey($matchup['id']), $this->mySeatIndex);
     }
 
+    /**
+     * $matchup['answers'] minus this seat's own answer(s) -- the real,
+     * previously-missing fix for the reported "voting sometimes redirects
+     * home" bug. Every voter-facing vote UI must render this instead of
+     * the raw answers list: whenever eligibleVoters() falls back to
+     * "everyone votes" (a 3-player game, where every matchup includes
+     * every seat, or round 3, which always does), the current voter is
+     * also one of the matchup's own authors, and the anonymized list
+     * gives them no way to visually tell their own answer apart from
+     * anyone else's -- so they could only ever avoid clicking it by luck.
+     * Clicking it hit the server's real, correct "never vote for your own
+     * answer" guard (still enforced below in castVote(), unchanged), which
+     * 403'd and silently redirected home via this app's global Livewire
+     * error handler. This never showed up for a normal (4+ player)
+     * external voter, since none of a matchup's answers are ever theirs
+     * to begin with -- this filter is a no-op for them.
+     *
+     * @return list<array{answerId: string, text: string}>
+     */
+    public function matchupVotableAnswers(array $matchup): array
+    {
+        if ($this->mySeatIndex === null) {
+            return $matchup['answers'];
+        }
+
+        return array_values(array_filter(
+            $matchup['answers'],
+            fn (array $answer) => ! str_starts_with($answer['answerId'], "{$this->mySeatIndex}-"),
+        ));
+    }
+
     public function matchupHasVoted(array $matchup): bool
     {
         return $this->mySeatIndex !== null
@@ -515,10 +546,23 @@ new class extends Component
         // answer" -- a server-side check inside the one action that needs
         // it, never assigned to a public property or included in $state,
         // same sanctioned use Best Match's own pickWinner() already
-        // established for reading its round attribution.
+        // established for reading its round attribution. Silently drops
+        // any self-authored id instead of aborting the whole vote --
+        // matchupVotableAnswers() now keeps the real UI from ever offering
+        // one, so this is defense in depth, not the primary fix (see that
+        // method's own docblock for the bug this class of hard-abort
+        // caused: a 3-player game, where every matchup includes every
+        // seat, gave a voter no visual way to tell their own anonymized
+        // answer apart from anyone else's, so clicking it -- entirely by
+        // accident -- 403'd and silently redirected home).
         $authors = $this->ballotService->authors($ballotKey);
-        foreach ($answerIds as $answerId) {
-            abort_unless(($authors[$answerId] ?? null) !== $this->mySeatIndex, 403);
+        $answerIds = array_values(array_filter(
+            $answerIds,
+            fn (string $answerId) => ($authors[$answerId] ?? null) !== $this->mySeatIndex,
+        ));
+
+        if ($answerIds === []) {
+            return;
         }
 
         $this->ballotService->vote($ballotKey, $this->mySeatIndex, $answerIds);
@@ -993,7 +1037,7 @@ new class extends Component
                                     @if ($this->matchupVotesAllowed($matchup) === 1)
                                         <p class="status-line">Vote for the funnier answer:</p>
                                         <div class="controls">
-                                            @foreach ($matchup['answers'] as $answer)
+                                            @foreach ($this->matchupVotableAnswers($matchup) as $answer)
                                                 <button type="button" wire:key="vote-{{ $answer['answerId'] }}" wire:click="castVote('{{ $matchup['id'] }}', ['{{ $answer['answerId'] }}'])">
                                                     {{ $answer['text'] }}
                                                 </button>
@@ -1002,7 +1046,7 @@ new class extends Component
                                     @else
                                         <p class="status-line">You have 3 votes &mdash; spread them across up to 3 answers, or stack them on one.</p>
                                         <div class="flex flex-col items-stretch gap-2 w-full">
-                                            @foreach ($matchup['answers'] as $answer)
+                                            @foreach ($this->matchupVotableAnswers($matchup) as $answer)
                                                 <div wire:key="allocate-{{ $answer['answerId'] }}" class="flex items-center gap-2 bg-surface border-2 border-surface-border rounded-lg px-3 py-2">
                                                     <span class="flex-1 text-text">{{ $answer['text'] }}</span>
                                                     <button type="button" id="downvote-{{ $answer['answerId'] }}" wire:click="adjustVoteAllocation('{{ $answer['answerId'] }}', -1)" aria-label="Remove a vote">&minus;</button>

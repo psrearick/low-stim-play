@@ -1051,6 +1051,62 @@ went missing ("page not found") mid-game after a vote.
   already-expired room) and a direct assertion that dispatching `RoomGameStateUpdated` alone —
   the real integration point — extends a room's expiry.
 
+**Third same-day follow-up: the actual root cause, found only by reproducing live against
+production (2026-08-24).** The two follow-ups above were real fixes for real races, but the user
+kept hitting the redirect specifically when casting a vote — including, always, on round 3 — and
+was explicit that they were driving one browser at a time, never clicking two things at once, so
+it couldn't be a race at all. That correction was the key: every race-based theory was wrong.
+
+**Reproduction discipline that got to the real bug**: rather than continuing to reason from code,
+confirmed step by step against the actual deployed environment — (1) this repo turns out to
+auto-push on commit and the Laravel Cloud environment auto-deploys on push (confirmed via `cloud
+deployment:list`), so both earlier fixes really were already live, ruling out a deploy gap; (2)
+built a real game session directly on the production database (`cloud tinker`) and, using a real
+login (not a guest — guest sessions don't survive across separate Playwright processes, a dead
+end hit first), clicked an actual "cast vote" button on the live site — it worked cleanly,
+proving a plain, unhurried vote wasn't inherently broken; (3) attempting a genuine 3-real-browser
+concurrent reproduction hit the exact multi-`visit()`-page hang this file's own "Automated
+browser testing" section already documents for this app's local test suite — turns out to apply
+to live Playwright-vs-production sessions too, not just local sqlite — abandoned after two
+timeouts rather than a third blind retry.
+
+**The real bug, once the user's "I'm never clicking two things at once" correction reframed the
+search**: they were testing with exactly 3 players — Punchline's minimum, and the specific case
+where `eligibleVoters()`'s fallback (`docs/specs/punchline.md` §2) makes *every* matchup include
+every seat, not just round 3's. That means every player is simultaneously an author of a matchup
+they're also asked to vote on. The anonymized answer list (`matchup['answers']`, deliberately
+carrying no author name — the entire point of anonymization) never excluded the *viewer's own*
+answer from the buttons rendered to them. A voter had no way to visually tell their own answer
+apart from anyone else's, so clicking it was pure chance — and the server's real, correct "never
+vote for your own answer" guard (present since the game's original build, never buggy itself)
+rejected it with a 403, which this app's global Livewire error handler turned into the reported
+silent redirect home. Round 1–2 in a 3-player game: 1-in-3 odds per vote, matching "intermittent."
+Round 3: 3 of the 9 total answers are always the voter's own, and they're asked to spread 3 votes
+without any way to avoid them — matching "always." A normal 4+ player external voter never
+authors any answer in a matchup they're voting on, so this was invisible in every other
+configuration, including every Feature test written for the two earlier follow-ups today (none
+of which used exactly 3 players *and* actually inspected the rendered vote options against
+`mySeatIndex`).
+- **Fixed at the source**: new `matchupVotableAnswers(array $matchup): array` filters the
+  viewer's own answer(s) out of whatever gets rendered as clickable, used by both the round 1–2
+  single-vote buttons and round 3's vote-allocation stepper. A no-op for a normal external voter
+  (none of a matchup's answers are ever theirs), so this only changes behavior in exactly the
+  fallback case that was broken.
+- **`castVote()` also hardened as defense in depth, not just the UI**: instead of `abort_unless`-
+  rejecting the *entire* vote the instant any submitted answer id happens to be self-authored, it
+  now silently filters just that id out of the submission (a no-op if nothing valid remains) —
+  matching this file's own "benign staleness" philosophy from the two earlier follow-ups today,
+  extended to cover an honest client-side mistake, not just server/client state drift. The self-
+  vote rule itself is unchanged and still fully enforced; only *how* a violation is handled
+  changed, from a hard reject to a quiet drop.
+- New tests directly reproducing the actual reported mechanism: a 3-player game where
+  `matchupVotableAnswers()` is asserted to exclude the viewer's own answer; a vote for one's own
+  answer no longer 403s and is confirmed never recorded; a round-3 allocation mixing a real
+  choice with a self-vote keeps only the real one once the matchup closes and scores.
+- Verified live against the deployed environment, not just locally, after this fix — same
+  `cloud tinker`-seeded-game-plus-real-login technique used to find the bug, confirming the fix
+  actually resolves it where it was reported, not just in test isolation.
+
 ## User profiles & stats
 
 - `/dashboard` (own stats) and `/profile/{username}` (public, `is_public`-gated).
