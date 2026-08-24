@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Analytics\Contracts\EventWriter;
 use App\Analytics\DatabaseEventWriter;
 use App\Analytics\Geo\CountryResolver;
+use App\Events\RoomGameStateUpdated;
 use App\Http\Requests\RememberedPasskeyVerificationRequest;
 use App\Models\User;
 use App\Services\Boggle\Solver;
@@ -13,6 +14,7 @@ use App\Services\Quartiles\PuzzleGenerator;
 use App\Services\SpellingBee\PuzzleGenerator as SpellingBeePuzzleGenerator;
 use App\Services\Wordle\AnswerPicker;
 use App\Services\Words\CommonWordFilter;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
@@ -80,5 +82,13 @@ class AppServiceProvider extends ServiceProvider
 
             return in_array(Str::lower($user->email), array_map(Str::lower(...), $allowed), true);
         });
+
+        // Keeps a room alive for as long as it's genuinely being played --
+        // see Room::extendExpiry()'s own docblock for the bug this fixes
+        // (a room's fixed creation-time expiry silently 404ing every page
+        // out from under still-active players on a long enough game).
+        // Every room game already dispatches this event on every real
+        // state change, so this one listener covers all of them.
+        Event::listen(RoomGameStateUpdated::class, fn (RoomGameStateUpdated $event) => $event->room->extendExpiry());
     }
 }

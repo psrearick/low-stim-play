@@ -1006,6 +1006,51 @@ timer from 75s/150s to 120s/240s (same round-3-doubles-it relationship kept) aft
 real-play feedback found the original "roughly 60-90s" estimate too tight to actually think of
 something funny — voting's own 30s/90s was left as reported, unaffected.
 
+**Second same-day follow-up: the fix above wasn't complete, plus a genuinely separate bug
+(2026-08-24).** Reported from continued real play: buttons — including the round-3 "Cast
+Votes" button specifically — still occasionally bounced to the homepage, and a room itself
+went missing ("page not found") mid-game after a vote.
+
+- **`advanceRound()` had the identical unfixed race** — "any seated player may advance" is
+  explicitly a shared, non-exclusive action (same as Best Match's `nextRound()`), which is
+  exactly the kind of click two players make at once right after reading the same reveal
+  screen together. The first click's `abort_unless($this->phase === RoundReveal, 403)` guard
+  was never updated when `submitAnswer()`/`castVote()` got their staleness fix earlier the same
+  day — a real gap in that pass, not a new bug. Fixed the same way: `refreshFromDatabase()`
+  first, then a quiet no-op (not a 403) if the phase already moved past `RoundReveal` — the
+  desired outcome (advancing) already happened via someone else's click.
+- **`findMatchupIndex()`'s `abort(404)` needed the same treatment** — a stale click referencing
+  a *previous* round's matchup id (round advancement replaces `$this->matchups` wholesale) is
+  the same class of benign staleness as everything else here, not a real "matchup doesn't
+  exist" error. Changed to return `null` instead of aborting; both call sites (`submitAnswer()`,
+  `castVote()`) now return quietly when it's null.
+- **The room-vanishing report was a real, separate, pre-existing bug — not new, and not
+  Punchline-specific.** `Room.expires_at` (`app/Models/Room.php`) is set once, fixed, at room
+  *creation* time (`self::LIFETIME_MINUTES` = 60) and — confirmed by grepping the whole app —
+  is never extended anywhere by anything, for any game. Harmless for a short game, but a real
+  bug for a long one: Punchline's 3 rounds of real writing/voting/discussion time can plausibly
+  run past 60 minutes on their own (more so now that the writing timer above just got longer),
+  quietly expiring the room while people were still actively mid-game, after which every page
+  resolving it via the `notExpired()` scope (including `pages::room.show`) started 404ing —
+  exactly "went back to the room page and it says page not found." **Fixed once, centrally, for
+  every room game at once, not just Punchline**: new `Room::extendExpiry()` (resets expiry to a
+  full `LIFETIME_MINUTES` from *now*, not merely adding time to whatever remained — same
+  "still active = a full session's worth of time left" reasoning `markPendingGame()`'s own cache
+  TTL already uses) is called from a single `Event::listen(RoomGameStateUpdated::class, ...)`
+  registered in `AppServiceProvider::boot()`, since every room game (Boggle, Yahtzee, Family
+  Feud, Farkle, Best Match, Clear the Deck, Punchline) already dispatches that exact event on
+  every real state change. Deliberately **not** wired into each game's own `syncOnlineState()`
+  individually — this app has no `Listeners` directory/`EventServiceProvider` precedent, but a
+  single provider-registered listener on the one event every game already shares was less
+  invasive than adding a call to six already-shipped, tested files, and covers all of them
+  uniformly with one small, additive change.
+- New tests: `tests/Feature/Games/PunchlineRoomTest.php` gained two more (two connections
+  clicking "Next Round" at once doesn't error or double-advance; acting on a matchup id from a
+  round that already moved on elsewhere quietly no-ops instead of 404ing); `tests/Feature/
+  Models/RoomTest.php` gained `extendExpiry()` coverage (resets to a full window, can revive an
+  already-expired room) and a direct assertion that dispatching `RoomGameStateUpdated` alone —
+  the real integration point — extends a room's expiry.
+
 ## User profiles & stats
 
 - `/dashboard` (own stats) and `/profile/{username}` (public, `is_public`-gated).

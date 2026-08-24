@@ -4,6 +4,8 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 
 ## 2026-08-24
 
+- Fixed Punchline's "Next Round"/"See Final Results" button also redirecting to the homepage when two players clicked it at once, and a stale click on a matchup from an already-advanced round hard-404ing instead of quietly no-opping -- the same staleness fix as the answer/vote actions, applied to the one remaining action that had been missed.
+- Fixed rooms silently expiring mid-game and 404ing for every player, for every room game (not just Punchline) -- a room's expiry was fixed at creation time and never extended by activity; now extended automatically on every real game-state update via a single new listener.
 - Fixed Punchline sometimes redirecting to the homepage when submitting an answer or casting a vote, caused by validating against a stale client-side snapshot instead of the current database state; both actions now re-sync and quietly no-op on a benign race instead of erroring. Increased the writing timer from 75s/150s to 120s/240s after real-play feedback found it too short.
 
 ## 2026-08-23

@@ -645,3 +645,82 @@ test('submitting an answer to a matchup that already moved on to voting while th
     // took that slot before it arrived.
     expect(collect($matchup['answers'])->pluck('text'))->not->toContain('too late now');
 });
+
+test('two players clicking Next Round at once (a shared, non-exclusive action) does not error for the second click or double-advance the round', function () {
+    seedPunchlinePrompts();
+    $host = User::factory()->create();
+    $p1 = User::factory()->create();
+    $p2 = User::factory()->create();
+    $p3 = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    startPunchlineRoom($room, [$host, $p1, $p2, $p3]);
+    $room->refresh();
+    $usersBySeat = [$host, $p1, $p2, $p3];
+
+    autoplayPunchlineWriting($room, $usersBySeat);
+    autoplayPunchlineVoting($room, $usersBySeat);
+
+    $session = GameSession::find($room->game_session_id);
+    expect($session->state['phase'])->toBe(PunchlinePhase::RoundReveal->value);
+
+    // host's own connection mounts here, while still on round 1's reveal
+    // screen -- its properties reflect exactly this moment.
+    $hostComponent = Livewire::actingAs($host)->test('pages::punchline.play', ['room' => $room->code]);
+
+    // p1's separate connection clicks "Next Round" first, for real.
+    Livewire::actingAs($p1)->test('pages::punchline.play', ['room' => $room->code])->call('advanceRound');
+
+    $session = GameSession::find($room->game_session_id);
+    expect($session->state['round'])->toBe(2);
+
+    // host's stale component (still showing round 1's reveal) clicks
+    // "Next Round" too -- must not 403, and must not advance a second time.
+    $hostComponent->call('advanceRound')->assertOk();
+
+    $session = GameSession::find($room->game_session_id);
+    expect($session->state['round'])->toBe(2);
+});
+
+test('acting on a matchup id from a round that already moved on elsewhere quietly no-ops instead of a hard 404', function () {
+    seedPunchlinePrompts();
+    $host = User::factory()->create();
+    $p1 = User::factory()->create();
+    $p2 = User::factory()->create();
+    $p3 = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    startPunchlineRoom($room, [$host, $p1, $p2, $p3]);
+    $room->refresh();
+    $usersBySeat = [$host, $p1, $p2, $p3];
+
+    // host's own connection mounts here, while round 1 is still writing --
+    // its properties (including round 1's own matchup ids) reflect exactly
+    // this moment.
+    $hostComponent = Livewire::actingAs($host)->test('pages::punchline.play', ['room' => $room->code]);
+    expect(collect($hostComponent->get('matchups'))->pluck('id')->all())->toContain('r1-1');
+
+    // The rest of the game plays out for real, on other connections,
+    // advancing all the way past round 1 -- host's already-mounted
+    // component has no way to know its own "r1-1" no longer exists.
+    autoplayPunchlineWriting($room, $usersBySeat);
+    autoplayPunchlineVoting($room, $usersBySeat);
+    Livewire::actingAs($p1)->test('pages::punchline.play', ['room' => $room->code])->call('advanceRound');
+
+    $session = GameSession::find($room->game_session_id);
+    expect($session->state['round'])->toBe(2);
+    expect(collect($session->state['matchups'])->pluck('id'))->not->toContain('r1-1');
+
+    // host submits/votes against their own stale "r1-1" -- must not 404
+    // (which this app's global Livewire error handler otherwise turns into
+    // a silent redirect to the homepage).
+    $hostComponent->set('drafts.r1-1-0', 'too late, wrong round')
+        ->call('submitAnswer', 'r1-1')
+        ->assertOk();
+
+    $hostComponent->call('castVote', 'r1-1', ['0-0'])->assertOk();
+
+    // Round 2 is completely unaffected by either stale call.
+    $session = GameSession::find($room->game_session_id);
+    expect($session->state['round'])->toBe(2);
+});

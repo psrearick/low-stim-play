@@ -2,6 +2,7 @@
 
 use App\Enums\GameType;
 use App\Enums\RoomStatus;
+use App\Events\RoomGameStateUpdated;
 use App\Models\GameSession;
 use App\Models\Room;
 use App\Models\User;
@@ -101,4 +102,31 @@ test('pendingGameType is null once a real game session exists, even with a stale
     $room->update(['game_session_id' => $session->id]);
 
     expect($room->fresh()->pendingGameType())->toBeNull();
+});
+
+test('extendExpiry resets expiry to a full LIFETIME_MINUTES from now, not just adding time to whatever it already was', function () {
+    $room = Room::factory()->create(['expires_at' => now()->addMinute()]);
+
+    $room->extendExpiry();
+
+    expect($room->fresh()->expires_at->diffInMinutes(now(), true))
+        ->toBeGreaterThan(Room::LIFETIME_MINUTES - 1)
+        ->toBeLessThanOrEqual(Room::LIFETIME_MINUTES);
+});
+
+test('extendExpiry can revive a room that had already expired', function () {
+    $room = Room::factory()->expired()->create();
+    expect(Room::notExpired()->where('id', $room->id)->exists())->toBeFalse();
+
+    $room->extendExpiry();
+
+    expect(Room::notExpired()->where('id', $room->id)->exists())->toBeTrue();
+});
+
+test('dispatching RoomGameStateUpdated automatically extends the room\'s expiry -- the single fix point shared by every room game', function () {
+    $room = Room::factory()->create(['expires_at' => now()->addMinute()]);
+
+    RoomGameStateUpdated::dispatch($room, ['phase' => 'anything']);
+
+    expect($room->fresh()->expires_at->diffInMinutes(now(), true))->toBeGreaterThan(Room::LIFETIME_MINUTES - 1);
 });

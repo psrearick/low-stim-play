@@ -151,6 +151,31 @@ class Room extends Model
     }
 
     /**
+     * Pushes expiry LIFETIME_MINUTES forward from *now*, not just adding
+     * time to whatever it already was -- "still actively being played"
+     * should always mean "has a full session's worth of time left," the
+     * same way `markPendingGame()`'s own cache TTL already resets rather
+     * than accumulates. `expires_at` was previously fixed at room-creation
+     * time forever after, with nothing anywhere extending it on activity
+     * -- harmless for a short game, but a real bug for a genuinely long
+     * one (found via Punchline, whose 3 rounds of real writing/voting/
+     * discussion time can plausibly run past the 60-minute default on
+     * their own): the room quietly expired and every page resolving it
+     * via `notExpired()` (including `pages::room.show`) started 404ing
+     * out from under players who were still actively mid-game. Called from
+     * a single central listener on `RoomGameStateUpdated` (see
+     * `AppServiceProvider::boot()`) rather than from each game's own
+     * `syncOnlineState()` individually, since every room game already
+     * dispatches that event on every real state change -- one fix point
+     * covering all of them, not just Punchline, and none of their own
+     * (already shipped, tested) code needs touching.
+     */
+    public function extendExpiry(): void
+    {
+        $this->update(['expires_at' => now()->addMinutes(self::LIFETIME_MINUTES)]);
+    }
+
+    /**
      * @return array<string, string>
      */
     protected function casts(): array

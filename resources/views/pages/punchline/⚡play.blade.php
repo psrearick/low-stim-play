@@ -334,7 +334,16 @@ new class extends Component
         return "punchline:{$this->gameSessionId}:round:{$this->round}:matchup:{$matchupId}";
     }
 
-    private function findMatchupIndex(string $matchupId): int
+    /**
+     * Null (not a 404) when $matchupId isn't in the current round's
+     * matchups -- entirely possible after refreshFromDatabase() if the
+     * round already advanced elsewhere between this connection's last
+     * update and this click (round advancement replaces $this->matchups
+     * wholesale, per buildRoundMatchups()). Callers treat that as a
+     * benign "too late, the round moved on" no-op, same reasoning as
+     * submitAnswer()/castVote()'s own staleness handling.
+     */
+    private function findMatchupIndex(string $matchupId): ?int
     {
         foreach ($this->matchups as $i => $matchup) {
             if ($matchup['id'] === $matchupId) {
@@ -342,7 +351,7 @@ new class extends Component
             }
         }
 
-        abort(404);
+        return null;
     }
 
     /**
@@ -419,6 +428,11 @@ new class extends Component
         $this->refreshFromDatabase();
 
         $i = $this->findMatchupIndex($matchupId);
+
+        if ($i === null) {
+            return;
+        }
+
         $matchup = $this->matchups[$i];
 
         abort_unless(in_array($this->mySeatIndex, $matchup['seatIndices'], true), 403);
@@ -474,6 +488,11 @@ new class extends Component
         $this->refreshFromDatabase();
 
         $i = $this->findMatchupIndex($matchupId);
+
+        if ($i === null) {
+            return;
+        }
+
         $matchup = $this->matchups[$i];
 
         abort_unless(in_array($this->mySeatIndex, $this->eligibleVoters($matchup), true), 403);
@@ -717,12 +736,25 @@ new class extends Component
 
     /**
      * Any seated player may advance -- a shared "we're ready to continue"
-     * decision, not a turn, same as Best Match's own nextRound().
+     * decision, not a turn, same as Best Match's own nextRound(). Exactly
+     * the kind of action two players click at once (everyone reads the
+     * same reveal screen and taps "Next Round" together), so it needs the
+     * same stale-snapshot handling as submitAnswer()/castVote(): re-sync
+     * first, and if someone else's click already advanced the round (or
+     * ended the game) a beat earlier, that's the desired outcome already
+     * happening, not a violation -- return quietly instead of a 403 that
+     * this app's global Livewire error handler would otherwise turn into
+     * a silent redirect to the homepage.
      */
     public function advanceRound(): void
     {
         abort_unless($this->mySeatIndex !== null, 403);
-        abort_unless($this->phase === PunchlinePhase::RoundReveal, 403);
+
+        $this->refreshFromDatabase();
+
+        if ($this->phase !== PunchlinePhase::RoundReveal) {
+            return;
+        }
 
         if ($this->round >= 3) {
             $this->finishGame();
