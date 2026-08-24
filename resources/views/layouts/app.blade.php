@@ -186,6 +186,24 @@
 
         <x-app-sidebar />
 
+        {{--
+            A teleport target for <livewire:rooms-menu>'s own "Host is
+            setting up..."/"The game has started..." notifications (docs/
+            concerns.md) -- sitting at the body level rather than inside
+            <x-app-sidebar /> above. That component renders those toasts as
+            position: fixed, but .app-sidebar is display: none while
+            closed, and display: none on an ancestor un-renders its entire
+            subtree regardless of what position any descendant declares --
+            confirmed live (the toast was invisible on every page until the
+            drawer happened to be open). Teleporting them here instead
+            keeps the notification listener/state on the one Livewire
+            component already mounted site-wide (rooms-menu, itself
+            rendered inside the drawer for the room list/Join/Create UI),
+            while letting just this one piece of its markup render
+            somewhere the drawer's own open/closed state can't hide.
+        --}}
+        <div id="room-notifications-anchor"></div>
+
         {{ $slot ?? '' }}
         @yield('content')
 

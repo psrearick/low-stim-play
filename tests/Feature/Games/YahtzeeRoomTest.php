@@ -540,3 +540,40 @@ test('a full online game writes one distinct GameParticipant per logged-in accou
         ->assertOk()
         ->assertSee('Yacht Room');
 });
+
+test('the host can end an online game early, scoring whatever categories are already filled (docs/concerns.md)', function () {
+    $host = User::factory()->create();
+    $guest = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    $players = readyUpAndStart($room, $host, $guest);
+    Livewire::actingAs($host)->test('pages::yahtzee.room', ['code' => $room->code])->call('onRoomStarting', $players);
+
+    Livewire::actingAs($host)
+        ->test('pages::yahtzee.play', ['room' => $room->code])
+        ->call('endGameManually')
+        ->assertSet('gameOver', true);
+
+    $session = GameSession::sole();
+    expect($session->state['gameOver'])->toBeTrue()
+        ->and($session->ended_at)->not->toBeNull();
+
+    expect($room->fresh()->status)->toBe(RoomStatus::Finished);
+    expect(GameParticipant::count())->toBe(2);
+});
+
+test('a non-host cannot end an online Yahtzee game early', function () {
+    $host = User::factory()->create();
+    $guest = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    $players = readyUpAndStart($room, $host, $guest);
+    Livewire::actingAs($host)->test('pages::yahtzee.room', ['code' => $room->code])->call('onRoomStarting', $players);
+
+    Livewire::actingAs($guest)
+        ->test('pages::yahtzee.play', ['room' => $room->code])
+        ->call('endGameManually')
+        ->assertForbidden();
+
+    expect($room->fresh()->status)->not->toBe(RoomStatus::Finished);
+});

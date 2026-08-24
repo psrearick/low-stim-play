@@ -4,6 +4,7 @@ use App\Enums\GameType;
 use App\Models\GameParticipant;
 use App\Models\GameSession;
 use App\Models\User;
+use App\Services\SpellingBee\PuzzleGenerator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 
@@ -301,4 +302,61 @@ test('the reveal screen shows a copyable share link built from the resolved seed
     $component = Livewire::test('pages::spelling-bee.play', ['seed' => 42])->call('endGame');
 
     $component->assertSee(route('spelling-bee.play', ['seed' => 42]));
+});
+
+/**
+ * docs/concerns.md #9: "Four Letters (5/11)" per-length progress columns.
+ */
+test('totalWordsByLength is computed at generation time and matches the real per-length answer counts', function () {
+    $component = Livewire::test('pages::spelling-bee.play', ['seed' => 10]);
+
+    $expected = [];
+    foreach (app(PuzzleGenerator::class)->wordsFor($component->get('letters'), $component->get('center')) as $word) {
+        $expected[mb_strlen($word)] = ($expected[mb_strlen($word)] ?? 0) + 1;
+    }
+    ksort($expected);
+
+    expect($component->get('totalWordsByLength'))->toBe($expected);
+});
+
+test('foundWordsByLength groups found words by length with their points, alphabetical within each group', function () {
+    $component = spellingBeeComponent()
+        ->set('totalWordsByLength', [5 => 7, 6 => 1, 7 => 1])
+        ->set('currentWord', 'coupled')->call('submitWord')
+        ->set('currentWord', 'upped')->call('submitWord');
+
+    $grouped = $component->get('foundWordsByLength');
+
+    expect($grouped)->toHaveKeys([5, 7])
+        ->and($grouped)->not->toHaveKey(6)
+        ->and(array_keys($grouped[5]))->toBe(['upped'])
+        ->and(array_keys($grouped[7]))->toBe(['coupled'])
+        ->and($grouped[7]['coupled'])->toBe($component->get('foundWords')['coupled']);
+});
+
+test('a session saved before totalWordsByLength existed re-derives it on resume instead of showing an empty progress panel', function () {
+    $user = User::factory()->create();
+
+    $session = GameSession::factory()->create([
+        'user_id' => $user->id,
+        'type' => GameType::SpellingBee,
+        'is_daily' => false,
+        'settings' => ['seed' => 10],
+        'state' => [
+            'letters' => ['t', 'i', 'c', 'k', 'l', 'e', 'r'],
+            'center' => 'k',
+            'outerLetters' => ['t', 'i', 'c', 'l', 'e', 'r'],
+            'foundWords' => [],
+            'score' => 0,
+            'maxScore' => 100,
+            // No 'totalWordsByLength' key -- simulates a session persisted
+            // before this feature existed.
+        ],
+        'ended_at' => null,
+    ]);
+
+    $component = Livewire::actingAs($user)->test('pages::spelling-bee.play');
+
+    expect($component->get('gameSessionId'))->toBe($session->id);
+    expect($component->get('totalWordsByLength'))->not->toBe([]);
 });

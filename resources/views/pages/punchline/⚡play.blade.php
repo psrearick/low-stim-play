@@ -288,6 +288,27 @@ new class extends Component
     }
 
     /**
+     * Same computed-property shape as pages::punchline.room's own
+     * getIsHostProperty() -- $this->room is always set here (mount()
+     * redirects away otherwise), so no null-room fallback is needed the
+     * way Farkle's solo-capable getCanEndGameManuallyProperty() has one.
+     */
+    public function getIsHostProperty(): bool
+    {
+        return Auth::id() === $this->resolveRoom()->host_user_id;
+    }
+
+    /**
+     * Mirrors pages::farkle.play's own getCanEndGameManuallyProperty()
+     * (docs/concerns.md) -- host-only, and only while there's still a game
+     * to end.
+     */
+    public function getCanEndGameManuallyProperty(): bool
+    {
+        return $this->phase !== PunchlinePhase::GameEnd && $this->isHost;
+    }
+
+    /**
      * How many seconds remain in the current phase's deadline, or null
      * during a phase with no countdown (RoundReveal/GameEnd). Recomputed
      * fresh on every render/poll tick -- not cached, since the whole point
@@ -779,20 +800,20 @@ new class extends Component
     }
 
     /**
-     * Any seated player may advance -- a shared "we're ready to continue"
-     * decision, not a turn, same as Best Match's own nextRound(). Exactly
-     * the kind of action two players click at once (everyone reads the
-     * same reveal screen and taps "Next Round" together), so it needs the
-     * same stale-snapshot handling as submitAnswer()/castVote(): re-sync
-     * first, and if someone else's click already advanced the round (or
-     * ended the game) a beat earlier, that's the desired outcome already
-     * happening, not a violation -- return quietly instead of a 403 that
-     * this app's global Livewire error handler would otherwise turn into
-     * a silent redirect to the homepage.
+     * Host-only (docs/concerns.md) -- previously any seated player could
+     * advance, on the theory that "ready to continue" was a shared
+     * decision everyone would tap in unison; in practice that just meant
+     * anyone could rush the room past a reveal others were still reading.
+     * Still re-syncs first and returns quietly rather than 403ing if the
+     * phase has already moved on: the host's own double-click (or a
+     * stale page reload) racing itself is still possible even with a
+     * single allowed clicker, and this app's global Livewire error
+     * handler turns a real 403 into a silent redirect to the homepage,
+     * which would be a worse experience than a no-op.
      */
     public function advanceRound(): void
     {
-        abort_unless($this->mySeatIndex !== null, 403);
+        abort_unless($this->isHost, 403);
 
         $this->refreshFromDatabase();
 
@@ -895,6 +916,29 @@ new class extends Component
         return $ids;
     }
 
+    /**
+     * Ends the game right now, before round 3 completes on its own --
+     * host-only (docs/concerns.md), mirroring pages::farkle.play's own
+     * endGameManually(). Reuses finishGame() as-is rather than a separate
+     * code path: it already just finalizes GameParticipant rows from
+     * whatever $this->scores/pointsByRound/sweepsWon currently hold, which
+     * is exactly "stop now, score what's happened so far" -- the same
+     * thing round 3's own reveal-to-GameEnd transition in advanceRound()
+     * does, just triggered early instead of after the last round.
+     */
+    public function endGameManually(): void
+    {
+        abort_unless($this->isHost, 403);
+
+        if ($this->phase === PunchlinePhase::GameEnd) {
+            return;
+        }
+
+        $this->finishGame();
+        $this->phase = PunchlinePhase::GameEnd;
+        $this->syncOnlineState();
+    }
+
     private function finishGame(): void
     {
         $session = GameSession::findOrFail($this->gameSessionId);
@@ -952,6 +996,7 @@ new class extends Component
         <li>An answer that gets every single vote in its matchup sweeps -- a bonus on top of its already-full pool share.</li>
         <li>Point pools escalate each round (1000, then 2000, then roughly 3000 in the final round), so a slow start is never out of reach.</li>
         <li>Writing and voting are both timed. Anyone who runs out of time is auto-filled with a placeholder answer -- no points are ever awarded to an absent player.</li>
+        <li>The host can press End Game any time to stop early and show final scores; only the host can advance from one round's reveal to the next.</li>
     </ul>
 </x-slot:rules>
 <div>
@@ -962,6 +1007,20 @@ new class extends Component
     @if ($started)
         @teleport('#game-actions')
             <div style="display: contents;">
+                @if ($this->canEndGameManually)
+                    <button type="button" id="end-game-trigger" data-dialog-open="end-game-confirm-dialog">End Game</button>
+
+                    <x-confirm-dialog id="end-game-confirm-dialog" title="End the game?"
+                        message="End the game now and show final scores?">
+                        <x-slot:confirm>
+                            <button type="button" id="end-game-confirm" data-dialog-close wire:click="endGameManually"
+                                class="flex-1 rounded px-6 py-2 font-bold tracking-wide bg-surface border-2 border-warn text-warn">
+                                End Game
+                            </button>
+                        </x-slot:confirm>
+                    </x-confirm-dialog>
+                @endif
+
                 @if ($phase === PunchlinePhase::GameEnd)
                     <a href="{{ route('room.show', ['code' => $room]) }}"><button type="button">Back to room</button></a>
                 @endif
@@ -1094,12 +1153,14 @@ new class extends Component
             @if ($phase === PunchlinePhase::RoundReveal)
                 <div class="panel">
                     <div class="panel-title">Round {{ $round }} complete</div>
-                    @if ($mySeatIndex !== null)
+                    @if ($this->isHost)
                         <div class="controls">
                             <button type="button" id="advance-round-btn" wire:click="advanceRound">
                                 {{ $round >= 3 ? 'See Final Results' : 'Next Round' }}
                             </button>
                         </div>
+                    @elseif ($mySeatIndex !== null)
+                        <p class="status-line">Waiting for the host to continue&hellip;</p>
                     @endif
                 </div>
             @endif

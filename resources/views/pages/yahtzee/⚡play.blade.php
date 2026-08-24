@@ -282,6 +282,25 @@ new class extends Component
         return Room::where('host_user_id', Auth::id())->notExpired()->get();
     }
 
+    public function getIsHostProperty(): bool
+    {
+        return $this->room !== null && Auth::id() === $this->resolveRoom()->host_user_id;
+    }
+
+    /**
+     * Mirrors pages::farkle.play's own getCanEndGameManuallyProperty()
+     * (docs/concerns.md) -- host-only, and only while there's still a game
+     * to end. Room-only (unlike Farkle's own version, which also allows a
+     * solo pass-and-play player to end their own local game) -- Yahtzee's
+     * pass-and-play already has no manual "quit early" concept today, and
+     * this app's End Game button is specifically the docs/concerns.md
+     * request for a *host* control.
+     */
+    public function getCanEndGameManuallyProperty(): bool
+    {
+        return $this->room !== null && ! $this->gameOver && $this->isHost;
+    }
+
     public function setPlayerCount(int $count): void
     {
         $this->playerCount = max(self::MIN_PLAYERS, min(self::MAX_PLAYERS, $count));
@@ -493,6 +512,26 @@ new class extends Component
         $this->currentPlayer = $snapshot['currentPlayer'];
         $this->message = null;
 
+        $this->syncOnlineStateIfNeeded();
+    }
+
+    /**
+     * Ends the game right now, with whatever categories are already
+     * scored -- host-only (docs/concerns.md), mirroring
+     * pages::farkle.play's own endGameManually(). Reuses endGame() as-is:
+     * every unscored category is simply absent from a player's own
+     * totalScore() sum, the same as a natural finish where every category
+     * happens to be filled, just fewer of them.
+     */
+    public function endGameManually(): void
+    {
+        abort_unless($this->isHost, 403);
+
+        if ($this->gameOver) {
+            return;
+        }
+
+        $this->endGame();
         $this->syncOnlineStateIfNeeded();
     }
 
@@ -751,6 +790,7 @@ new class extends Component
         <li>Yacht Bonus: once your Yacht box shows 50, every additional five-of-a-kind you roll earns a 100-point bonus chip, on top of whatever category you score that turn.</li>
         <li>Joker rule: once your Yacht box has been filled at all (scored 50 or forced to 0), a later five-of-a-kind lets Full House / Small Straight / Large Straight score their fixed value (25 / 30 / 40) automatically &mdash; but only if the Upper Section box matching the number you rolled is already filled. If it's still open, those three categories score 0 for that roll instead, so scoring the matching Upper Section box (or Chance) is usually the better move.</li>
         <li>The game ends once every player has filled every category; whoever has the highest total wins (ties are possible).</li>
+        <li>In an online room, the host can press End Game any time to stop early and score whatever's filled in so far.</li>
     </ul>
 </x-slot:rules>
 <div class="flex flex-col items-center w-full flex-1 min-h-0">
@@ -779,6 +819,20 @@ new class extends Component
                     <button type="button" wire:click="$set('spectate', {{ $this->isSpectator ? 'false' : 'true' }})">
                         {{ $this->isSpectator ? 'Player view' : 'Watch only' }}
                     </button>
+                @endif
+
+                @if ($this->canEndGameManually)
+                    <button type="button" id="end-game-trigger" data-dialog-open="end-game-confirm-dialog">End Game</button>
+
+                    <x-confirm-dialog id="end-game-confirm-dialog" title="End the game?"
+                        message="End the game now and score whatever's filled in so far?">
+                        <x-slot:confirm>
+                            <button type="button" id="end-game-confirm" data-dialog-close wire:click="endGameManually"
+                                class="flex-1 rounded px-6 py-2 font-bold tracking-wide bg-surface border-2 border-warn text-warn">
+                                End Game
+                            </button>
+                        </x-slot:confirm>
+                    </x-confirm-dialog>
                 @endif
 
                 @if ($room === null)

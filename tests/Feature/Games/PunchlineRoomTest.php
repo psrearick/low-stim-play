@@ -658,7 +658,33 @@ test('submitting an answer to a matchup that already moved on to voting while th
     expect(collect($matchup['answers'])->pluck('text'))->not->toContain('too late now');
 });
 
-test('two players clicking Next Round at once (a shared, non-exclusive action) does not error for the second click or double-advance the round', function () {
+test('a non-host clicking Next Round is forbidden (docs/concerns.md: only the host may advance rounds)', function () {
+    seedPunchlinePrompts();
+    $host = User::factory()->create();
+    $p1 = User::factory()->create();
+    $p2 = User::factory()->create();
+    $p3 = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    startPunchlineRoom($room, [$host, $p1, $p2, $p3]);
+    $room->refresh();
+    $usersBySeat = [$host, $p1, $p2, $p3];
+
+    autoplayPunchlineWriting($room, $usersBySeat);
+    autoplayPunchlineVoting($room, $usersBySeat);
+
+    $session = GameSession::find($room->game_session_id);
+    expect($session->state['phase'])->toBe(PunchlinePhase::RoundReveal->value);
+
+    Livewire::actingAs($p1)->test('pages::punchline.play', ['room' => $room->code])
+        ->call('advanceRound')
+        ->assertForbidden();
+
+    $session = GameSession::find($room->game_session_id);
+    expect($session->state['round'])->toBe(1);
+});
+
+test('the host double-clicking Next Round (a stale-snapshot race against themselves) does not error or double-advance the round', function () {
     seedPunchlinePrompts();
     $host = User::factory()->create();
     $p1 = User::factory()->create();
@@ -680,8 +706,8 @@ test('two players clicking Next Round at once (a shared, non-exclusive action) d
     // screen -- its properties reflect exactly this moment.
     $hostComponent = Livewire::actingAs($host)->test('pages::punchline.play', ['room' => $room->code]);
 
-    // p1's separate connection clicks "Next Round" first, for real.
-    Livewire::actingAs($p1)->test('pages::punchline.play', ['room' => $room->code])->call('advanceRound');
+    // A separate host connection (e.g. a second tab) clicks "Next Round" first, for real.
+    Livewire::actingAs($host)->test('pages::punchline.play', ['room' => $room->code])->call('advanceRound');
 
     $session = GameSession::find($room->game_session_id);
     expect($session->state['round'])->toBe(2);
@@ -692,6 +718,53 @@ test('two players clicking Next Round at once (a shared, non-exclusive action) d
 
     $session = GameSession::find($room->game_session_id);
     expect($session->state['round'])->toBe(2);
+});
+
+test('the host can end the game early, scoring whatever partial round progress exists so far', function () {
+    seedPunchlinePrompts();
+    $host = User::factory()->create();
+    $p1 = User::factory()->create();
+    $p2 = User::factory()->create();
+    $p3 = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    startPunchlineRoom($room, [$host, $p1, $p2, $p3]);
+    $room->refresh();
+    $usersBySeat = [$host, $p1, $p2, $p3];
+
+    autoplayPunchlineWriting($room, $usersBySeat);
+    autoplayPunchlineVoting($room, $usersBySeat);
+
+    Livewire::actingAs($host)->test('pages::punchline.play', ['room' => $room->code])
+        ->call('endGameManually')
+        ->assertSet('phase', PunchlinePhase::GameEnd);
+
+    $room->refresh();
+    expect($room->status)->toBe(RoomStatus::Finished);
+
+    $session = GameSession::find($room->game_session_id);
+    expect($session->ended_at)->not->toBeNull();
+    expect($session->state['phase'])->toBe(PunchlinePhase::GameEnd->value);
+    expect(GameParticipant::where('game_session_id', $session->id)->count())->toBe(4);
+});
+
+test('a non-host cannot end the game early', function () {
+    seedPunchlinePrompts();
+    $host = User::factory()->create();
+    $p1 = User::factory()->create();
+    $p2 = User::factory()->create();
+    $p3 = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    startPunchlineRoom($room, [$host, $p1, $p2, $p3]);
+    $room->refresh();
+
+    Livewire::actingAs($p1)->test('pages::punchline.play', ['room' => $room->code])
+        ->call('endGameManually')
+        ->assertForbidden();
+
+    $room->refresh();
+    expect($room->status)->not->toBe(RoomStatus::Finished);
 });
 
 test('acting on a matchup id from a round that already moved on elsewhere quietly no-ops instead of a hard 404', function () {
@@ -712,12 +785,12 @@ test('acting on a matchup id from a round that already moved on elsewhere quietl
     $hostComponent = Livewire::actingAs($host)->test('pages::punchline.play', ['room' => $room->code]);
     expect(collect($hostComponent->get('matchups'))->pluck('id')->all())->toContain('r1-1');
 
-    // The rest of the game plays out for real, on other connections,
-    // advancing all the way past round 1 -- host's already-mounted
-    // component has no way to know its own "r1-1" no longer exists.
+    // The rest of the game plays out for real, on a separate host
+    // connection -- host's already-mounted $hostComponent above has no way
+    // to know its own "r1-1" no longer exists.
     autoplayPunchlineWriting($room, $usersBySeat);
     autoplayPunchlineVoting($room, $usersBySeat);
-    Livewire::actingAs($p1)->test('pages::punchline.play', ['room' => $room->code])->call('advanceRound');
+    Livewire::actingAs($host)->test('pages::punchline.play', ['room' => $room->code])->call('advanceRound');
 
     $session = GameSession::find($room->game_session_id);
     expect($session->state['round'])->toBe(2);

@@ -146,16 +146,19 @@ new class extends Component
     }
 
     /**
-     * The host picking a game here is the *only* doorway from the room
-     * hub into that game's own lobby (pages::{game}.room) -- without
-     * broadcasting this, only the host's own browser would navigate
-     * there; every other member sitting on this same hub page would be
-     * left behind with no way to follow, since nothing else tells them
-     * which game was just chosen. Mirrors <livewire:game-lobby>'s own
-     * switchGame() exactly (same event, same game_session_id reset
-     * reasoning -- a stale non-null id here would make that game's own
-     * onRoomStarting() skip creating a fresh session and silently reuse
-     * an old, already-finished one).
+     * The host picking a game here is now the *only* doorway from the room
+     * hub into that game's own lobby (pages::{game}.room) -- <livewire:
+     * game-lobby> used to offer an identical "switch to a different game"
+     * button of its own on every individual game's own setup page, removed
+     * (docs/concerns.md: that choice belongs on the room hub, not
+     * scattered across every game's own page) in favor of this being the
+     * one place it happens. Without broadcasting this, only the host's own
+     * browser would navigate there; every other member sitting on this
+     * same hub page would be left behind with no way to follow, since
+     * nothing else tells them which game was just chosen. Resets
+     * game_session_id first for the same reason a stale non-null id
+     * anywhere would make that game's own onRoomStarting() skip creating a
+     * fresh session and silently reuse an old, already-finished one.
      */
     public function startGame(GameType $type): void
     {

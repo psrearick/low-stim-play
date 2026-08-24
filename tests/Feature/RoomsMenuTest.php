@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\GameType;
+use App\Models\GameSession;
 use App\Models\Room;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -149,7 +150,7 @@ test('myRooms is empty for a logged-out visitor', function () {
  * component is mounted on every page (layouts/app.blade.php), so it's the
  * one place that can reach them regardless of what they're looking at.
  */
-test('onGameSwitched pushes a dismissible notification linking to the room hub', function () {
+test('onGameSwitched pushes a dismissible notification linking straight to the game being set up (docs/concerns.md)', function () {
     $user = User::factory()->create();
     $room = Room::factory()->create();
     $room->addMember($user);
@@ -163,13 +164,31 @@ test('onGameSwitched pushes a dismissible notification linking to the room hub',
     $notifications = $component->get('notifications');
 
     expect($notifications)->toHaveCount(1)
-        ->and($notifications[0]['href'])->toBe(route('room.show', ['code' => $room->code]));
+        ->and($notifications[0]['href'])->toBe(route(GameType::Farkle->roomRoute(), ['code' => $room->code]));
 
     $component->call('dismissNotification', $notifications[0]['id'])
         ->assertDontSee(GameType::Farkle->label());
 });
 
-test('onGameStarting pushes a dismissible notification linking to the room hub', function () {
+test('onGameStarting pushes a dismissible notification linking straight into the active game (docs/concerns.md)', function () {
+    $user = User::factory()->create();
+    $room = Room::factory()->create();
+    $room->addMember($user);
+    $session = GameSession::factory()->create(['type' => GameType::Farkle]);
+    $room->update(['game_session_id' => $session->id]);
+
+    $component = Livewire::actingAs($user)
+        ->test('rooms-menu')
+        ->call('onGameStarting', ['code' => $room->code])
+        ->assertSee($room->code);
+
+    $notifications = $component->get('notifications');
+
+    expect($notifications)->toHaveCount(1)
+        ->and($notifications[0]['href'])->toBe(route(GameType::Farkle->playRoute(), ['room' => $room->code]));
+});
+
+test('onGameStarting falls back to the room hub link if the room has no active game session yet', function () {
     $user = User::factory()->create();
     $room = Room::factory()->create();
     $room->addMember($user);

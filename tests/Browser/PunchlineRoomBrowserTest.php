@@ -175,3 +175,123 @@ test('the round status line shows the round number, pool, and a live seconds-rem
         ->assertSee('Pool 1000')
         ->assertSee('left to write');
 });
+
+/**
+ * Same shape as seededPunchlineRoom() above, but parked at RoundReveal
+ * with every round-1 matchup already Closed (docs/concerns.md #6/#3) --
+ * the phase the host-only "Next Round"/"End Game" controls actually
+ * render in.
+ *
+ * @return array{0: Room, 1: GameSession, 2: Collection<int, User>}
+ */
+function seededPunchlineRoomAtReveal(): array
+{
+    $host = User::factory()->create(['password' => bcrypt('password')]);
+    $guest1 = User::factory()->create(['password' => bcrypt('password')]);
+    $guest2 = User::factory()->create(['password' => bcrypt('password')]);
+    $guest3 = User::factory()->create(['password' => bcrypt('password')]);
+    $users = collect([$host, $guest1, $guest2, $guest3]);
+
+    $room = Room::factory()->active()->create(['host_user_id' => $host->id]);
+
+    $closedResults = [
+        'authorsByAnswerId' => [],
+        'pointsByAnswerId' => [],
+        'sweepAnswerId' => null,
+        'totalVotes' => 0,
+    ];
+
+    $matchups = collect([
+        ['id' => 'r1-0', 'seatIndices' => [3, 0]],
+        ['id' => 'r1-1', 'seatIndices' => [1, 2]],
+        ['id' => 'r1-2', 'seatIndices' => [3, 2]],
+        ['id' => 'r1-3', 'seatIndices' => [0, 1]],
+    ])->map(fn (array $m) => [
+        'id' => $m['id'],
+        'promptId' => 1,
+        'promptText' => 'Prompt',
+        'seatIndices' => $m['seatIndices'],
+        'answersPerSeat' => 1,
+        'status' => PunchlineMatchupStatus::Closed->value,
+        'submittedCounts' => [],
+        'votedSeats' => [],
+        'answers' => [],
+        'results' => $closedResults,
+    ])->all();
+
+    $state = [
+        'round' => 1,
+        'phase' => PunchlinePhase::RoundReveal->value,
+        'pool' => 1000,
+        'seats' => [
+            ['seatIndex' => 0, 'name' => $host->name],
+            ['seatIndex' => 1, 'name' => $guest1->name],
+            ['seatIndex' => 2, 'name' => $guest2->name],
+            ['seatIndex' => 3, 'name' => $guest3->name],
+        ],
+        'scores' => [0, 0, 0, 0],
+        'pointsByRound' => [],
+        'sweepsWon' => [],
+        'writingEndsAt' => null,
+        'votingEndsAt' => null,
+        'usedPromptIds' => [1, 2, 3, 4],
+        'matchups' => $matchups,
+        'message' => null,
+    ];
+
+    $session = GameSession::factory()->create([
+        'type' => GameType::Punchline,
+        'mode' => GameMode::Online,
+        'settings' => [],
+        'state' => $state,
+    ]);
+
+    $room->update(['game_session_id' => $session->id]);
+
+    foreach ($users as $i => $user) {
+        RoomSeat::factory()->create(['room_id' => $room->id, 'seat_index' => $i, 'user_id' => $user->id]);
+    }
+
+    return [$room, $session, $users];
+}
+
+test('only the host sees the Next Round button at round reveal; everyone else sees a waiting message', function () {
+    [$room, , $users] = seededPunchlineRoomAtReveal();
+
+    $hostPage = loginAsAndVisitPunchline($users[0], "/punchline?room={$room->code}");
+    $hostPage->assertSee('Round 1 complete')
+        ->assertSee('Next Round')
+        ->assertVisible('#advance-round-btn');
+});
+
+test('a non-host sees a waiting message instead of the Next Round button at round reveal', function () {
+    [$room, , $users] = seededPunchlineRoomAtReveal();
+
+    $guestPage = loginAsAndVisitPunchline($users[1], "/punchline?room={$room->code}");
+    $guestPage->assertSee('Round 1 complete')
+        ->assertDontSee('Next Round')
+        ->assertSee('Waiting for the host to continue');
+});
+
+test('the host can open the Game menu, confirm End Game, and see final scores', function () {
+    [$room, , $users] = seededPunchlineRoomAtReveal();
+
+    $page = loginAsAndVisitPunchline($users[0], "/punchline?room={$room->code}");
+
+    $page->click('#game-menu-toggle')
+        ->assertSee('End Game')
+        ->click('#end-game-trigger')
+        ->assertSee('End the game now and show final scores?')
+        ->click('#end-game-confirm');
+
+    $page->assertSee('Final Score');
+});
+
+test('a non-host does not see the End Game button in the Game menu', function () {
+    [$room, , $users] = seededPunchlineRoomAtReveal();
+
+    $page = loginAsAndVisitPunchline($users[1], "/punchline?room={$room->code}");
+
+    $page->click('#game-menu-toggle')
+        ->assertDontSee('End Game');
+});

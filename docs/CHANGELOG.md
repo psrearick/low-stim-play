@@ -4,6 +4,15 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 
 ## 2026-08-24
 
+- Fixed the room-name field overlapping the button below it in the site menu drawer.
+- Fixed the game menu button rendering taller than the fullscreen toggle button next to it.
+- Added a host-only "End Game" action to Punchline, Yahtzee, Best Match, and Clear the Deck (Boggle, 10,000, and Survey Says already had one).
+- Fixed the "Host is setting up..." room notification only being visible while the site menu was open; its link (and the "game started" notification's link) now goes straight into the game instead of the room hub.
+- Removed the "play other games" buttons from each game's own setup/lobby page -- switching games is now the room hub's job only.
+- Restricted Punchline's "Next Round" button to the host.
+- Added a "Resume your seat"/"Continue setup" link to each room-capable game's home page card, for a signed-in user already in a room for that game.
+- Redesigned Word Hive's letter input into a real tessellating honeycomb layout, with the key letter centered.
+- Added per-word-length "found/total" progress columns to Word Hive, e.g. "4 Letters (5/11)".
 - Fixed the actual root cause of Punchline's vote button redirecting to the homepage: in a 3-player game, every matchup includes every seat, so a voter had no way to visually tell their own anonymized answer apart from anyone else's -- clicking it by accident hit the server's real "no self-votes" rule and got treated as an error. Vote options now exclude the viewer's own answer, and a self-vote that somehow arrives anyway is silently dropped instead of erroring the whole vote.
 - Fixed Punchline's "Next Round"/"See Final Results" button also redirecting to the homepage when two players clicked it at once, and a stale click on a matchup from an already-advanced round hard-404ing instead of quietly no-opping -- the same staleness fix as the answer/vote actions, applied to the one remaining action that had been missed.
 - Fixed rooms silently expiring mid-game and 404ing for every player, for every room game (not just Punchline) -- a room's expiry was fixed at creation time and never extended by activity; now extended automatically on every real game-state update via a single new listener.

@@ -16,6 +16,7 @@
             <div class="game-card-actions">
                 <a href="{{ route('boggle.lobby') }}"><button type="button">Word Grid</button></a>
                 <a href="{{ route('boggle.group') }}"><button type="button">Word Grid (Group Play)</button></a>
+                <livewire:game-card-resume :type="\App\Enums\GameType::Boggle" wire:key="resume-boggle" />
             </div>
         </div>
         <div class="game-card">
@@ -24,6 +25,7 @@
             <div class="game-card-actions">
                 <a href="{{ route('yahtzee.play') }}"><button type="button">Yacht</button></a>
                 <a href="{{ route('yahtzee.roller') }}"><button type="button">Yacht (Dice Only)</button></a>
+                <livewire:game-card-resume :type="\App\Enums\GameType::Yahtzee" wire:key="resume-yahtzee" />
             </div>
         </div>
         <div class="game-card">
@@ -31,6 +33,7 @@
             <p class="game-card-desc">Two teams guess the most popular answers to survey-style questions. Points for each match; three strikes hands the other team a shot to steal the pot.</p>
             <div class="game-card-actions">
                 <a href="{{ route('family-feud.play') }}"><button type="button">Survey Says</button></a>
+                <livewire:game-card-resume :type="\App\Enums\GameType::FamilyFeud" wire:key="resume-family-feud" />
             </div>
         </div>
         <div class="game-card">
@@ -38,6 +41,7 @@
             <p class="game-card-desc">Roll six dice, set aside whatever scores, and decide each turn whether to bank your points or risk them on another roll for 1&ndash;8 players.</p>
             <div class="game-card-actions">
                 <a href="{{ route('farkle.play') }}"><button type="button">10,000</button></a>
+                <livewire:game-card-resume :type="\App\Enums\GameType::Farkle" wire:key="resume-farkle" />
             </div>
         </div>
         <div class="game-card">
@@ -45,6 +49,7 @@
             <p class="game-card-desc">A rotating judge reveals a prompt card; everyone else secretly submits their best-matching answer card for 3&ndash;8 players. Online rooms only, since a private hand is the whole point.</p>
             <div class="game-card-actions">
                 <a href="{{ route('apple-match.play') }}"><button type="button">Best Match</button></a>
+                <livewire:game-card-resume :type="\App\Enums\GameType::AppleMatch" wire:key="resume-apple-match" />
             </div>
         </div>
         <div class="game-card">
@@ -52,6 +57,7 @@
             <p class="game-card-desc">Write funny answers to prompts, then vote on the funniest &mdash; each matchup's points split by vote share, escalating round to round, for 3&ndash;8 players. Online rooms only, since everyone writes privately.</p>
             <div class="game-card-actions">
                 <a href="{{ route('punchline.play') }}"><button type="button">Punchline</button></a>
+                <livewire:game-card-resume :type="\App\Enums\GameType::Punchline" wire:key="resume-punchline" />
             </div>
         </div>
         <div class="game-card">
@@ -59,6 +65,7 @@
             <p class="game-card-desc">A shared pile, a private hand, and table cards hidden even from you until you play them, for 3&ndash;10 players. Match or beat the pile, clear it with four of a kind, and try to be first to empty your hand. Online rooms only.</p>
             <div class="game-card-actions">
                 <a href="{{ route('clear-the-deck.play') }}"><button type="button">Clear the Deck (Tens)</button></a>
+                <livewire:game-card-resume :type="\App\Enums\GameType::ClearTheDeck" wire:key="resume-clear-the-deck" />
             </div>
         </div>
         <div class="game-card">

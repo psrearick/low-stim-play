@@ -694,3 +694,43 @@ test('a tied lowest score at game end records a Draw for every tied seat', funct
     expect($p1Result->score)->toBe(2);
     expect($p2Result->score)->toBe(2);
 });
+
+test('the host can end the game early, scoring whoever currently has the lowest total as the winner (docs/concerns.md)', function () {
+    $host = User::factory()->create();
+    $p1 = User::factory()->create();
+    $p2 = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    startClearTheDeckRoom($room, [$host, $p1, $p2]);
+
+    Livewire::actingAs($host)->test('pages::clear-the-deck.play', ['room' => $room->code])
+        ->set('scores', [0 => 10, 1 => 2, 2 => 30])
+        ->call('endGameManually')
+        ->assertSet('phase', ClearTheDeckPhase::GameEnd);
+
+    $room->refresh();
+    expect($room->status)->toBe(RoomStatus::Finished);
+
+    $session = GameSession::find($room->game_session_id);
+    expect($session->ended_at)->not->toBeNull();
+
+    $participants = GameParticipant::where('game_session_id', $session->id)->get();
+    expect($participants)->toHaveCount(3);
+    expect($participants->firstWhere('user_id', $p1->id)->result)->toBe(GameResult::Win);
+    expect($participants->firstWhere('user_id', $host->id)->result)->toBe(GameResult::Loss);
+});
+
+test('a non-host cannot end a Clear the Deck game early', function () {
+    $host = User::factory()->create();
+    $p1 = User::factory()->create();
+    $p2 = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    startClearTheDeckRoom($room, [$host, $p1, $p2]);
+
+    Livewire::actingAs($p1)->test('pages::clear-the-deck.play', ['room' => $room->code])
+        ->call('endGameManually')
+        ->assertForbidden();
+
+    expect($room->fresh()->status)->not->toBe(RoomStatus::Finished);
+});

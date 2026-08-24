@@ -306,3 +306,45 @@ test('reaching the target score ends the game and records a GameParticipant per 
     $loser = $participants->firstWhere('user_id', $p2->id);
     expect($loser->result)->toBe(GameResult::Loss);
 });
+
+test('the host can end the game early, scoring whoever currently has the most green cards as the winner (docs/concerns.md)', function () {
+    seedAppleMatchDeck();
+    $host = User::factory()->create();
+    $p1 = User::factory()->create();
+    $p2 = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    startAppleMatchRoom($room, [$host, $p1, $p2]);
+
+    Livewire::actingAs($host)->test('pages::apple-match.play', ['room' => $room->code])
+        ->set('scores', [0 => 0, 1 => 2, 2 => 1])
+        ->call('endGameManually')
+        ->assertSet('phase', AppleMatchPhase::GameEnd);
+
+    $room->refresh();
+    expect($room->status)->toBe(RoomStatus::Finished);
+
+    $session = GameSession::find($room->game_session_id);
+    expect($session->ended_at)->not->toBeNull();
+
+    $participants = GameParticipant::where('game_session_id', $session->id)->get();
+    expect($participants)->toHaveCount(3);
+    expect($participants->firstWhere('user_id', $p1->id)->result)->toBe(GameResult::Win);
+    expect($participants->firstWhere('user_id', $p2->id)->result)->toBe(GameResult::Loss);
+});
+
+test('a non-host cannot end a Best Match game early', function () {
+    seedAppleMatchDeck();
+    $host = User::factory()->create();
+    $p1 = User::factory()->create();
+    $p2 = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    startAppleMatchRoom($room, [$host, $p1, $p2]);
+
+    Livewire::actingAs($p1)->test('pages::apple-match.play', ['room' => $room->code])
+        ->call('endGameManually')
+        ->assertForbidden();
+
+    expect($room->fresh()->status)->not->toBe(RoomStatus::Finished);
+});

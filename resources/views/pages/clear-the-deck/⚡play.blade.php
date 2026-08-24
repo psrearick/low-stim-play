@@ -296,6 +296,21 @@ new class extends Component
         return Room::where('host_user_id', Auth::id())->notExpired()->get();
     }
 
+    public function getIsHostProperty(): bool
+    {
+        return $this->room !== null && Auth::id() === $this->resolveRoom()->host_user_id;
+    }
+
+    /**
+     * Mirrors pages::farkle.play's own getCanEndGameManuallyProperty()
+     * (docs/concerns.md) -- host-only, and only while there's still a game
+     * to end.
+     */
+    public function getCanEndGameManuallyProperty(): bool
+    {
+        return $this->phase !== ClearTheDeckPhase::GameEnd && $this->isHost;
+    }
+
     /**
      * Deliberately independent of $spectate -- this still has to say
      * "yes" for playCards()'s own abort_unless() to keep working from a
@@ -726,6 +741,31 @@ new class extends Component
         $this->reloadMyHand();
     }
 
+    /**
+     * Ends the game right now, before $roundTarget rounds are reached --
+     * host-only (docs/concerns.md), mirroring pages::farkle.play's own
+     * endGameManually(). Reuses finishGame() as-is: it already just scores
+     * from whatever $this->scores currently holds (every *completed*
+     * round's points), so ending early simply stops counting further
+     * rounds rather than needing a separate code path. Only meaningful
+     * between rounds (mid-round Playing has no defined behavior for this
+     * button today -- see the Blade's own @if ($this->canEndGameManually)
+     * guard, which is intentionally phase-agnostic here since there's no
+     * partial-round score to protect against).
+     */
+    public function endGameManually(): void
+    {
+        abort_unless($this->isHost, 403);
+
+        if ($this->phase === ClearTheDeckPhase::GameEnd) {
+            return;
+        }
+
+        $this->phase = ClearTheDeckPhase::GameEnd;
+        $this->finishGame();
+        $this->syncOnlineState();
+    }
+
     private function finishGame(): void
     {
         $session = GameSession::findOrFail($this->gameSessionId);
@@ -879,6 +919,7 @@ new class extends Component
         <li>A face-down card can only be flipped once it's no longer covered by one of your own face-up cards.</li>
         <li>The round ends the instant any player empties their hand and both table piles; everyone else scores the value of every card they have left (Ace=1, 2-9 face value, Jack=11, Queen=12, King=13, Ten=25) and the player who went out scores 0.</li>
         <li>After every configured round is played, the lowest total score wins.</li>
+        <li>The host can press End Game any time between rounds to stop early and score whoever's lowest so far as the winner.</li>
     </ul>
 </x-slot:rules>
 <div>
@@ -901,6 +942,20 @@ new class extends Component
                     <button type="button" wire:click="$set('spectate', {{ $this->isSpectator ? 'false' : 'true' }})">
                         {{ $this->isSpectator ? 'Player view' : 'Watch only' }}
                     </button>
+                @endif
+
+                @if ($this->canEndGameManually)
+                    <button type="button" id="end-game-trigger" data-dialog-open="end-game-confirm-dialog">End Game</button>
+
+                    <x-confirm-dialog id="end-game-confirm-dialog" title="End the game?"
+                        message="End the game now and show final scores?">
+                        <x-slot:confirm>
+                            <button type="button" id="end-game-confirm" data-dialog-close wire:click="endGameManually"
+                                class="flex-1 rounded px-6 py-2 font-bold tracking-wide bg-surface border-2 border-warn text-warn">
+                                End Game
+                            </button>
+                        </x-slot:confirm>
+                    </x-confirm-dialog>
                 @endif
 
                 @if ($phase === ClearTheDeckPhase::GameEnd)

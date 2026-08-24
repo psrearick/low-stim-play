@@ -249,6 +249,23 @@ body.scrollable {
     justify-content: flex-end;
 }
 
+/* Matches #chrome-toggle-btn's own .icon-btn height (docs/concerns.md) --
+   the base `button` rule's padding + line-height gave this one a taller
+   natural height (37.5px vs .icon-btn's 34px at a 390px-wide viewport,
+   confirmed live) than every other button-bar button, since it's the only
+   .right item with text instead of an icon. Vertical padding zeroed and
+   replaced with flex centering rather than left as-is, so the fixed
+   height doesn't just clip the label; horizontal padding is untouched so
+   the "Game" label keeps its usual side spacing. */
+#game-menu-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: clamp(34px, 7vmin, 46px);
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
 .status,
 .heading {
     color: var(--bar);
@@ -2809,4 +2826,72 @@ body.scrollable.family-feud-play {
         grid-template-columns: repeat(4, var(--ctd-card-w));
         justify-content: center;
     }
+}
+
+/* =====================================================================
+   Word Hive -- a real tessellating honeycomb for the 7 puzzle letters
+   (docs/concerns.md #8), replacing the earlier "hexagon-ish" layout (a
+   plain center row above a wrapped outer row -- never an actual hexagon
+   shape; see this rule's own git history for that version's comment
+   explaining why). Pointy-top/bottom, flat-left/right hexagons
+   (--bee-hex-w flat-to-flat; --bee-hex-h derived via the regular-hexagon
+   ratio 2/sqrt(3) ~= 1.1547) tiled in the classic 2-3-2 flower: a 3-hex
+   middle row (the center letter flanked by two outer letters, touching
+   edge-to-edge) with a 2-hex row nested into each of its upper and lower
+   "valleys." Centering both rows in a flex column lands the 2-hex rows'
+   own centers exactly on the 3-hex row's shared edges with no manual
+   horizontal offset needed -- algebraically, a 2W-wide row and a 3W-wide
+   row, both centered on the same axis, put the narrower row's item
+   centers exactly W/2 either side of 0, which is exactly where the wider
+   row's own item boundaries fall. Vertical row spacing uses the standard
+   0.75x-height hex-grid stacking rule via a negative margin-top, pulling
+   each row up from the plain (0-gap) flow position it'd otherwise sit at.
+
+   All 7 hexes are the same size -- unlike this game's own earlier layout,
+   which made the center square modestly bigger to read as "the special
+   one" (see tests/Browser/SpellingBeeLetterTapTest.php's now-updated
+   assertion). A honeycomb only actually tessellates if every cell is the
+   same size; the center reads as distinct here purely through its accent
+   color/border (applied via ordinary bg-accent/15 border-accent
+   utilities in the Blade itself, not this file), matching the real board
+   game this puzzle is modeled on rather than this app's own earlier,
+   non-tessellating approximation of it. ================================
+   ================================================================== */
+.spelling-bee-play {
+    --bee-hex-w: clamp(48px, 8.6vmin, 76px);
+    --bee-hex-h: calc(var(--bee-hex-w) * 1.1547);
+}
+
+.hive {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.hive-row {
+    display: flex;
+}
+
+.hive-row-mid,
+.hive-row-bottom {
+    margin-top: calc(var(--bee-hex-h) * -0.25);
+}
+
+.hive-hex {
+    width: var(--bee-hex-w);
+    height: var(--bee-hex-h);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    font-size: clamp(16px, 3vmin, 26px);
+    font-weight: bold;
+    letter-spacing: 0.02em;
+    padding: 0;
+    cursor: pointer;
+}
+
+.hive-hex:disabled {
+    cursor: not-allowed;
 }

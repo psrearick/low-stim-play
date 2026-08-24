@@ -91,3 +91,41 @@ test('a room the user belongs to appears in the drawer and links to its hub', fu
 
     $page->assertPathIs('/room/'.$room->code);
 });
+
+/**
+ * docs/concerns.md #4: this notification used to render nested inside
+ * <x-app-sidebar />, whose .app-sidebar rule is display: none while the
+ * drawer is closed -- an ancestor's display: none un-renders its entire
+ * subtree, including a position: fixed descendant, so the toast was
+ * invisible on every page until the drawer happened to be open. Fixed by
+ * teleporting it to a body-level anchor outside the drawer entirely (see
+ * layouts/app.blade.php's #room-notifications-anchor); this drives the
+ * real onGameSwitched() action via window.Livewire (same technique as
+ * tests/Browser/FamilyFeudRoomBrowserTest.php's own triggerFeudRoomStarting(),
+ * standing in for a real presence broadcast this test environment's
+ * BROADCAST_CONNECTION=null can't deliver) and asserts the toast is
+ * actually visible -- not just present in the DOM -- with the drawer left
+ * closed the whole time.
+ */
+test('the "Host is setting up..." notification stays visible with the site menu closed', function () {
+    $user = User::factory()->create();
+    $room = Room::factory()->create();
+    $room->addMember($user);
+
+    $this->actingAs($user);
+
+    $page = visit('/');
+    $page->assertMissing('#room-notifications');
+
+    $page->script(<<<JS
+        (() => {
+            const el = document.querySelector('[wire\\\\:name="rooms-menu"]');
+            const component = window.Livewire.find(el.getAttribute("wire:id"));
+            component.call("onGameSwitched", {type: "farkle", code: "{$room->code}"});
+            return true;
+        })()
+        JS);
+
+    $page->assertVisible('#room-notifications')
+        ->assertSee('Host is setting up');
+});

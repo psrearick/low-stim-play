@@ -146,7 +146,7 @@ new class extends Component
             // (game-lobby's startGame() resets game_session_id to null on
             // every "Start Game" click, not just the first) or switched to
             // a different game entirely and back (see GameType::roomRoute()
-            // and switchGame() on <livewire:game-lobby>), and this branch
+            // and pages::room.show's own startGame()), and this branch
             // runs again either way. Without this, a second Yahtzee game in
             // the same room left the *previous* game's seat rows in place
             // and just added a second set on top, so every seat-scoped

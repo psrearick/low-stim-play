@@ -37,6 +37,16 @@ test('roomRoute() throws for Quartiles, Wordle, and SpellingBee instead of retur
         ->and(fn () => GameType::SpellingBee->roomRoute())->toThrow(LogicException::class);
 });
 
+test('roomRoute() maps every room-capable case to its own room route name', function () {
+    expect(GameType::Boggle->roomRoute())->toBe('boggle.room')
+        ->and(GameType::Yahtzee->roomRoute())->toBe('yahtzee.room')
+        ->and(GameType::FamilyFeud->roomRoute())->toBe('family-feud.room')
+        ->and(GameType::Farkle->roomRoute())->toBe('farkle.room')
+        ->and(GameType::AppleMatch->roomRoute())->toBe('apple-match.room')
+        ->and(GameType::ClearTheDeck->roomRoute())->toBe('clear-the-deck.room')
+        ->and(GameType::Punchline->roomRoute())->toBe('punchline.room');
+});
+
 test('only Boggle, Quartiles, Wordle, and SpellingBee are challengeable today', function () {
     expect(GameType::Boggle->isChallengeable())->toBeTrue()
         ->and(GameType::Quartiles->isChallengeable())->toBeTrue()

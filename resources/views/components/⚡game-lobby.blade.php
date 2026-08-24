@@ -2,7 +2,6 @@
 
 use App\Enums\GameType;
 use App\Enums\RoomStatus;
-use App\Events\RoomGameSwitched;
 use App\Events\RoomPlayerReadyToggled;
 use App\Models\Room;
 use Illuminate\Support\Facades\Auth;
@@ -14,10 +13,10 @@ new class extends Component
     public Room $room;
 
     /**
-     * Which game's own room page currently hosts this component -- so it
-     * knows what "the other games" are for switchGame() below, without
-     * needing any other game-specific knowledge. Every {game}.room page
-     * passes its own literal GameType in.
+     * Which game's own room page currently hosts this component -- used by
+     * getSwitchedGameTypeProperty() below to tell "the host switched to a
+     * *different* game" apart from "this game's own GameSession changed."
+     * Every {game}.room page passes its own literal GameType in.
      */
     public GameType $currentGame;
 
@@ -171,64 +170,28 @@ new class extends Component
     }
 
     /**
-     * Sends every present player (including the host) to a different
-     * game's own room page, same room code, same seats -- rather than
-     * requiring a brand new room (new code to re-share, everyone rejoins
-     * from scratch). Only ever called from the lobby, before anything's
-     * actually been played this round, so there's no in-progress game
-     * state to lose: game_session_id is either already null (nothing
-     * started yet) or points at a finished game (the "Back to room"
-     * case) -- resetting it here just guarantees whichever game gets
-     * started next (in this game or the one being switched to) generates
-     * a genuinely fresh session rather than reusing a stale id.
-     */
-    public function switchGame(GameType $type): void
-    {
-        abort_unless(Auth::id() === $this->room->host_user_id, 403);
-
-        $this->room->update(['game_session_id' => null]);
-
-        // Written synchronously, before broadcasting -- see pages::room.show
-        // ::startGame()'s matching comment. Lets getSwitchedGameTypeProperty()
-        // below show a "host switched to X -- Join" banner to whoever's
-        // still sitting on this lobby, instead of yanking them there.
-        $this->room->markPendingGame($type);
-
-        RoomGameSwitched::dispatch($this->room, $type);
-
-        $this->redirect(route($type->roomRoute(), ['code' => $this->room->code]));
-    }
-
-    /**
      * No longer redirects -- see pages::room.show::onGameSwitched()'s
      * matching comment. Just re-renders, so getSwitchedGameTypeProperty()
-     * below picks up the cache switchGame() above just wrote.
+     * below picks up whatever pages::room.show's own startGame() (the only
+     * place that switches a room's game now -- see docs/concerns.md and
+     * this file's own removed switchGame()/otherGames below) most recently
+     * wrote.
      */
     public function onGameSwitched(): void {}
 
     /**
-     * The game the host just switched *this room* to, if any -- null once
-     * that game actually starts (a real GameSession exists) or if nothing's
-     * been switched to since this lobby's own game last started. Always a
-     * *different* game than $currentGame: switchGame() above is only ever
-     * offered for games in $this->otherGames.
+     * The game the host just switched *this room* to via pages::room.show
+     * (docs/concerns.md), if any -- null once that game actually starts (a
+     * real GameSession exists) or if nothing's been switched to since this
+     * lobby's own game last started. Always a *different* game than
+     * $currentGame, since pages::room.show::startGame() is never offered
+     * for the room's own currently-active game.
      */
     public function getSwitchedGameTypeProperty(): ?GameType
     {
         $type = $this->room->pendingGameType();
 
         return $type !== $this->currentGame ? $type : null;
-    }
-
-    /**
-     * @return list<GameType>
-     */
-    public function getOtherGamesProperty(): array
-    {
-        return array_values(array_filter(
-            GameType::cases(),
-            fn (GameType $type) => $type !== $this->currentGame && $type->supportsRooms(),
-        ));
     }
 
     public function getAllReadyProperty(): bool
@@ -292,16 +255,5 @@ new class extends Component
         <button type="button" wire:click="startGame" @disabled(! $this->allReady)>
             Start Game
         </button>
-
-        <div class="flex flex-col items-center gap-2">
-            <p class="status-line">or play something else in this room:</p>
-            <div class="flex flex-wrap justify-center gap-2">
-                @foreach ($this->otherGames as $type)
-                    <button type="button" id="switch-game-{{ $type->value }}" wire:click="switchGame('{{ $type->value }}')" wire:key="switch-{{ $type->value }}">
-                        {{ $type->label() }}
-                    </button>
-                @endforeach
-            </div>
-        </div>
     @endif
 </div>

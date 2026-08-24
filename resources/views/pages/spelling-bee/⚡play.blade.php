@@ -85,6 +85,19 @@ new class extends Component
      */
     public int $maxScore = 0;
 
+    /**
+     * word length => how many of the puzzle's answer words are that long,
+     * e.g. `[4 => 11, 5 => 8, ...]` -- computed once at generation
+     * alongside $maxScore, and safe for the same reason: a length's own
+     * word *count* reveals nothing about which specific words qualify
+     * (docs/concerns.md #9's "Four Letters (5/11)" progress columns).
+     * Never the words themselves -- those stay hidden until endGame()
+     * exactly as before.
+     *
+     * @var array<int, int>
+     */
+    public array $totalWordsByLength = [];
+
     public string $currentWord = '';
 
     public ?string $message = null;
@@ -122,7 +135,7 @@ new class extends Component
             return;
         }
 
-        if ($this->seed === null && Auth::check() && $this->resumeInProgressGame()) {
+        if ($this->seed === null && Auth::check() && $this->resumeInProgressGame($generator)) {
             return;
         }
 
@@ -290,6 +303,29 @@ new class extends Component
     }
 
     /**
+     * $foundWords grouped by length, ascending, words alphabetical within
+     * each group (docs/concerns.md #9: the "Four Letters (5/11)" progress
+     * columns) -- the live-play counterpart to getWordsByLengthProperty()
+     * below, which only ever has anything once the game's ended. Safe to
+     * show during play unlike that one: every word here is something the
+     * player already found, not a spoiler.
+     *
+     * @return array<int, array<string, int>>
+     */
+    public function getFoundWordsByLengthProperty(): array
+    {
+        $groups = [];
+
+        foreach ($this->foundWordsSorted as $word => $points) {
+            $groups[mb_strlen($word)][$word] = $points;
+        }
+
+        ksort($groups);
+
+        return $groups;
+    }
+
+    /**
      * $allWords grouped by length, ascending -- same grouping Boggle's own
      * reveal panel uses. Empty until the game ends.
      *
@@ -333,14 +369,32 @@ new class extends Component
         $this->center = $puzzle['center'];
         $this->outerLetters = array_values(array_diff($puzzle['letters'], [$puzzle['center']]));
         $this->maxScore = app(Scorer::class)->maxPossible($puzzle['words'], $puzzle['letters']);
+        $this->totalWordsByLength = $this->countsByLength($puzzle['words']);
         $this->resolvedSeed = $puzzle['seed'];
     }
 
     /**
+     * @param  list<string>  $words
+     * @return array<int, int>
+     */
+    private function countsByLength(array $words): array
+    {
+        $counts = [];
+
+        foreach ($words as $word) {
+            $counts[mb_strlen($word)] = ($counts[mb_strlen($word)] ?? 0) + 1;
+        }
+
+        ksort($counts);
+
+        return $counts;
+    }
+
+    /**
      * Resets every progress field back to a fresh-game state, leaving
-     * $letters/$center/$outerLetters/$maxScore untouched -- called by
-     * resetGame() after it generates a new puzzle (which does replace all
-     * of those).
+     * $letters/$center/$outerLetters/$maxScore/$totalWordsByLength
+     * untouched -- called by resetGame() after it generates a new puzzle
+     * (which does replace all of those).
      */
     private function resetProgress(): void
     {
@@ -366,6 +420,7 @@ new class extends Component
             'foundWords' => $this->foundWords,
             'score' => $this->score,
             'maxScore' => $this->maxScore,
+            'totalWordsByLength' => $this->totalWordsByLength,
         ];
     }
 
@@ -374,7 +429,7 @@ new class extends Component
      * GameSession, if one exists -- mirrors pages::quartiles.play's own
      * resumeInProgressGame() exactly.
      */
-    private function resumeInProgressGame(): bool
+    private function resumeInProgressGame(PuzzleGenerator $generator): bool
     {
         $session = GameSession::query()
             ->where('user_id', Auth::id())
@@ -387,7 +442,7 @@ new class extends Component
             return false;
         }
 
-        $this->hydrateFromState($session);
+        $this->hydrateFromState($session, $generator);
 
         return true;
     }
@@ -435,7 +490,7 @@ new class extends Component
             $session = $this->findDailySession($date);
 
             if ($session !== null) {
-                $this->restoreDailySession($session);
+                $this->restoreDailySession($session, $generator);
 
                 return;
             }
@@ -461,9 +516,9 @@ new class extends Component
             ->first();
     }
 
-    private function restoreDailySession(GameSession $session): void
+    private function restoreDailySession(GameSession $session, PuzzleGenerator $generator): void
     {
-        $this->hydrateFromState($session);
+        $this->hydrateFromState($session, $generator);
 
         if ($session->ended_at === null) {
             return;
@@ -489,7 +544,7 @@ new class extends Component
         ])->id;
     }
 
-    private function hydrateFromState(GameSession $session): void
+    private function hydrateFromState(GameSession $session, PuzzleGenerator $generator): void
     {
         $state = $session->state ?? [];
 
@@ -499,6 +554,15 @@ new class extends Component
         $this->foundWords = $state['foundWords'] ?? [];
         $this->score = $state['score'] ?? 0;
         $this->maxScore = $state['maxScore'] ?? 0;
+        // Re-derived, not defaulted to [], for a session saved before this
+        // property existed (docs/concerns.md #9) -- wordsFor() cheaply
+        // (~15ms) re-enumerates the same answer list generation itself
+        // already produced, exactly like endGame()'s own reveal does, so
+        // an in-progress game started before this feature shipped still
+        // gets real per-length totals on its very next reload instead of
+        // an empty progress panel.
+        $this->totalWordsByLength = $state['totalWordsByLength']
+            ?? $this->countsByLength($generator->wordsFor($this->letters, $this->center));
         $this->resolvedSeed = $session->settings['seed'] ?? 0;
         $this->startedAt = $session->started_at->timestamp;
         $this->gameSessionId = $session->id;
@@ -593,28 +657,56 @@ new class extends Component
                     placeholder="Type or tap letters" class="w-full text-center">
 
                 {{--
-                    A simple hexagon-ring layout: the center letter rendered
-                    distinctly in its own row, the 6 outer letters wrapped
-                    below it -- not a literal honeycomb SVG, but keeps the
-                    "one letter is special" reading NYT's own layout
-                    conveys, entirely via shape/position/color rather than
-                    color alone (section 5).
+                    A real tessellating honeycomb (docs/concerns.md #8),
+                    not just a hexagon-ish center-row-plus-wrapped-row
+                    approximation -- see app.css's own .hive rules for the
+                    2-3-2 flower layout math. $outerLetters[0..1] sit in the
+                    top row, [2]/[3] flank the center in the middle row,
+                    [4..5] sit in the bottom row; shuffleLetters() reorders
+                    the same array shuffled by the old layout, so a shuffle
+                    still just reassigns which letter sits in which slot.
                 --}}
-                <div class="flex flex-col items-center gap-2 w-full">
-                    <button type="button" id="letter-center" wire:click="pressLetter('{{ $center }}')"
-                        @disabled($ended)
-                        class="tile-btn aspect-square min-h-16 w-16 flex items-center justify-center rounded-lg border-2 text-xl font-bold tracking-wide bg-accent/15 border-accent text-accent">
-                        {{ strtoupper($center) }}
-                    </button>
-
-                    <div class="flex flex-wrap items-center justify-center gap-2" id="letters-outer">
-                        @foreach ($outerLetters as $letter)
-                            <button type="button" id="letter-{{ $letter }}" wire:key="letter-{{ $letter }}" wire:click="pressLetter('{{ $letter }}')"
-                                @disabled($ended)
-                                class="tile-btn aspect-square min-h-14 w-14 flex items-center justify-center rounded-lg border-2 text-lg font-bold tracking-wide bg-surface border-surface-border text-text">
-                                {{ strtoupper($letter) }}
-                            </button>
-                        @endforeach
+                <div class="hive" id="letters-outer">
+                    <div class="hive-row hive-row-top">
+                        <button type="button" id="letter-{{ $outerLetters[0] }}" wire:key="letter-{{ $outerLetters[0] }}" wire:click="pressLetter('{{ $outerLetters[0] }}')"
+                            @disabled($ended)
+                            class="hive-hex border-2 bg-surface border-surface-border text-text">
+                            {{ strtoupper($outerLetters[0]) }}
+                        </button>
+                        <button type="button" id="letter-{{ $outerLetters[1] }}" wire:key="letter-{{ $outerLetters[1] }}" wire:click="pressLetter('{{ $outerLetters[1] }}')"
+                            @disabled($ended)
+                            class="hive-hex border-2 bg-surface border-surface-border text-text">
+                            {{ strtoupper($outerLetters[1]) }}
+                        </button>
+                    </div>
+                    <div class="hive-row hive-row-mid">
+                        <button type="button" id="letter-{{ $outerLetters[2] }}" wire:key="letter-{{ $outerLetters[2] }}" wire:click="pressLetter('{{ $outerLetters[2] }}')"
+                            @disabled($ended)
+                            class="hive-hex border-2 bg-surface border-surface-border text-text">
+                            {{ strtoupper($outerLetters[2]) }}
+                        </button>
+                        <button type="button" id="letter-center" wire:click="pressLetter('{{ $center }}')"
+                            @disabled($ended)
+                            class="hive-hex border-2 bg-accent/15 border-accent text-accent">
+                            {{ strtoupper($center) }}
+                        </button>
+                        <button type="button" id="letter-{{ $outerLetters[3] }}" wire:key="letter-{{ $outerLetters[3] }}" wire:click="pressLetter('{{ $outerLetters[3] }}')"
+                            @disabled($ended)
+                            class="hive-hex border-2 bg-surface border-surface-border text-text">
+                            {{ strtoupper($outerLetters[3]) }}
+                        </button>
+                    </div>
+                    <div class="hive-row hive-row-bottom">
+                        <button type="button" id="letter-{{ $outerLetters[4] }}" wire:key="letter-{{ $outerLetters[4] }}" wire:click="pressLetter('{{ $outerLetters[4] }}')"
+                            @disabled($ended)
+                            class="hive-hex border-2 bg-surface border-surface-border text-text">
+                            {{ strtoupper($outerLetters[4]) }}
+                        </button>
+                        <button type="button" id="letter-{{ $outerLetters[5] }}" wire:key="letter-{{ $outerLetters[5] }}" wire:click="pressLetter('{{ $outerLetters[5] }}')"
+                            @disabled($ended)
+                            class="hive-hex border-2 bg-surface border-surface-border text-text">
+                            {{ strtoupper($outerLetters[5]) }}
+                        </button>
                     </div>
                 </div>
 
@@ -632,14 +724,36 @@ new class extends Component
             <div class="flex flex-col gap-2 w-full max-w-sm mx-auto lg:mx-0 lg:max-w-xs lg:sticky lg:top-24">
                 <p class="text-sm text-text/80 font-bold">Words found</p>
 
-                @if ($foundWords === [])
+                {{--
+                    Per-length progress columns (docs/concerns.md #9) --
+                    one column per word length the puzzle actually has
+                    answers for (even a length with 0 found yet still gets
+                    its own "(0/N)" column, so the total is visible from
+                    the start), each headed by a found/total count. Only
+                    already-found words are ever listed under a column --
+                    $totalWordsByLength is a safe aggregate count computed
+                    at generation time (see that property's own docblock),
+                    but the *words* themselves stay exactly as hidden
+                    during play as they always have.
+                --}}
+                @if ($totalWordsByLength === [])
                     <p class="text-sm text-text/65 text-center">Nothing yet.</p>
                 @else
-                    <div class="flex flex-wrap gap-2 w-full lg:max-h-[520px] lg:overflow-y-auto" id="found-words-list">
-                        @foreach ($this->foundWordsSorted as $word => $points)
-                            <span wire:key="found-word-{{ $word }}" class="text-sm bg-surface border border-surface-border rounded px-3 py-1.5 text-text">
-                                {{ strtoupper($word) }} <span class="text-text/65">({{ $points }})</span>
-                            </span>
+                    <div class="flex flex-wrap gap-4 w-full lg:max-h-[520px] lg:overflow-y-auto" id="found-words-list">
+                        @foreach ($totalWordsByLength as $length => $total)
+                            @php $found = $this->foundWordsByLength[$length] ?? []; @endphp
+                            <div wire:key="length-col-{{ $length }}" id="length-col-{{ $length }}" class="flex flex-col gap-1 min-w-20">
+                                <p class="text-xs text-text/65 font-bold border-b border-surface-border pb-1 mb-1">
+                                    {{ $length }} Letters ({{ count($found) }}/{{ $total }})
+                                </p>
+                                <ul class="flex flex-col gap-1">
+                                    @foreach ($found as $word => $points)
+                                        <li wire:key="found-word-{{ $word }}" class="text-sm text-text">
+                                            {{ strtoupper($word) }} <span class="text-text/65">({{ $points }})</span>
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            </div>
                         @endforeach
                     </div>
                 @endif

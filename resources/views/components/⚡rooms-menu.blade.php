@@ -100,9 +100,14 @@ new class extends Component
 
         $type = GameType::from($event['type']);
 
+        // Straight to the game being set up (docs/concerns.md), not the
+        // room hub -- roomRoute() is the same {game}.room lobby page a
+        // member would otherwise have to detour through room.show to
+        // reach, so this saves the "click Join, then click the game again"
+        // round trip the old room.show link required.
         $this->pushNotification(
             "Host is setting up {$type->label()} in Room {$room->code}.",
-            route('room.show', ['code' => $room->code]),
+            route($type->roomRoute(), ['code' => $room->code]),
         );
     }
 
@@ -117,10 +122,18 @@ new class extends Component
             return;
         }
 
-        $this->pushNotification(
-            "The game has started in Room {$room->code}.",
-            route('room.show', ['code' => $room->code]),
-        );
+        // Same reasoning as onGameSwitched() above -- straight into the
+        // game itself rather than the room hub. $room->gameSession is
+        // already set by the time RoomGameStarting broadcasts (every
+        // {game}.room's own onRoomStarting() persists it before
+        // dispatching), so the null fallback below is only defensive.
+        $type = $room->gameSession?->type;
+
+        $href = $type !== null
+            ? route($type->playRoute(), ['room' => $room->code])
+            : route('room.show', ['code' => $room->code]);
+
+        $this->pushNotification("The game has started in Room {$room->code}.", $href);
     }
 
     public function dismissNotification(string $id): void
@@ -206,22 +219,41 @@ new class extends Component
 ?>
 
 <div>
-    @if (count($notifications) > 0)
-        <div class="fixed top-16 right-3 z-50 flex flex-col gap-2 w-72 max-w-[90vw]">
-            @foreach ($notifications as $notification)
-                <div wire:key="rooms-menu-notification-{{ $notification['id'] }}"
-                    class="rounded-lg border-2 border-accent bg-surface p-3 flex flex-col gap-2">
-                    <p class="status-line">{{ $notification['message'] }}</p>
-                    <div class="flex gap-2">
-                        <a href="{{ $notification['href'] }}" class="flex-1">
-                            <button type="button" class="w-full">Join</button>
-                        </a>
-                        <button type="button" wire:click="dismissNotification('{{ $notification['id'] }}')">Dismiss</button>
-                    </div>
+    {{--
+        Teleported to layouts/app.blade.php's #room-notifications-anchor
+        (docs/concerns.md), a body-level target outside <x-app-sidebar />
+        entirely -- .app-sidebar is display: none while the drawer is
+        closed, which un-renders this whole block (position: fixed and
+        all) regardless of the drawer's own open state, so left in place
+        it only ever showed up while the drawer happened to be open.
+
+        Wrapped in a `display: contents` div, same as every other
+        @teleport in this app (see e.g. layouts/app.blade.php's own
+        #game-actions docblock) -- Alpine's x-teleport (what @teleport
+        compiles to) needs one stable root element to move regardless of
+        which branch renders, and without this wrapper there'd be zero
+        root elements at all whenever $notifications is empty.
+    --}}
+    @teleport('#room-notifications-anchor')
+        <div style="display: contents;">
+            @if (count($notifications) > 0)
+                <div id="room-notifications" class="fixed top-16 right-3 z-50 flex flex-col gap-2 w-72 max-w-[90vw]">
+                    @foreach ($notifications as $notification)
+                        <div wire:key="rooms-menu-notification-{{ $notification['id'] }}"
+                            class="rounded-lg border-2 border-accent bg-surface p-3 flex flex-col gap-2">
+                            <p class="status-line">{{ $notification['message'] }}</p>
+                            <div class="flex gap-2">
+                                <a href="{{ $notification['href'] }}" class="flex-1">
+                                    <button type="button" class="w-full">Join</button>
+                                </a>
+                                <button type="button" wire:click="dismissNotification('{{ $notification['id'] }}')">Dismiss</button>
+                            </div>
+                        </div>
+                    @endforeach
                 </div>
-            @endforeach
+            @endif
         </div>
-    @endif
+    @endteleport
 
     <p class="text-xs text-text/65 font-bold px-1">Your rooms</p>
 
@@ -242,24 +274,33 @@ new class extends Component
         @endforelse
     </ul>
 
-    @guest
-        {{--
-            Optional -- an empty value falls through to
-            User::createGuest()'s own "Guest" default exactly as
-            before. Shared by both Join and Create below rather than
-            two separate fields in two separate dialogs, since it's
-            the same "who am I" question either way.
-        --}}
-        <input type="text" id="rooms-menu-guest-name" wire:model="guestName" placeholder="Your name (optional)" maxlength="30" class="text-sm">
-    @endguest
+    <div class="flex flex-col gap-2">
+        @guest
+            {{--
+                Optional -- an empty value falls through to
+                User::createGuest()'s own "Guest" default exactly as
+                before. Shared by both Join and Create below rather than
+                two separate fields in two separate dialogs, since it's
+                the same "who am I" question either way. w-full so it
+                lines up with the full-width buttons below it instead of
+                sitting narrower than them (docs/concerns.md) -- at its
+                browser-default size it rendered noticeably narrower than
+                "Join a Room"/"Create a Room", and with zero gap between
+                them the input's bottom border and the button's top
+                border sat flush against each other, reading as a slight
+                overlap rather than two distinct controls.
+            --}}
+            <input type="text" id="rooms-menu-guest-name" wire:model="guestName" placeholder="Your name (optional)" maxlength="30" class="text-sm w-full">
+        @endguest
 
-    <button type="button" id="rooms-menu-join-trigger" data-dialog-open="join-room-dialog" class="app-sidebar-link">
-        Join a Room
-    </button>
+        <button type="button" id="rooms-menu-join-trigger" data-dialog-open="join-room-dialog" class="app-sidebar-link">
+            Join a Room
+        </button>
 
-    <button type="button" id="rooms-menu-create" wire:click="createRoom" class="app-sidebar-link">
-        Create a Room
-    </button>
+        <button type="button" id="rooms-menu-create" wire:click="createRoom" class="app-sidebar-link">
+            Create a Room
+        </button>
+    </div>
 
     {{--
         wire:ignore.self -- without it, a failed joinByCode() (invalid

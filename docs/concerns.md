@@ -1,0 +1,9 @@
+- The enter room name field overlaps the button slightly in side menu. It should not.
+- The game menu and in game full-screen button should be the same height, currently the game menu button is taller
+- There needs to be a way for the host to end games early, including the punchline game.
+- The "Host is setting up..." box only shows when the menu is open. This should not be a requirement. It should show on the page even if the menu is closed. And the link should go to the game being set up, not to the room page so you don't need to click join twice.
+- Hosts should not have links to play other games on the game setup page, that should be on the room page.
+- Punchline, next round button should only be for the host
+- If you are in a room, you should be able to resume your seat by clicking on the name of the game from the home page and having a resume option. Uou should not be required to go to the room page to resume your seat.
+- Give spelling bee a honeycomb design with the key letter in the middle
+- In spelling bee, show how many words there are of each length and how many have been found, like show the words the user found in columns separated by length and the top of the column can have the number, like if there are eleven four-letter words and the user has found five, it might say: `Four Letters (5/11)` or something
