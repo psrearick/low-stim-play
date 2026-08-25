@@ -2924,3 +2924,11 @@ body.scrollable.family-feud-play {
     font-weight: bold;
     letter-spacing: 0.02em;
 }
+
+/* Keeps the center cell's own SVG/label painting above every other hex
+   (see <x-hive-hex>'s own docblock for why the row overlap otherwise lets
+   a later-DOM-order neighbor's gray edge silently paint over the center
+   hex's blue one). */
+.hive-hex-center {
+    z-index: 1;
+}

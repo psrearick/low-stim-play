@@ -19,8 +19,20 @@
     exactly (0%/25%/75%/100% split), just in a 100x115.47 viewBox instead
     of percentages, so the layout math in app.css's own .hive rules
     (row centering, the -0.25*height row overlap) is untouched.
+
+    hive-hex-center (docs/concerns.md follow-up) raises this cell's
+    z-index above its neighbors' -- the row divs deliberately overlap
+    vertically (app.css's -0.25*height row margin, needed for the flower
+    geometry), and every .hive-hex here is `position: relative` with no
+    z-index of its own, so paint order otherwise just follows DOM order:
+    the bottom row (declared after the middle row) painted over the
+    center hex's own bottom-left/bottom-right edges, silently replacing
+    its blue stroke with the bottom row's gray one right along that
+    shared boundary. Only the center cell needs this -- every other
+    row-to-row overlap is gray-over-gray, so the identical paint-order
+    quirk there is invisible.
 --}}
-<button type="button" {{ $attributes->merge(['class' => 'hive-hex']) }} @disabled($disabled)>
+<button type="button" {{ $attributes->merge(['class' => 'hive-hex'.($center ? ' hive-hex-center' : '')]) }} @disabled($disabled)>
     <svg viewBox="0 0 100 115.47" class="hive-hex-svg" aria-hidden="true" focusable="false">
         <polygon points="50,0 100,28.87 100,86.6 50,115.47 0,86.6 0,28.87"
             style="fill: {{ $center ? 'color-mix(in oklch, var(--accent) 18%, var(--die))' : 'var(--die)' }}; stroke: {{ $center ? 'var(--accent)' : 'var(--die-border)' }};" />

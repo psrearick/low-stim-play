@@ -2,6 +2,10 @@
 
 A terse, commit-by-commit record of what changed, newest first. No rationale or decisions here — see `docs/DEVLOG.md` for the *why* behind anything listed here, organized by feature instead of by commit. See `docs/TODO.md` for what's still outstanding.
 
+## 2026-08-25
+
+- Fixed Word Hive's center hexagon showing a gray border instead of blue along its bottom-left/bottom-right edges, caused by the row below painting over it -- the center cell now always paints above its neighbors.
+
 ## 2026-08-24
 
 - Fixed Word Hive's honeycomb hexagons only showing a border on the center cell and reading as overlapping -- each cell is now a real SVG polygon instead of a clip-path'd box, so every edge (including the diagonals) actually renders a border.

@@ -905,6 +905,22 @@ failing to generate at all for the identical indirected-custom-property reason, 
 on the equivalent `fill-accent`/`stroke-accent` utilities working was too big a risk to
 take on trust here.
 
+**Second follow-up fix, reported live right after the SVG fix above: the center hex's
+bottom-left/bottom-right edges weren't blue — a *different* bug than the first one, not a
+regression of it.** Root cause was plain paint order, not geometry: the flower layout's row
+divs deliberately overlap vertically (`app.css`'s `-0.25 × height` row margin, needed for
+the hex-grid stacking math), and every `.hive-hex` is `position: relative` with no
+`z-index` of its own — so in the overlapping band, later-DOM-order content simply paints
+over earlier content, same as any other in-flow stacking tie. The bottom row (`E`/`R`) is
+declared after the middle row (`C`/center/`L`), so its own gray stroke painted directly over
+the center hex's blue stroke along their shared boundary — invisible everywhere else in the
+flower, since every *other* row-to-row overlap is gray-over-gray. Fixed with a `.hive-hex-center
+{ z-index: 1; }` rule (new conditional class on `<x-hive-hex>`'s root button) that lifts the
+whole cell — its SVG and label both, being its own children — above every neighbor
+regardless of DOM order, rather than touching the row layout itself. Confirmed via a
+before/after screenshot crop showing all 6 edges genuinely blue, not just the 4 that
+happened to belong to earlier-painted rows.
+
 **Added per-length "found/total" progress columns during live play** (`docs/concerns.md`
 #9: "Four Letters (5/11)") — the "Words found" panel previously listed every found word in
 one flat alphabetical wrap, with no sense of how many words of a given length still exist
