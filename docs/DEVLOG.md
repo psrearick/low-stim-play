@@ -883,6 +883,28 @@ edge-to-edge) with a 2-hex row nested into each of its upper/lower "valleys."
   trusting the CSS math alone — both rendered the expected seamless flower with no visible
   gaps or overlaps between cells.
 
+**Follow-up fix, reported live immediately after shipping the above: only the center hex
+had a visible border, and cells read as overlapping.** Root cause was the `clip-path`
+approach itself, not the layout math — `clip-path` only clips whatever a box's border
+*already* drew along its own rectangular edges (top/right/bottom/left straight lines); it
+never draws a border along the new diagonal edges the clip itself introduces. This hex's
+`clip-path` polygon only shared a straight line with the box's actual left/right edges (the
+25%–75% vertical span), so only *those* two edges of each hex ever got a visible line — the
+four diagonal edges had no border painted on them at all, reading as missing borders and as
+"overlap" at every diagonal seam (two adjacent fills meeting with no separating line).
+Replaced with real SVG `<polygon>` cells (new `<x-hive-hex>` component, `letter`/`center`/
+`disabled` props, absolutely positioned inside `.hive-hex` behind a `.hive-hex-label` span)
+— an SVG stroke draws an actual line along all 6 edges regardless of orientation, so a
+shared boundary between two touching hexes now genuinely renders on both sides of it. Same
+`50,0 100,28.87 100,86.6 50,115.47 0,86.6 0,28.87` point set as the old clip-path's
+percentages (just a `100 × 115.47` viewBox instead of `%`), so none of the row-layout CSS
+in `app.css` needed to change. Fill/stroke set via inline `style` referencing `--die`/
+`--die-border`/`--accent` directly rather than Tailwind `fill-*`/`stroke-*` utility
+classes — this file's own `@theme inline` block already documents `bg-accent` silently
+failing to generate at all for the identical indirected-custom-property reason, so relying
+on the equivalent `fill-accent`/`stroke-accent` utilities working was too big a risk to
+take on trust here.
+
 **Added per-length "found/total" progress columns during live play** (`docs/concerns.md`
 #9: "Four Letters (5/11)") — the "Words found" panel previously listed every found word in
 one flat alphabetical wrap, with no sense of how many words of a given length still exist

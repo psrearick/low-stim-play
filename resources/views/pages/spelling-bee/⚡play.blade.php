@@ -660,53 +660,27 @@ new class extends Component
                     A real tessellating honeycomb (docs/concerns.md #8),
                     not just a hexagon-ish center-row-plus-wrapped-row
                     approximation -- see app.css's own .hive rules for the
-                    2-3-2 flower layout math. $outerLetters[0..1] sit in the
-                    top row, [2]/[3] flank the center in the middle row,
-                    [4..5] sit in the bottom row; shuffleLetters() reorders
-                    the same array shuffled by the old layout, so a shuffle
-                    still just reassigns which letter sits in which slot.
+                    2-3-2 flower layout math, and <x-hive-hex> for why each
+                    cell is a real SVG polygon rather than a clip-path'd
+                    box. $outerLetters[0..1] sit in the top row, [2]/[3]
+                    flank the center in the middle row, [4..5] sit in the
+                    bottom row; shuffleLetters() reorders the same array
+                    shuffled by the old layout, so a shuffle still just
+                    reassigns which letter sits in which slot.
                 --}}
                 <div class="hive" id="letters-outer">
                     <div class="hive-row hive-row-top">
-                        <button type="button" id="letter-{{ $outerLetters[0] }}" wire:key="letter-{{ $outerLetters[0] }}" wire:click="pressLetter('{{ $outerLetters[0] }}')"
-                            @disabled($ended)
-                            class="hive-hex border-2 bg-surface border-surface-border text-text">
-                            {{ strtoupper($outerLetters[0]) }}
-                        </button>
-                        <button type="button" id="letter-{{ $outerLetters[1] }}" wire:key="letter-{{ $outerLetters[1] }}" wire:click="pressLetter('{{ $outerLetters[1] }}')"
-                            @disabled($ended)
-                            class="hive-hex border-2 bg-surface border-surface-border text-text">
-                            {{ strtoupper($outerLetters[1]) }}
-                        </button>
+                        <x-hive-hex id="letter-{{ $outerLetters[0] }}" wire:key="letter-{{ $outerLetters[0] }}" wire:click="pressLetter('{{ $outerLetters[0] }}')" :letter="$outerLetters[0]" :disabled="$ended" />
+                        <x-hive-hex id="letter-{{ $outerLetters[1] }}" wire:key="letter-{{ $outerLetters[1] }}" wire:click="pressLetter('{{ $outerLetters[1] }}')" :letter="$outerLetters[1]" :disabled="$ended" />
                     </div>
                     <div class="hive-row hive-row-mid">
-                        <button type="button" id="letter-{{ $outerLetters[2] }}" wire:key="letter-{{ $outerLetters[2] }}" wire:click="pressLetter('{{ $outerLetters[2] }}')"
-                            @disabled($ended)
-                            class="hive-hex border-2 bg-surface border-surface-border text-text">
-                            {{ strtoupper($outerLetters[2]) }}
-                        </button>
-                        <button type="button" id="letter-center" wire:click="pressLetter('{{ $center }}')"
-                            @disabled($ended)
-                            class="hive-hex border-2 bg-accent/15 border-accent text-accent">
-                            {{ strtoupper($center) }}
-                        </button>
-                        <button type="button" id="letter-{{ $outerLetters[3] }}" wire:key="letter-{{ $outerLetters[3] }}" wire:click="pressLetter('{{ $outerLetters[3] }}')"
-                            @disabled($ended)
-                            class="hive-hex border-2 bg-surface border-surface-border text-text">
-                            {{ strtoupper($outerLetters[3]) }}
-                        </button>
+                        <x-hive-hex id="letter-{{ $outerLetters[2] }}" wire:key="letter-{{ $outerLetters[2] }}" wire:click="pressLetter('{{ $outerLetters[2] }}')" :letter="$outerLetters[2]" :disabled="$ended" />
+                        <x-hive-hex id="letter-center" wire:click="pressLetter('{{ $center }}')" :letter="$center" :center="true" :disabled="$ended" />
+                        <x-hive-hex id="letter-{{ $outerLetters[3] }}" wire:key="letter-{{ $outerLetters[3] }}" wire:click="pressLetter('{{ $outerLetters[3] }}')" :letter="$outerLetters[3]" :disabled="$ended" />
                     </div>
                     <div class="hive-row hive-row-bottom">
-                        <button type="button" id="letter-{{ $outerLetters[4] }}" wire:key="letter-{{ $outerLetters[4] }}" wire:click="pressLetter('{{ $outerLetters[4] }}')"
-                            @disabled($ended)
-                            class="hive-hex border-2 bg-surface border-surface-border text-text">
-                            {{ strtoupper($outerLetters[4]) }}
-                        </button>
-                        <button type="button" id="letter-{{ $outerLetters[5] }}" wire:key="letter-{{ $outerLetters[5] }}" wire:click="pressLetter('{{ $outerLetters[5] }}')"
-                            @disabled($ended)
-                            class="hive-hex border-2 bg-surface border-surface-border text-text">
-                            {{ strtoupper($outerLetters[5]) }}
-                        </button>
+                        <x-hive-hex id="letter-{{ $outerLetters[4] }}" wire:key="letter-{{ $outerLetters[4] }}" wire:click="pressLetter('{{ $outerLetters[4] }}')" :letter="$outerLetters[4]" :disabled="$ended" />
+                        <x-hive-hex id="letter-{{ $outerLetters[5] }}" wire:key="letter-{{ $outerLetters[5] }}" wire:click="pressLetter('{{ $outerLetters[5] }}')" :letter="$outerLetters[5]" :disabled="$ended" />
                     </div>
                 </div>
 

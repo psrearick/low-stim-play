@@ -2851,11 +2851,22 @@ body.scrollable.family-feud-play {
    which made the center square modestly bigger to read as "the special
    one" (see tests/Browser/SpellingBeeLetterTapTest.php's now-updated
    assertion). A honeycomb only actually tessellates if every cell is the
-   same size; the center reads as distinct here purely through its accent
-   color/border (applied via ordinary bg-accent/15 border-accent
-   utilities in the Blade itself, not this file), matching the real board
-   game this puzzle is modeled on rather than this app's own earlier,
-   non-tessellating approximation of it. ================================
+   same size; the center reads as distinct here purely through its own
+   fill/stroke color (see <x-hive-hex>), matching the real board game this
+   puzzle is modeled on rather than this app's own earlier, non-
+   tessellating approximation of it.
+
+   Each cell is a real SVG <polygon> (see <x-hive-hex>), not a clip-path'd
+   box -- clip-path only clips whatever border a box already had drawn
+   along its own *rectangular* edges, it never draws a border along the
+   new diagonal edges the clip itself introduces, so an earlier clip-path
+   version of this left only the vertical left/right edges of each hex
+   with any visible line at all, nothing along the 4 diagonal ones
+   (docs/concerns.md, reported live: "only the center one has a border"
+   and the cells read as overlapping at every diagonal seam). An SVG
+   stroke draws an actual line along all 6 edges regardless of
+   orientation, so two touching hexes' coincident shared edge genuinely
+   renders on both sides of it now. ======================================
    ================================================================== */
 .spelling-bee-play {
     --bee-hex-w: clamp(48px, 8.6vmin, 76px);
@@ -2878,20 +2889,38 @@ body.scrollable.family-feud-play {
 }
 
 .hive-hex {
+    position: relative;
     width: var(--bee-hex-w);
     height: var(--bee-hex-h);
     flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
-    font-size: clamp(16px, 3vmin, 26px);
-    font-weight: bold;
-    letter-spacing: 0.02em;
+    background: none;
+    border: none;
     padding: 0;
     cursor: pointer;
 }
 
 .hive-hex:disabled {
     cursor: not-allowed;
+}
+
+.hive-hex-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+}
+
+.hive-hex-svg polygon {
+    stroke-width: 3;
+}
+
+.hive-hex-label {
+    position: relative;
+    font-size: clamp(16px, 3vmin, 26px);
+    font-weight: bold;
+    letter-spacing: 0.02em;
 }

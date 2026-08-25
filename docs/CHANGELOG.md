@@ -4,6 +4,7 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 
 ## 2026-08-24
 
+- Fixed Word Hive's honeycomb hexagons only showing a border on the center cell and reading as overlapping -- each cell is now a real SVG polygon instead of a clip-path'd box, so every edge (including the diagonals) actually renders a border.
 - Fixed the room-name field overlapping the button below it in the site menu drawer.
 - Fixed the game menu button rendering taller than the fullscreen toggle button next to it.
 - Added a host-only "End Game" action to Punchline, Yahtzee, Best Match, and Clear the Deck (Boggle, 10,000, and Survey Says already had one).
