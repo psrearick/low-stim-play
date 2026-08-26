@@ -108,6 +108,19 @@ new class extends Component
      */
     public string $currentGuess = '';
 
+    /**
+     * Which column of the in-progress row is targeted for the *next*
+     * typed letter -- null means "append at the end," the original
+     * (and still default) behavior. Set by tapping a tile in the
+     * current row (see selectCell()), so a player can fix a single
+     * already-typed letter instead of backspacing back to it and
+     * retyping everything after it (`docs/TODO.md`'s former Task 29).
+     * Always within `[0, mb_strlen($currentGuess)]` -- never a column
+     * past the next not-yet-typed one, since there's nothing there to
+     * select yet.
+     */
+    public ?int $selectedCol = null;
+
     public bool $ended = false;
 
     public bool $won = false;
@@ -190,11 +203,35 @@ new class extends Component
 
     public function pressKey(string $letter): void
     {
-        if (! $this->started || $this->ended || mb_strlen($this->currentGuess) >= self::WORD_LENGTH) {
+        if (! $this->started || $this->ended) {
             return;
         }
 
-        $this->currentGuess .= strtolower($letter);
+        $letter = strtolower($letter);
+
+        if ($this->selectedCol !== null) {
+            $chars = mb_str_split($this->currentGuess);
+            $chars[$this->selectedCol] = $letter;
+            $this->currentGuess = implode('', $chars);
+
+            // Auto-advance to the next column -- purely index-based, not
+            // dependent on the string's own length, since overwriting an
+            // already-fully-typed guess never changes that length at all.
+            // Once the column just filled was the last one, there's
+            // nothing left to advance into, so drop back to plain append
+            // mode rather than re-selecting the last column forever.
+            $this->selectedCol = $this->selectedCol + 1 < self::WORD_LENGTH
+                ? $this->selectedCol + 1
+                : null;
+
+            return;
+        }
+
+        if (mb_strlen($this->currentGuess) >= self::WORD_LENGTH) {
+            return;
+        }
+
+        $this->currentGuess .= $letter;
     }
 
     public function backspace(): void
@@ -204,6 +241,29 @@ new class extends Component
         }
 
         $this->currentGuess = mb_substr($this->currentGuess, 0, -1);
+        // A specific-tile selection no longer means anything once the
+        // string it pointed into has just shifted underneath it -- back
+        // to plain append-at-the-end mode.
+        $this->selectedCol = null;
+    }
+
+    /**
+     * Targets column $col of the in-progress row for the next typed
+     * letter (see $selectedCol's own docblock). Only a column already
+     * typed, or the very next untyped one, is selectable -- tapping
+     * further ahead than that would have nothing to actually select.
+     */
+    public function selectCell(int $col): void
+    {
+        if (! $this->started || $this->ended) {
+            return;
+        }
+
+        if ($col < 0 || $col > mb_strlen($this->currentGuess) || $col >= self::WORD_LENGTH) {
+            return;
+        }
+
+        $this->selectedCol = $col;
     }
 
     public function submitGuess(AnswerPicker $answerPicker, GuessEvaluator $evaluator, DailyPuzzle $dailyPuzzle, Solver $dictionary): void
@@ -246,6 +306,7 @@ new class extends Component
         ];
         $this->hardModeRequirements = $evaluator->mergeHardModeRequirements($this->hardModeRequirements, $guess, $result);
         $this->currentGuess = '';
+        $this->selectedCol = null;
 
         if ($guess === $answer) {
             $this->won = true;
@@ -671,6 +732,7 @@ new class extends Component
         $this->guesses = [];
         $this->hardModeRequirements = (new GuessEvaluator)->emptyHardModeRequirements(self::WORD_LENGTH);
         $this->currentGuess = '';
+        $this->selectedCol = null;
         $this->ended = false;
         $this->won = false;
         $this->answerReveal = null;
@@ -722,6 +784,7 @@ new class extends Component
     <h3>How to Use This Page</h3>
     <ul>
         <li>Type a 5-letter word (or tap the on-screen keyboard) and press Enter/Submit to guess.</li>
+        <li>Tap a tile in the current row to fix a single letter instead of retyping the whole word.</li>
         <li>Each letter is marked correct (right spot), present (in the word, wrong spot), or absent — a legend above the grid shows exactly what each color/mark means.</li>
         <li>You have 6 guesses to find the secret word.</li>
         <li>If you're signed in, leaving and coming back later picks up right where you left off.</li>
@@ -811,13 +874,16 @@ new class extends Component
                 <div class="grid grid-cols-5 gap-1.5" wire:key="row-{{ $row }}">
                     @for ($col = 0; $col < self::WORD_LENGTH; $col++)
                         @php
+                            $isCurrentRow = $row === count($guesses);
                             $guessRow = $guesses[$row] ?? null;
-                            $letter = $guessRow['word'][$col] ?? ($row === count($guesses) ? ($currentGuess[$col] ?? '') : '');
+                            $letter = $guessRow['word'][$col] ?? ($isCurrentRow ? ($currentGuess[$col] ?? '') : '');
                             $status = $guessRow['result'][$col] ?? null;
                             $mark = $this->tileMark($status);
+                            $isSelected = $isCurrentRow && $col === $selectedCol;
                         @endphp
                         <div id="cell-{{ $row }}-{{ $col }}" wire:key="cell-{{ $row }}-{{ $col }}"
-                            class="relative aspect-square w-14 flex items-center justify-center rounded-lg border-2 text-xl font-bold uppercase {{ $this->tileClasses($status) }}">
+                            @if ($isCurrentRow && ! $ended) wire:click="selectCell({{ $col }})" @endif
+                            class="relative aspect-square w-14 flex items-center justify-center rounded-lg border-2 text-xl font-bold uppercase {{ $this->tileClasses($status) }} {{ $isCurrentRow && ! $ended ? 'cursor-pointer' : '' }} {{ $isSelected ? 'ring-2 ring-accent' : '' }}">
                             {{ $letter }}
                             @if ($mark !== '')
                                 <span class="absolute top-0.5 right-1 text-[0.6rem] leading-none" aria-hidden="true">{{ $mark }}</span>

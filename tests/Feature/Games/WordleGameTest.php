@@ -231,6 +231,79 @@ test('keyboardStatus reflects the best-known status per letter across every gues
         ->and($status['r'])->toBe('correct');
 });
 
+test('tapping a tile in the current row selects it, and the next typed letter overwrites just that column', function () {
+    $component = Livewire::test('pages::wordle.play')->call('startGame')
+        ->set('currentGuess', 'apple');
+
+    $component->call('selectCell', 1)->call('pressKey', 'x');
+
+    expect($component->get('currentGuess'))->toBe('axple');
+});
+
+test('overwriting a tile auto-advances the selection to the next column', function () {
+    $component = Livewire::test('pages::wordle.play')->call('startGame')
+        ->set('currentGuess', 'apple');
+
+    $component->call('selectCell', 1)
+        ->call('pressKey', 'x') // overwrites col 1, advances to col 2
+        ->call('pressKey', 'y'); // overwrites col 2
+
+    expect($component->get('currentGuess'))->toBe('axyle');
+});
+
+test('selecting the column exactly at the current guess length behaves like a plain append', function () {
+    $component = Livewire::test('pages::wordle.play')->call('startGame')
+        ->set('currentGuess', 'app');
+
+    $component->call('selectCell', 3)->call('pressKey', 'l');
+
+    expect($component->get('currentGuess'))->toBe('appl')
+        ->and($component->get('selectedCol'))->toBe(4);
+});
+
+test('selectCell rejects a column beyond the current guess length or the word length', function () {
+    $component = Livewire::test('pages::wordle.play')->call('startGame')
+        ->set('currentGuess', 'ap');
+
+    $component->call('selectCell', 4); // nothing typed there yet -- not selectable
+    expect($component->get('selectedCol'))->toBeNull();
+
+    $component->call('selectCell', 10); // past the word length entirely
+    expect($component->get('selectedCol'))->toBeNull();
+});
+
+test('backspace clears an active tile selection and falls back to plain append', function () {
+    $component = Livewire::test('pages::wordle.play')->call('startGame')
+        ->set('currentGuess', 'apple')
+        ->call('selectCell', 1);
+
+    expect($component->get('selectedCol'))->toBe(1);
+
+    $component->call('backspace');
+
+    expect($component->get('selectedCol'))->toBeNull()
+        ->and($component->get('currentGuess'))->toBe('appl');
+
+    $component->call('pressKey', 'e');
+    expect($component->get('currentGuess'))->toBe('apple'); // appended at the end, not overwriting col 1
+});
+
+test('submitting a guess clears any active tile selection', function () {
+    $component = Livewire::test('pages::wordle.play')->call('startGame');
+    setWordleAnswer($component, 'crane');
+
+    $component->set('currentGuess', 'chase')->call('selectCell', 2)->call('submitGuess');
+
+    expect($component->get('selectedCol'))->toBeNull();
+});
+
+test('tile selection and pressKey/backspace are no-ops before the game has started', function () {
+    $component = Livewire::test('pages::wordle.play');
+
+    $component->call('selectCell', 0);
+    expect($component->get('selectedCol'))->toBeNull();
+});
+
 test('New Game returns to the setup screen, then reuses the same unfinished session row instead of creating a duplicate', function () {
     $user = User::factory()->create();
     Livewire::actingAs($user);

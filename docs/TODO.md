@@ -8,17 +8,16 @@ The Order of Work list is a separate, ordinary numbered list reflecting current 
 
 ## Order of Work
 
-1. [Task 29: Support tapping a tile to edit a single letter mid-guess](#29-support-tapping-a-tile-to-edit-a-single-letter-mid-guess)
-2. [Task 21: Change Wordle scoring to reflect guess count directly](#21-change-wordle-scoring-to-reflect-guess-count-directly)
-3. [Task 25: Fix homepage game-grid responsive columns](#25-fix-homepage-game-grid-responsive-columns)
-4. [Task 30: Fix the Game Menu's dangling divider, and consider making it a right-side sidebar](#30-fix-the-game-menus-dangling-divider-and-consider-making-it-a-right-side-sidebar)
-5. [Task 32: Spec and build Fibbage](#32-spec-and-build-fibbage)
-6. [Task 22: Notify players when they're challenged, and surface it in the UI](#22-notify-players-when-theyre-challenged-and-surface-it-in-the-ui)
-7. [Task 23: Add "Sign in with Google"](#23-add-sign-in-with-google)
-8. [Task 26: Add "average percent of board found" to Word Grid stats](#26-add-average-percent-of-board-found-to-word-grid-stats)
-9. [Task 27: Split solo vs. multiplayer score stats on the Word Grid stats page](#27-split-solo-vs-multiplayer-score-stats-on-the-word-grid-stats-page)
-10. [Task 10: Spec and build Pips](#10-spec-and-build-pips)
-11. [Task 19: Spec and build Connections and Strands](#19-spec-and-build-connections-and-strands)
+1. [Task 21: Change Wordle scoring to reflect guess count directly](#21-change-wordle-scoring-to-reflect-guess-count-directly)
+2. [Task 25: Fix homepage game-grid responsive columns](#25-fix-homepage-game-grid-responsive-columns)
+3. [Task 30: Fix the Game Menu's dangling divider, and consider making it a right-side sidebar](#30-fix-the-game-menus-dangling-divider-and-consider-making-it-a-right-side-sidebar)
+4. [Task 32: Spec and build Fibbage](#32-spec-and-build-fibbage)
+5. [Task 22: Notify players when they're challenged, and surface it in the UI](#22-notify-players-when-theyre-challenged-and-surface-it-in-the-ui)
+6. [Task 23: Add "Sign in with Google"](#23-add-sign-in-with-google)
+7. [Task 26: Add "average percent of board found" to Word Grid stats](#26-add-average-percent-of-board-found-to-word-grid-stats)
+8. [Task 27: Split solo vs. multiplayer score stats on the Word Grid stats page](#27-split-solo-vs-multiplayer-score-stats-on-the-word-grid-stats-page)
+9. [Task 10: Spec and build Pips](#10-spec-and-build-pips)
+10. [Task 19: Spec and build Connections and Strands](#19-spec-and-build-connections-and-strands)
 
 ## Tasks
 
@@ -83,12 +82,6 @@ Moved from `docs/concerns.md` (2026-08-23): "The score in word grid should be di
 Confirmed: the backend already distinguishes the two. `GameSession.mode` (`GameMode::Solo`/`Online`/etc.) and `PlayerStatsService::avgScoreByMode()` (`app/Services/Stats/PlayerStatsService.php`) already compute separate solo/online averages precisely because Boggle's room score is rewritten into an "exclusive" score by `SharedSessionFinalizer` (a word found by more than one player scores nothing for anyone) — a genuinely different scale from solo scoring, not just a different mode label. This split already renders on the dashboard (`resources/views/components/player-stats.blade.php`, "X avg score (solo)" / "Y avg score (rooms)").
 
 The gap is specifically the dedicated Word Grid stats page (`resources/views/pages/profile/boggle/⚡index.blade.php`): `BoggleStatsService::bestMetrics()` computes "Highest score" and friends across **all modes combined**, blending solo raw scores with room "exclusive" scores into one figure — exactly the mixed-scale problem `avgScoreByMode()`'s own docblock warns against, just not yet applied here. The "All games" table already shows a per-row Mode column, so this is about the aggregate tiles, not the raw list: split `bestMetrics()` into solo/online variants (or filter by mode before computing), mirroring `avgScoreByMode()`'s existing approach.
-
-### 29. Support tapping a tile to edit a single letter mid-guess
-
-Moved from `docs/concerns.md` (2026-08-23): "Wordle/Five Letters - user should be able to tap the square of a letter in the current row and change just that letter before submitting, in addition to just typing the whole word."
-
-Wordle's guess input today (`resources/views/pages/wordle/⚡play.blade.php`) is purely append/truncate: `pressKey()` always appends to the end of `$currentGuess`, `backspace()` always removes the last character, and the grid cells themselves have no click handler at all — there's no concept of a selected tile/cursor position anywhere in the component. Supporting "tap a tile in the current row, change just that letter" needs genuinely new state (e.g. `$selectedCol`), a click handler on each in-progress-row cell to set it, and rewriting `pressKey()`/`backspace()` to operate at `$selectedCol` (with auto-advance) instead of always the string's end — this isn't a small tweak to existing logic, it's a different editing model.
 
 ### 30. Fix the Game Menu's dangling divider, and consider making it a right-side sidebar
 
