@@ -2557,6 +2557,41 @@ body.scrollable.family-feud-play {
     margin: 6px 4px;
 }
 
+/* Game Menu's own Rules/actions divider (docs/TODO.md's former Task 30):
+   layouts/app.blade.php renders `.app-sidebar-divider` unconditionally
+   right after the Rules button, but #game-actions -- the very next
+   element, and the @teleport target every game's own action buttons
+   (End Game, New Game, ...) land in -- is frequently empty (e.g. Wordle
+   only renders one @if ($ended)), leaving the divider sitting above
+   nothing. Can't check "is #game-actions empty" with a plain :empty
+   selector: @teleport always leaves behind its own `display: contents`
+   wrapper div even when the game renders no button at all (confirmed
+   live -- a real teleported-but-empty #game-actions contains a wrapper
+   div plus Blade's own `<!--[if BLOCK]>...<!--[endif]-->` conditional
+   comments, so it's never literally childless).
+
+   Hidden by default, shown only once #game-actions actually contains a
+   real button/link -- checked with :has() rather than inverted with
+   :not(:has(...)), since a :has() argument can never contain another
+   :has() (confirmed live: `CSS.supports('selector(div:has(+ div:not(
+   :has(a))))')` returns false in the exact browser this app tests
+   against -- a first attempt at this rule used exactly that nested shape
+   and silently never matched anything at all, invalid selectors being
+   dropped rather than erroring). :has()'s own descendant-matching still
+   isn't affected by the display: contents wrappers in between, unlike a
+   `>` direct-child combinator (see the "Site-wide design system &
+   chrome" section's own `@teleport` CSS bug for why that distinction
+   matters here). No previous-sibling selector exists in CSS, so
+   :has(+ ...) on the divider itself (not a rule on #game-actions) is
+   what makes "look at the next element's own state" possible at all. */
+#game-menu-dialog .app-sidebar-divider {
+    display: none;
+}
+
+#game-menu-dialog .app-sidebar-divider:has(+ #game-actions button, + #game-actions a) {
+    display: block;
+}
+
 .app-sidebar-link {
     display: block;
     width: 100%;

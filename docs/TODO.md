@@ -8,14 +8,14 @@ The Order of Work list is a separate, ordinary numbered list reflecting current 
 
 ## Order of Work
 
-1. [Task 30: Fix the Game Menu's dangling divider, and consider making it a right-side sidebar](#30-fix-the-game-menus-dangling-divider-and-consider-making-it-a-right-side-sidebar)
-2. [Task 32: Spec and build Fibbage](#32-spec-and-build-fibbage)
-3. [Task 22: Notify players when they're challenged, and surface it in the UI](#22-notify-players-when-theyre-challenged-and-surface-it-in-the-ui)
-4. [Task 23: Add "Sign in with Google"](#23-add-sign-in-with-google)
-5. [Task 26: Add "average percent of board found" to Word Grid stats](#26-add-average-percent-of-board-found-to-word-grid-stats)
-6. [Task 27: Split solo vs. multiplayer score stats on the Word Grid stats page](#27-split-solo-vs-multiplayer-score-stats-on-the-word-grid-stats-page)
-7. [Task 10: Spec and build Pips](#10-spec-and-build-pips)
-8. [Task 19: Spec and build Connections and Strands](#19-spec-and-build-connections-and-strands)
+1. [Task 32: Spec and build Fibbage](#32-spec-and-build-fibbage)
+2. [Task 22: Notify players when they're challenged, and surface it in the UI](#22-notify-players-when-theyre-challenged-and-surface-it-in-the-ui)
+3. [Task 23: Add "Sign in with Google"](#23-add-sign-in-with-google)
+4. [Task 26: Add "average percent of board found" to Word Grid stats](#26-add-average-percent-of-board-found-to-word-grid-stats)
+5. [Task 27: Split solo vs. multiplayer score stats on the Word Grid stats page](#27-split-solo-vs-multiplayer-score-stats-on-the-word-grid-stats-page)
+6. [Task 10: Spec and build Pips](#10-spec-and-build-pips)
+7. [Task 19: Spec and build Connections and Strands](#19-spec-and-build-connections-and-strands)
+8. [Task 33: Convert the Game Menu to a right-side off-canvas sidebar](#33-convert-the-game-menu-to-a-right-side-off-canvas-sidebar)
 
 ## Tasks
 
@@ -67,14 +67,6 @@ Confirmed: the backend already distinguishes the two. `GameSession.mode` (`GameM
 
 The gap is specifically the dedicated Word Grid stats page (`resources/views/pages/profile/boggle/⚡index.blade.php`): `BoggleStatsService::bestMetrics()` computes "Highest score" and friends across **all modes combined**, blending solo raw scores with room "exclusive" scores into one figure — exactly the mixed-scale problem `avgScoreByMode()`'s own docblock warns against, just not yet applied here. The "All games" table already shows a per-row Mode column, so this is about the aggregate tiles, not the raw list: split `bestMetrics()` into solo/online variants (or filter by mode before computing), mirroring `avgScoreByMode()`'s existing approach.
 
-### 30. Fix the Game Menu's dangling divider, and consider making it a right-side sidebar
-
-Moved from `docs/concerns.md` (2026-08-23): "The Game menu has a divider that doesn't seem to always be dividing things. When it isn't, it shouldn't be there. The game menu should just be a sidebar like the main menu, but on the right side."
-
-Bug: `resources/views/layouts/app.blade.php`'s `#game-menu-dialog` renders a `.app-sidebar-divider` unconditionally whenever `$rules` is set, immediately after the Rules button, regardless of whether the `#game-actions` teleport target below it actually has any content at that moment (e.g. Wordle's own action buttons only render `@if ($ended)` — during active play the divider sits above nothing). Needs the divider conditioned on `#game-actions` actually having children — not directly checkable in Blade since that target is populated client-side via Alpine `@teleport`, so likely either a per-page PHP flag or a CSS/JS `:empty`-driven toggle.
-
-Broader ask: replace the Game Menu's current modal (`<x-dialog id="game-menu-dialog">`, adopted specifically to stop it overlapping the score/timer HUD — see `docs/DEVLOG.md`'s navbar redesign entries) with an off-canvas sidebar like the main Menu drawer (`resources/views/components/app-sidebar.blade.php`, a real `<aside>` + backdrop, not a `<dialog>`), anchored to the right instead of the left. Reuses the same `#game-actions` teleport target and Rules button; adopting the main drawer's real `.app-sidebar-link`/`.app-sidebar-divider` structure (dividers there sit between always-rendered groups, never in front of a possibly-empty target) would resolve the divider bug as a side effect rather than needing a separate fix.
-
 ### 32. Spec and build Fibbage
 
 Raised while building Punchline (2026-08-23): the user wants another submit-then-vote room game, Fibbage-style — players write a plausible-sounding fake answer to a trivia question, the real answer is seeded among the lies, and everyone votes on which one they think is true (two-sided scoring: points for fooling other players *and* for finding the real answer, not just "did you win a vote" the way Punchline/Best Match work).
@@ -82,4 +74,10 @@ Raised while building Punchline (2026-08-23): the user wants another submit-then
 Needs its own real design pass before a build spec, not just a copy of Punchline's shape — see `docs/specs/punchline.md` section 4 ("Abstraction scope") for why: Fibbage's defining trick (a real answer planted among player-submitted lies, plus the two-sided fooled-vs-found scoring) doesn't fit either Best Match's single-judge-pick or Punchline's proportional-vote-share-per-matchup shape, so the round/scoring model is a genuinely open question, not a known quantity. Also needs a trivia-question content source resolved (a static curated bank, matching Best Match's cards and Punchline's prompts, is the established low-risk default in this app — see `docs/specs/punchline.md` section 2's own reasoning for why LLM-authored content was deliberately avoided there) with real answers attached, which no existing seed data in this app provides.
 
 Once Fibbage's actual shape is designed, revisit whether `App\Services\Punchline\BallotService`'s submit → anonymize-reveal → vote → tally cycle is still a good fit to extract into a shared class both games use — it was deliberately built decoupled from Punchline-specific concepts for exactly this reason (see `docs/DEVLOG.md`'s Punchline section), but the decision to actually extract it was deferred until there's a second real consumer to design the shared shape against, rather than guessed at with only one.
+
+### 33. Convert the Game Menu to a right-side off-canvas sidebar
+
+Split out from the former Task 30 (2026-08-26) once that task's actual bug (the dangling divider) was fixed directly in CSS — this is the remaining, separate part of the original report: "the game menu should just be a sidebar like the main menu, but on the right side." A real UI redesign, not a bug fix, so deliberately not bundled into the same pass.
+
+Replace the Game Menu's current modal (`<x-dialog id="game-menu-dialog">`, adopted specifically to stop it overlapping the score/timer HUD — see `docs/DEVLOG.md`'s navbar redesign entries) with an off-canvas sidebar like the main Menu drawer (`resources/views/components/app-sidebar.blade.php`, a real `<aside>` + backdrop, not a `<dialog>`), anchored to the right instead of the left. Reuses the same `#game-actions` teleport target and Rules button; adopting the main drawer's real `.app-sidebar-link`/`.app-sidebar-divider` structure (dividers there sit between always-rendered groups, never in front of a possibly-empty target) would resolve the divider-visibility concern as a side effect of the redesign too, on top of the CSS fix already in place.
 
