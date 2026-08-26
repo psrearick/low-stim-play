@@ -139,13 +139,15 @@ test('a winning guess ends the game, scores it, and reveals the answer', functio
         ->and($component->get('won'))->toBeTrue()
         ->and($component->get('answerReveal'))->toBe('crane');
 
+    // TODO Task 21: score is the guess count itself (lower is better), not
+    // a derived points total.
     $participant = GameParticipant::sole();
-    expect($participant->score)->toBe(600) // 1 guess: (6+1-1)*100
+    expect($participant->score)->toBe(1)
         ->and($participant->stats['won'])->toBeTrue()
         ->and($participant->stats['guess_count'])->toBe(1);
 });
 
-test('using all 6 guesses without winning ends the game with a zero score and reveals the answer', function () {
+test('using all 6 guesses without winning ends the game with a worse-than-any-win sentinel score, and reveals the answer', function () {
     $component = Livewire::test('pages::wordle.play')->call('startGame');
     setWordleAnswer($component, 'crane');
 
@@ -158,8 +160,12 @@ test('using all 6 guesses without winning ends the game with a zero score and re
         ->and($component->get('answerReveal'))->toBe('crane')
         ->and($component->get('guesses'))->toHaveCount(6);
 
+    // TODO Task 21: a loss scores one worse than any possible win
+    // (MAX_GUESSES + 1 = 7), not 0 -- still an integer GameParticipant.score
+    // needs, but on the "lower is better" scale a loss should sort worse
+    // than every real win, not better than a 6-guess one.
     $participant = GameParticipant::sole();
-    expect($participant->score)->toBe(0)
+    expect($participant->score)->toBe(7)
         ->and($participant->stats['won'])->toBeFalse()
         ->and($participant->stats['guess_count'])->toBeNull();
 });

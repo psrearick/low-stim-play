@@ -10,7 +10,7 @@ use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
 
-function wordleParticipantFor(User $user, int $score = 400, bool $won = true, ?int $guessCount = 3, bool $hardMode = false): GameParticipant
+function wordleParticipantFor(User $user, int $score = 3, bool $won = true, ?int $guessCount = 3, bool $hardMode = false): GameParticipant
 {
     $session = GameSession::factory()->create(['type' => GameType::Wordle, 'mode' => GameMode::Solo]);
 
@@ -61,23 +61,39 @@ test('the five letters stats index only shows the current user\'s own games', fu
         ->assertDontSee(route('profile.wordle.show', $otherGame), escape: false);
 });
 
-test('the five letters stats index links the highest-score personal best to the game it came from', function () {
+test('the five letters stats index links the fewest-guesses personal best to the game it came from', function () {
+    // TODO Task 21: bestMetrics() no longer has a score-based "Highest
+    // score" tile -- "Fewest guesses to win" is the only personal best,
+    // so this needs two actual wins with different guess counts to prove
+    // it picks the right one, not just the sole recorded game.
     $user = User::factory()->create();
-    $best = wordleParticipantFor($user, score: 600);
+    wordleParticipantFor($user, won: true, guessCount: 4);
+    $best = wordleParticipantFor($user, won: true, guessCount: 2);
 
     $this->actingAs($user)
         ->get('/profile/five-letters')
         ->assertSee(route('profile.wordle.show', $best), escape: false);
 });
 
-test('a five letters game detail page shows its headline stats', function () {
+test('the five letters stats index shows no personal bests section until the user has actually won once', function () {
     $user = User::factory()->create();
-    $participant = wordleParticipantFor($user, score: 500, won: true, guessCount: 2, hardMode: true);
+    wordleParticipantFor($user, won: false, guessCount: null);
+
+    $this->actingAs($user)
+        ->get('/profile/five-letters')
+        ->assertDontSee('Personal bests');
+});
+
+test('a five letters game detail page shows its headline stats', function () {
+    // TODO Task 21: no standalone "Score" tile on this page any more (see
+    // ⚡show.blade.php's own comment) -- Result and Guesses already cover
+    // everything a score-based tile would have repeated or confused.
+    $user = User::factory()->create();
+    $participant = wordleParticipantFor($user, score: 2, won: true, guessCount: 2, hardMode: true);
 
     $this->actingAs($user)
         ->get("/profile/five-letters/{$participant->id}")
         ->assertSeeLivewire('pages::profile.wordle.show')
-        ->assertSee('500')
         ->assertSee('Won')
         ->assertSee('2');
 });

@@ -41,19 +41,27 @@ new class extends Component
     @if ($this->games->isEmpty())
         <p class="text-sm text-text/65 text-center">No Five Letters games recorded yet.</p>
     @else
-        <div class="flex flex-col gap-2 w-full">
-            <p class="text-sm text-text/80 font-bold">Personal bests</p>
-            <div class="flex flex-wrap justify-center gap-3 w-full">
-                @foreach ($this->bestMetrics as $metric)
-                    <a wire:key="best-{{ $loop->index }}"
-                        href="{{ route('profile.wordle.show', $metric['participant']) }}"
-                        class="flex flex-col items-center gap-2 bg-surface border-2 border-surface-border rounded-lg px-5 py-4 flex-1 basis-40">
-                        <span class="text-2xl font-bold text-accent">{{ $metric['value'] }}</span>
-                        <span class="text-xs text-text/65 text-center">{{ $metric['label'] }}</span>
-                    </a>
-                @endforeach
+        {{--
+            Can now be genuinely empty (no wins yet at all) since
+            bestMetrics() no longer has an unconditional score-based tile
+            to fall back on -- docs/TODO.md's former Task 21. Guarded
+            rather than rendering a "Personal bests" header over nothing.
+        --}}
+        @if ($this->bestMetrics !== [])
+            <div class="flex flex-col gap-2 w-full">
+                <p class="text-sm text-text/80 font-bold">Personal bests</p>
+                <div class="flex flex-wrap justify-center gap-3 w-full">
+                    @foreach ($this->bestMetrics as $metric)
+                        <a wire:key="best-{{ $loop->index }}"
+                            href="{{ route('profile.wordle.show', $metric['participant']) }}"
+                            class="flex flex-col items-center gap-2 bg-surface border-2 border-surface-border rounded-lg px-5 py-4 flex-1 basis-40">
+                            <span class="text-2xl font-bold text-accent">{{ $metric['value'] }}</span>
+                            <span class="text-xs text-text/65 text-center">{{ $metric['label'] }}</span>
+                        </a>
+                    @endforeach
+                </div>
             </div>
-        </div>
+        @endif
 
         <div class="flex flex-col gap-2 w-full">
             <p class="text-sm text-text/80 font-bold">All games</p>

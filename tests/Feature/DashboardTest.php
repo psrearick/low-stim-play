@@ -42,6 +42,21 @@ test('the dashboard splits Word Grid avg score by solo/rooms rather than blendin
         ->assertDontSee('avg score</p>', false);
 });
 
+test('the dashboard labels Five Letters avg score as avg guesses, since lower is better there', function () {
+    // TODO Task 21: Five Letters' own GameParticipant.score is a guess
+    // count (fewer is better) -- the opposite scale from every other
+    // game's "avg score," so it gets its own label on the dashboard
+    // tile rather than reusing the generic "avg score" wording that
+    // would otherwise read as higher-is-better.
+    $user = User::factory()->create();
+    $session = GameSession::factory()->create(['type' => GameType::Wordle, 'mode' => GameMode::Solo]);
+    GameParticipant::factory()->create(['game_session_id' => $session->id, 'user_id' => $user->id, 'score' => 3]);
+
+    $this->actingAs($user)
+        ->get('/dashboard')
+        ->assertSee('3 avg guesses (lower is better)');
+});
+
 test('the dashboard shows a link into the boggle stats page once the user has played one', function () {
     $user = User::factory()->create();
     $session = GameSession::factory()->create(['type' => GameType::Boggle, 'mode' => GameMode::Solo]);

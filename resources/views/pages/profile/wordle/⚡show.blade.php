@@ -47,11 +47,17 @@ new class extends Component
         <p class="text-sm text-text/65">{{ $participant->created_at->format('M j, Y g:ia') }}</p>
     </div>
 
+    {{--
+        No standalone "Score" tile here, unlike other games' show pages --
+        docs/TODO.md's former Task 21 made GameParticipant.score just be
+        the guess count (with a sentinel for a loss, see pages::
+        wordle.play's finishGame()), so it would either exactly repeat the
+        "Guesses" tile below (on a win) or show a confusing made-up number
+        no attempt actually reached (on a loss, since a loss always uses
+        every one of MAX_GUESSES attempts, not the sentinel value). Result
+        + Guesses already tell the whole story without it.
+    --}}
     <div class="flex flex-wrap justify-center gap-3 w-full">
-        <div class="flex flex-col items-center gap-2 bg-surface border-2 border-surface-border rounded-lg px-5 py-4 flex-1 basis-32">
-            <span class="text-2xl font-bold text-text">{{ $participant->score }}</span>
-            <span class="text-xs text-text/65">Score</span>
-        </div>
         <div class="flex flex-col items-center gap-2 bg-surface border-2 border-surface-border rounded-lg px-5 py-4 flex-1 basis-32">
             <span class="text-2xl font-bold {{ $this->stats['won'] ? 'text-accent' : 'text-text' }}">{{ $this->stats['won'] ? 'Won' : 'Lost' }}</span>
             <span class="text-xs text-text/65">Result</span>

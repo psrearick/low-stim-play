@@ -46,11 +46,19 @@ class WordleStatsService
      * The best game for each headline metric, paired with the participant
      * it came from -- same "omit a metric nobody's ever earned rather than
      * show a misleading zero" rule every other stats service follows.
-     * "Fewest guesses" is the only conditional metric here (guessCount is
-     * only ever recorded for a win, see statsFor()) -- score itself is
-     * always safe to show unconditionally (0 for a user who's never won is
-     * an accurate value, not a misleading one, same as every other game's
-     * own "Highest score").
+     * "Fewest guesses to win" is the only metric here, and only shown once
+     * the user has actually won at least once (guessCount is only ever
+     * recorded for a win, see statsFor()).
+     *
+     * No `GameParticipant.score`-based tile here, unlike every other
+     * game's own "Highest score" -- `docs/TODO.md`'s former Task 21
+     * changed `score` itself to *be* the guess count (with a
+     * worse-than-any-win sentinel for a loss, see finishGame()), so a
+     * score-based tile would show the exact same number as "Fewest
+     * guesses to win" for anyone who's ever won, and a meaningless
+     * sentinel for anyone who hasn't -- redundant in the first case,
+     * confusing in the second, with nothing a separate tile would add in
+     * either.
      *
      * @return list<array{label: string, value: string, participant: GameParticipant}>
      */
@@ -67,26 +75,20 @@ class WordleStatsService
             'stats' => $this->statsFor($participant),
         ]);
 
-        $metrics = [];
-
-        $bestScore = $decorated->sortByDesc(fn (array $entry) => $entry['participant']->score)->first();
-        $metrics[] = [
-            'label' => 'Highest score',
-            'value' => (string) $bestScore['participant']->score,
-            'participant' => $bestScore['participant'],
-        ];
-
         $wins = $decorated->filter(fn (array $entry) => $entry['stats']['won']);
 
-        if ($wins->isNotEmpty()) {
-            $fewestGuesses = $wins->sortBy(fn (array $entry) => $entry['stats']['guessCount'])->first();
-            $metrics[] = [
+        if ($wins->isEmpty()) {
+            return [];
+        }
+
+        $fewestGuesses = $wins->sortBy(fn (array $entry) => $entry['stats']['guessCount'])->first();
+
+        return [
+            [
                 'label' => 'Fewest guesses to win',
                 'value' => (string) $fewestGuesses['stats']['guessCount'],
                 'participant' => $fewestGuesses['participant'],
-            ];
-        }
-
-        return $metrics;
+            ],
+        ];
     }
 }

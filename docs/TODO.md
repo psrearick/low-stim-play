@@ -8,16 +8,15 @@ The Order of Work list is a separate, ordinary numbered list reflecting current 
 
 ## Order of Work
 
-1. [Task 21: Change Wordle scoring to reflect guess count directly](#21-change-wordle-scoring-to-reflect-guess-count-directly)
-2. [Task 25: Fix homepage game-grid responsive columns](#25-fix-homepage-game-grid-responsive-columns)
-3. [Task 30: Fix the Game Menu's dangling divider, and consider making it a right-side sidebar](#30-fix-the-game-menus-dangling-divider-and-consider-making-it-a-right-side-sidebar)
-4. [Task 32: Spec and build Fibbage](#32-spec-and-build-fibbage)
-5. [Task 22: Notify players when they're challenged, and surface it in the UI](#22-notify-players-when-theyre-challenged-and-surface-it-in-the-ui)
-6. [Task 23: Add "Sign in with Google"](#23-add-sign-in-with-google)
-7. [Task 26: Add "average percent of board found" to Word Grid stats](#26-add-average-percent-of-board-found-to-word-grid-stats)
-8. [Task 27: Split solo vs. multiplayer score stats on the Word Grid stats page](#27-split-solo-vs-multiplayer-score-stats-on-the-word-grid-stats-page)
-9. [Task 10: Spec and build Pips](#10-spec-and-build-pips)
-10. [Task 19: Spec and build Connections and Strands](#19-spec-and-build-connections-and-strands)
+1. [Task 25: Fix homepage game-grid responsive columns](#25-fix-homepage-game-grid-responsive-columns)
+2. [Task 30: Fix the Game Menu's dangling divider, and consider making it a right-side sidebar](#30-fix-the-game-menus-dangling-divider-and-consider-making-it-a-right-side-sidebar)
+3. [Task 32: Spec and build Fibbage](#32-spec-and-build-fibbage)
+4. [Task 22: Notify players when they're challenged, and surface it in the UI](#22-notify-players-when-theyre-challenged-and-surface-it-in-the-ui)
+5. [Task 23: Add "Sign in with Google"](#23-add-sign-in-with-google)
+6. [Task 26: Add "average percent of board found" to Word Grid stats](#26-add-average-percent-of-board-found-to-word-grid-stats)
+7. [Task 27: Split solo vs. multiplayer score stats on the Word Grid stats page](#27-split-solo-vs-multiplayer-score-stats-on-the-word-grid-stats-page)
+8. [Task 10: Spec and build Pips](#10-spec-and-build-pips)
+9. [Task 19: Spec and build Connections and Strands](#19-spec-and-build-connections-and-strands)
 
 ## Tasks
 
@@ -36,14 +35,6 @@ Split out from Task 10 (2026-08-23) because both need real semantic content this
 Strands additionally needs a new word-placement/grid-tiling solver with no existing precedent in this app (Boggle's `Solver` finds words in a fixed grid; Strands needs to construct a grid that fits a predetermined word list, the reverse problem).
 
 Once built, wire each into the shared puzzle-code/daily-puzzle/Challenge-a-Friend infrastructure the same way as Task 10 (see that task's own wiring paragraph and `docs/DEVLOG.md`'s "Boggle"/"Word Blocks" sections).
-
-### 21. Change Wordle scoring to reflect guess count directly
-
-Moved from `docs/concerns.md` (2026-08-23): "What do points mean in Wordle? Shouldn't the score just be how many attempts it took you and the lower score is better."
-
-Current formula (`resources/views/pages/wordle/⚡play.blade.php`'s `finishGame()`): `(MAX_GUESSES + 1 - count($guesses)) * 100` on a win (600/500/400/300/200/100 for 1–6 guesses), `0` on a loss — chosen only because `GameParticipant.score` needs an integer and higher-is-better matches every other game's stats tiles (see `docs/DEVLOG.md`'s Wordle section). The raw data this feedback wants already exists: `WordleStatsService::bestMetrics()` (`app/Services/Stats/WordleStatsService.php`) already computes and shows a separate "Fewest guesses to win" tile straight from `stats['guess_count']` — this is about what `GameParticipant.score` itself holds and how "Highest score" is framed, not about adding new tracking.
-
-Would need: a new scoring convention (e.g. store guess count as the score, with a sentinel worse-than-any-win value for a loss such as `MAX_GUESSES + 1`), inverting "Highest score"'s sort direction and/or renaming that tile so a lower number reads as better, and checking `resources/views/components/player-stats.blade.php`'s generic "avg score" framing on the dashboard and `PlayerStatsService::forUser()`'s plain `avg('score')` call, since both currently assume every game's score is bigger-is-better.
 
 ### 22. Notify players when they're challenged, and surface it in the UI
 

@@ -72,31 +72,28 @@ test('statsFor defaults to false/null for a participant with no stats recorded',
     ]);
 });
 
-test('bestMetrics picks the highest-scoring game, and omits fewest guesses if the user has never won', function () {
+test('bestMetrics returns nothing at all if the user has never won', function () {
+    // TODO Task 21: no score-based fallback tile any more -- a
+    // score-based "Highest score" would either repeat "Fewest guesses to
+    // win" for a winner, or show a meaningless sentinel for someone who's
+    // never won, so it was dropped entirely rather than kept and relabeled.
     $user = User::factory()->create();
 
-    $low = wordleGame($user, score: 0, won: false);
-    $high = wordleGame($user, score: 100);
+    wordleGame($user, score: 7, won: false);
 
-    $metrics = $this->service->bestMetrics($user);
-    $labels = collect($metrics)->pluck('label')->all();
-
-    expect($labels)->toContain('Highest score')
-        ->and($labels)->not->toContain('Fewest guesses to win');
-
-    $best = collect($metrics)->firstWhere('label', 'Highest score');
-    expect($best['participant']->id)->toBe($high->id)
-        ->and($best['value'])->toBe('100');
-    expect($low->id)->not->toBe($high->id);
+    expect($this->service->bestMetrics($user))->toBe([]);
 });
 
-test('bestMetrics includes fewest guesses to win once any game has been won', function () {
+test('bestMetrics includes fewest guesses to win once any game has been won, and nothing else', function () {
     $user = User::factory()->create();
 
-    wordleGame($user, score: 200, won: true, guessCount: 5);
-    $best = wordleGame($user, score: 600, won: true, guessCount: 1);
+    wordleGame($user, score: 5, won: true, guessCount: 5);
+    $best = wordleGame($user, score: 1, won: true, guessCount: 1);
 
     $metrics = $this->service->bestMetrics($user);
+
+    expect($metrics)->toHaveCount(1);
+
     $fewest = collect($metrics)->firstWhere('label', 'Fewest guesses to win');
 
     expect($fewest['value'])->toBe('1')

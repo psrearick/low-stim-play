@@ -42,6 +42,16 @@
                 @if ($stat['avgScoreByMode']['onlineGames'] > 0)
                     <p class="text-sm text-text/80">{{ $stat['avgScoreByMode']['onlineAvg'] }} avg score (rooms)</p>
                 @endif
+            @elseif ($stat['type'] === \App\Enums\GameType::Wordle)
+                {{--
+                    docs/TODO.md's former Task 21: Five Letters' own score
+                    is guess count (fewer is better), the opposite scale
+                    from every other game's own "avg score" here -- same
+                    underlying $stat['avgScore'] computation (a plain
+                    average needs no game-specific math), just labeled so
+                    a lower number reads as better instead of worse.
+                --}}
+                <p class="text-sm text-text/80">{{ $stat['avgScore'] }} avg guesses (lower is better)</p>
             @else
                 <p class="text-sm text-text/80">{{ $stat['avgScore'] }} avg score</p>
             @endif

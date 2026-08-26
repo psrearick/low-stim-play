@@ -462,7 +462,17 @@ new class extends Component
             'guesses' => $this->guesses,
         ];
 
-        $score = $this->won ? (self::MAX_GUESSES + 1 - count($this->guesses)) * 100 : 0;
+        // TODO Task 21 (docs/concerns.md, 2026-08-23): "the score should
+        // just be how many attempts it took you and the lower score is
+        // better," not a derived points total -- guess count itself, with
+        // a worse-than-any-win sentinel (one past the max) for a loss, so
+        // GameParticipant.score (which every game populates with an
+        // integer) still orders every game from best to worst. See
+        // docs/DEVLOG.md's Wordle section for how this ripples into
+        // WordleStatsService::bestMetrics() and player-stats.blade.php's
+        // generic "avg score" framing, both of which otherwise assume
+        // higher-is-better.
+        $score = $this->won ? count($this->guesses) : self::MAX_GUESSES + 1;
 
         if ($this->isSharedSession) {
             // Timestamp bookkeeping only -- never overwrite `state` here,
