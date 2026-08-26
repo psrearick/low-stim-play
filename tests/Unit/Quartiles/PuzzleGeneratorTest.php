@@ -1,20 +1,48 @@
 <?php
 
 use App\Services\Quartiles\PuzzleGenerator;
+use App\Services\Words\CommonWordFilter;
+
+/**
+ * Builds a CommonWordFilter fixture that treats every word in $words as
+ * common (present in the frequency corpus, absent from the excluded list)
+ * -- these tests use small, made-up word lists, so a real CommonWordFilter
+ * pointed at the app's actual storage/app/word_frequency.txt would filter
+ * most or all of them out. The exact frequency counts don't matter here:
+ * nothing in this suite depends on mostCommon()'s ranking order, only on
+ * which words survive the filter at all.
+ *
+ * @param  list<string>  $words
+ */
+function commonWordFilterFor(array $words): CommonWordFilter
+{
+    $freqPath = tempnam(sys_get_temp_dir(), 'quartiles-freq-');
+    file_put_contents($freqPath, implode("\n", array_map(
+        fn (string $word, int $i): string => "{$word}\t".(1000 - $i),
+        $words,
+        array_keys($words),
+    )));
+
+    $excludedPath = tempnam(sys_get_temp_dir(), 'quartiles-excluded-');
+    file_put_contents($excludedPath, '');
+
+    return new CommonWordFilter($freqPath, $excludedPath);
+}
 
 beforeEach(function () {
     $wordsPath = tempnam(sys_get_temp_dir(), 'quartiles-words-');
     // 6 candidates, all 8-16 letters, so pickArrayKeys(5) always has a
     // real choice to make -- plus a handful of too-short/too-long words
     // that must never be picked.
+    $candidates = ['backpack', 'chocolate', 'waterfall', 'strawberry', 'playground', 'helicopter'];
     file_put_contents($wordsPath, implode("\n", [
         'a', 'cat', 'dog', // too short
-        'backpack', 'chocolate', 'waterfall', 'strawberry', 'playground', 'helicopter',
+        ...$candidates,
         'electroencephalographic', // too long
     ]));
 
     $this->wordsPath = $wordsPath;
-    $this->generator = new PuzzleGenerator($wordsPath);
+    $this->generator = new PuzzleGenerator(commonWordFilterFor($candidates), $wordsPath);
 });
 
 afterEach(function () {
@@ -84,7 +112,7 @@ test('too few candidate words throws', function () {
     $wordsPath = tempnam(sys_get_temp_dir(), 'quartiles-words-');
     file_put_contents($wordsPath, implode("\n", ['backpack', 'chocolate']));
 
-    $generator = new PuzzleGenerator($wordsPath);
+    $generator = new PuzzleGenerator(commonWordFilterFor(['backpack', 'chocolate']), $wordsPath);
 
     try {
         expect(fn () => $generator->generate(seed: 1))->toThrow(InvalidArgumentException::class);
@@ -97,12 +125,17 @@ test('no two tiles ever share the same text', function () {
     // Real bug report: two tiles showing identical text are
     // indistinguishable to a player, so clicking the visually-right-but-
     // actually-wrong one silently fails to complete a Quad (matched by
-    // tile id, not text). Checked against the real dictionary across many
-    // seeds, not just the small fixture above, since collisions depend on
-    // which real words happen to get picked together.
+    // tile id, not text). Checked against the real dictionary/frequency
+    // corpus across many seeds, not just the small fixture above, since
+    // collisions depend on which real words happen to get picked
+    // together.
     // No Laravel helpers (storage_path()) -- this suite doesn't boot the
     // framework (tests/Pest.php only extends TestCase for Feature/Browser).
-    $generator = new PuzzleGenerator(__DIR__.'/../../../storage/app/words.txt');
+    $filter = new CommonWordFilter(
+        __DIR__.'/../../../storage/app/word_frequency.txt',
+        __DIR__.'/../../../storage/app/excluded_words.txt',
+    );
+    $generator = new PuzzleGenerator($filter, __DIR__.'/../../../storage/app/words.txt');
 
     foreach (range(1, 200) as $seed) {
         $puzzle = $generator->generate($seed);
@@ -121,16 +154,37 @@ test('a within-word collision is retried until a collision-free puzzle is found'
     // every single attempt, deterministically -- not a probabilistic
     // "might retry" case.
     $wordsPath = tempnam(sys_get_temp_dir(), 'quartiles-words-');
-    file_put_contents($wordsPath, implode("\n", [
-        str_repeat('a', 8), str_repeat('b', 8), str_repeat('c', 8),
-        str_repeat('d', 8), str_repeat('e', 8),
-    ]));
+    $candidates = [str_repeat('a', 8), str_repeat('b', 8), str_repeat('c', 8), str_repeat('d', 8), str_repeat('e', 8)];
+    file_put_contents($wordsPath, implode("\n", $candidates));
 
-    $generator = new PuzzleGenerator($wordsPath);
+    $generator = new PuzzleGenerator(commonWordFilterFor($candidates), $wordsPath);
 
     try {
         expect(fn () => $generator->generate(seed: 1))->toThrow(RuntimeException::class);
     } finally {
         unlink($wordsPath);
+    }
+});
+
+test('throws if no candidate word survives the common-word filter', function () {
+    $wordsPath = tempnam(sys_get_temp_dir(), 'quartiles-words-');
+    file_put_contents($wordsPath, implode("\n", ['backpack', 'chocolate', 'waterfall', 'strawberry', 'playground']));
+
+    // An empty filter (nothing in the frequency corpus) rather than
+    // commonWordFilterFor() -- every candidate gets dropped, so
+    // PuzzleGenerator's own constructor should fail loudly instead of
+    // silently building a puzzle generator with nothing to pick from.
+    $freqPath = tempnam(sys_get_temp_dir(), 'quartiles-freq-');
+    file_put_contents($freqPath, '');
+    $excludedPath = tempnam(sys_get_temp_dir(), 'quartiles-excluded-');
+    file_put_contents($excludedPath, '');
+
+    try {
+        expect(fn () => new PuzzleGenerator(new CommonWordFilter($freqPath, $excludedPath), $wordsPath))
+            ->toThrow(RuntimeException::class);
+    } finally {
+        unlink($wordsPath);
+        unlink($freqPath);
+        unlink($excludedPath);
     }
 });

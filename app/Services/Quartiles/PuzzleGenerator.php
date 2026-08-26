@@ -2,6 +2,7 @@
 
 namespace App\Services\Quartiles;
 
+use App\Services\Words\CommonWordFilter;
 use InvalidArgumentException;
 use Random\Engine\Mt19937;
 use Random\Randomizer;
@@ -22,6 +23,22 @@ class PuzzleGenerator
     private const MAX_WORD_LENGTH = self::TILES_PER_GROUP * self::MAX_FRAGMENT_LENGTH;
 
     /**
+     * How many of the most common 8-16 letter words to draw the 5 answer
+     * words from, out of ~36k that are both in the frequency corpus and
+     * not excluded (see CommonWordFilter). Chosen empirically (see
+     * docs/DEVLOG.md's Word Blocks section) rather than matching
+     * Wordle\AnswerPicker's own 1500 verbatim -- that number was tuned
+     * against ~4,800 candidates for a single answer the whole puzzle rests
+     * on, a much smaller pool than this game's, and a 1500-word cap here
+     * would drop 16-letter candidates to single digits. 12,000 keeps every
+     * fragment length (8 through 16 letters) meaningfully represented
+     * while still cutting the truly obscure tail (see docs/specs/
+     * quartiles.md section 1's own "occasional obscure answer word" note,
+     * which this directly addresses).
+     */
+    private const ANSWER_POOL_SIZE = 12000;
+
+    /**
      * How many times to retry picking/splitting words after landing on a
      * puzzle with a duplicate tile (see generate()'s own docblock) before
      * giving up. Never expected to actually get close to this in practice
@@ -32,17 +49,24 @@ class PuzzleGenerator
 
     /**
      * Every dictionary word long enough to split into exactly 4 fragments
-     * of 2-4 letters each -- built once per instance. Registered as a
-     * singleton (see AppServiceProvider) for the same "only read the
-     * ~79k-word file once per worker" reasoning as Boggle\Solver.
+     * of 2-4 letters each, filtered down to the most common (see
+     * ANSWER_POOL_SIZE) and screened against the excluded-words list --
+     * built once per instance. Registered as a singleton (see
+     * AppServiceProvider) for the same "only read the ~79k-word file once
+     * per worker" reasoning as Boggle\Solver.
      *
      * @var list<string>
      */
     private readonly array $candidateWords;
 
-    public function __construct(?string $wordsPath = null)
+    public function __construct(CommonWordFilter $filter, ?string $wordsPath = null)
     {
-        $this->candidateWords = $this->loadCandidates($wordsPath ?? storage_path('app/words.txt'));
+        $candidates = $this->loadCandidates($wordsPath ?? storage_path('app/words.txt'));
+        $this->candidateWords = $filter->mostCommon($candidates, self::ANSWER_POOL_SIZE);
+
+        if ($this->candidateWords === []) {
+            throw new RuntimeException('No common words available to build a Word Blocks puzzle.');
+        }
     }
 
     /**

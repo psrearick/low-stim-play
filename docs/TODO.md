@@ -8,19 +8,18 @@ The Order of Work list is a separate, ordinary numbered list reflecting current 
 
 ## Order of Work
 
-1. [Task 20: Apply CommonWordFilter to Word Blocks' answer selection](#20-apply-commonwordfilter-to-word-blocks-answer-selection)
-2. [Task 28: Add a pre-game setup screen for Wordle's Hard Mode](#28-add-a-pre-game-setup-screen-for-wordles-hard-mode)
-3. [Task 29: Support tapping a tile to edit a single letter mid-guess](#29-support-tapping-a-tile-to-edit-a-single-letter-mid-guess)
-4. [Task 21: Change Wordle scoring to reflect guess count directly](#21-change-wordle-scoring-to-reflect-guess-count-directly)
-5. [Task 25: Fix homepage game-grid responsive columns](#25-fix-homepage-game-grid-responsive-columns)
-6. [Task 30: Fix the Game Menu's dangling divider, and consider making it a right-side sidebar](#30-fix-the-game-menus-dangling-divider-and-consider-making-it-a-right-side-sidebar)
-7. [Task 32: Spec and build Fibbage](#32-spec-and-build-fibbage)
-8. [Task 22: Notify players when they're challenged, and surface it in the UI](#22-notify-players-when-theyre-challenged-and-surface-it-in-the-ui)
-9. [Task 23: Add "Sign in with Google"](#23-add-sign-in-with-google)
-10. [Task 26: Add "average percent of board found" to Word Grid stats](#26-add-average-percent-of-board-found-to-word-grid-stats)
-11. [Task 27: Split solo vs. multiplayer score stats on the Word Grid stats page](#27-split-solo-vs-multiplayer-score-stats-on-the-word-grid-stats-page)
-12. [Task 10: Spec and build Pips](#10-spec-and-build-pips)
-13. [Task 19: Spec and build Connections and Strands](#19-spec-and-build-connections-and-strands)
+1. [Task 28: Add a pre-game setup screen for Wordle's Hard Mode](#28-add-a-pre-game-setup-screen-for-wordles-hard-mode)
+2. [Task 29: Support tapping a tile to edit a single letter mid-guess](#29-support-tapping-a-tile-to-edit-a-single-letter-mid-guess)
+3. [Task 21: Change Wordle scoring to reflect guess count directly](#21-change-wordle-scoring-to-reflect-guess-count-directly)
+4. [Task 25: Fix homepage game-grid responsive columns](#25-fix-homepage-game-grid-responsive-columns)
+5. [Task 30: Fix the Game Menu's dangling divider, and consider making it a right-side sidebar](#30-fix-the-game-menus-dangling-divider-and-consider-making-it-a-right-side-sidebar)
+6. [Task 32: Spec and build Fibbage](#32-spec-and-build-fibbage)
+7. [Task 22: Notify players when they're challenged, and surface it in the UI](#22-notify-players-when-theyre-challenged-and-surface-it-in-the-ui)
+8. [Task 23: Add "Sign in with Google"](#23-add-sign-in-with-google)
+9. [Task 26: Add "average percent of board found" to Word Grid stats](#26-add-average-percent-of-board-found-to-word-grid-stats)
+10. [Task 27: Split solo vs. multiplayer score stats on the Word Grid stats page](#27-split-solo-vs-multiplayer-score-stats-on-the-word-grid-stats-page)
+11. [Task 10: Spec and build Pips](#10-spec-and-build-pips)
+12. [Task 19: Spec and build Connections and Strands](#19-spec-and-build-connections-and-strands)
 
 ## Tasks
 
@@ -39,10 +38,6 @@ Split out from Task 10 (2026-08-23) because both need real semantic content this
 Strands additionally needs a new word-placement/grid-tiling solver with no existing precedent in this app (Boggle's `Solver` finds words in a fixed grid; Strands needs to construct a grid that fits a predetermined word list, the reverse problem).
 
 Once built, wire each into the shared puzzle-code/daily-puzzle/Challenge-a-Friend infrastructure the same way as Task 10 (see that task's own wiring paragraph and `docs/DEVLOG.md`'s "Boggle"/"Word Blocks" sections).
-
-### 20. Apply CommonWordFilter to Word Blocks' answer selection
-
-Follow-up spun out of building Wordle, deliberately deferred rather than part of Wordle's own build. Apply `App\Services\Words\CommonWordFilter` (a general English word-frequency-plus-exclusion-list service, not scoped to Wordle — see `docs/DEVLOG.md`'s Wordle section and its 2026-08-23 sensitive-word-exclusion entry) to Word Blocks' own `Quartiles\PuzzleGenerator` answer-word selection (`docs/specs/quartiles.md`), since an obscure or off-putting Word Blocks answer word has the same problem Wordle's own answer selection was built to avoid — both the frequency floor (avoid obscure answers) and the `storage/app/excluded_words.txt` exclusion (avoid slurs/profanity/distressing words) apply equally to Word Blocks once wired in, since both live inside `CommonWordFilter::mostCommon()` itself.
 
 ### 21. Change Wordle scoring to reflect guess count directly
 
