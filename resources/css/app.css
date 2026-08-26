@@ -919,12 +919,48 @@ button.option.active {
     color: var(--bar);
 }
 
+/* A real grid, not flex-wrap -- flex-wrap redistributes each row's own
+   leftover space independently (same "Score column landed at a different
+   x position per row" antipattern player-stats.blade.php's own comment
+   documents), so cards ended up different widths from row to row and
+   breakpoint to breakpoint (docs/TODO.md's former Task 25: "3 columns, 2
+   columns, 1 column depending on screen size, all columns the same
+   width"). A fixed grid-template-columns per breakpoint, shared by every
+   row, guarantees every card in the grid is the same width at a given
+   screen size -- an incomplete final row (10 cards doesn't divide evenly
+   into 3) just leaves its remaining column(s) empty rather than
+   stretching the last card to fill them. justify-items: center keeps
+   .game-card's own max-width cap centered within its (possibly wider)
+   column instead of left-aligned with a visible gap, once a column's
+   share of the grid exceeds that cap.
+
+   minmax(0, 1fr), not a bare 1fr, on every track -- confirmed live this
+   distinction actually matters here, not just theoretical: a bare 1fr is
+   shorthand for minmax(auto, 1fr), and that auto minimum is each track's
+   own content-based (max-content) floor. Since each column holds a
+   different subset of game cards across rows, and their button/heading
+   text naturally varies in intrinsic width, the three columns measured
+   340/299/244px -- visibly unequal -- with plain 1fr, despite being
+   "equal fr" on paper. minmax(0, 1fr) removes that content-based floor
+   so leftover space actually splits evenly regardless of content. */
 .game-grid {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    justify-items: center;
     gap: clamp(16px, 3vmin, 32px);
     width: min(94vw, 900px);
+}
+
+@media (max-width: 899px) {
+    .game-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 600px) {
+    .game-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
 }
 
 .game-card {
@@ -936,7 +972,7 @@ button.option.active {
     border: 2px solid var(--die-border);
     border-radius: 10px;
     padding: clamp(20px, 3vmin, 32px);
-    flex: 1 1 260px;
+    width: 100%;
     max-width: 340px;
 }
 

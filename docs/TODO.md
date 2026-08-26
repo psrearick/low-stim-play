@@ -8,15 +8,14 @@ The Order of Work list is a separate, ordinary numbered list reflecting current 
 
 ## Order of Work
 
-1. [Task 25: Fix homepage game-grid responsive columns](#25-fix-homepage-game-grid-responsive-columns)
-2. [Task 30: Fix the Game Menu's dangling divider, and consider making it a right-side sidebar](#30-fix-the-game-menus-dangling-divider-and-consider-making-it-a-right-side-sidebar)
-3. [Task 32: Spec and build Fibbage](#32-spec-and-build-fibbage)
-4. [Task 22: Notify players when they're challenged, and surface it in the UI](#22-notify-players-when-theyre-challenged-and-surface-it-in-the-ui)
-5. [Task 23: Add "Sign in with Google"](#23-add-sign-in-with-google)
-6. [Task 26: Add "average percent of board found" to Word Grid stats](#26-add-average-percent-of-board-found-to-word-grid-stats)
-7. [Task 27: Split solo vs. multiplayer score stats on the Word Grid stats page](#27-split-solo-vs-multiplayer-score-stats-on-the-word-grid-stats-page)
-8. [Task 10: Spec and build Pips](#10-spec-and-build-pips)
-9. [Task 19: Spec and build Connections and Strands](#19-spec-and-build-connections-and-strands)
+1. [Task 30: Fix the Game Menu's dangling divider, and consider making it a right-side sidebar](#30-fix-the-game-menus-dangling-divider-and-consider-making-it-a-right-side-sidebar)
+2. [Task 32: Spec and build Fibbage](#32-spec-and-build-fibbage)
+3. [Task 22: Notify players when they're challenged, and surface it in the UI](#22-notify-players-when-theyre-challenged-and-surface-it-in-the-ui)
+4. [Task 23: Add "Sign in with Google"](#23-add-sign-in-with-google)
+5. [Task 26: Add "average percent of board found" to Word Grid stats](#26-add-average-percent-of-board-found-to-word-grid-stats)
+6. [Task 27: Split solo vs. multiplayer score stats on the Word Grid stats page](#27-split-solo-vs-multiplayer-score-stats-on-the-word-grid-stats-page)
+7. [Task 10: Spec and build Pips](#10-spec-and-build-pips)
+8. [Task 19: Spec and build Connections and Strands](#19-spec-and-build-connections-and-strands)
 
 ## Tasks
 
@@ -53,12 +52,6 @@ Moved from `docs/concerns.md` (2026-08-23): "sign in with google."
 Fully greenfield — no OAuth package installed (`laravel/socialite` is not in `composer.json`), no `google` entry in `config/services.php`, and no provider/`google_id` column on `users`. Fortify (`app/Providers/FortifyServiceProvider.php`) only handles email/password, 2FA, and passkeys — it has no social-login concept, so this doesn't hook into it.
 
 Needs: `composer require laravel/socialite`; a `google` block in `config/services.php` (`client_id`, `client_secret`, `redirect`) plus an actual Google Cloud OAuth app/credentials; new redirect/callback routes and a controller (Socialite has no Fortify-style scaffolding for this); and a migration adding a nullable `google_id` (or a small `provider`/`provider_id` pair) to `users`, plus a decision for the collision case where a Google account's email already matches an existing password-based account (link vs. reject vs. auto-merge).
-
-### 25. Fix homepage game-grid responsive columns
-
-Moved from `docs/concerns.md` (2026-08-23): "Homepage layout, 3 columns, 2 columns, 1 column depending on screen size, all columns the same width."
-
-`resources/views/welcome.blade.php`'s game list uses custom `.game-grid`/`.game-card` classes (not Tailwind utilities, unlike most other pages in this app) — the responsive column count/breakpoints live in `resources/css/app.css`'s `.game-grid` rule, not in the Blade template. Fix in `app.css` directly (adjust `grid-template-columns`/media queries so every column stays the same width at each breakpoint) rather than converting the markup to Tailwind grid classes, unless a broader Tailwind migration for this file is intended anyway.
 
 ### 26. Add "average percent of board found" to Word Grid stats
 
