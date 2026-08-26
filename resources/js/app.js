@@ -31,6 +31,64 @@ document.addEventListener('livewire:init', () => {
     });
 });
 
+// ---- Suppress edge-swipe back/forward navigation -----------------------
+// app.css's `overscroll-behavior-x: none` only stops the rubber-band/
+// scroll-chaining style of swipe navigation (mainly Chrome). It does
+// nothing for iOS Safari's edge-swipe-back gesture, which is a separate
+// system gesture recognizer that isn't governed by overscroll-behavior at
+// all -- confirmed still navigating away with that CSS alone in place.
+// The recognizer only arms when a touch starts within a narrow band of
+// the screen edge, so intercepting touchmove there (and only there, and
+// only once the drag is clearly horizontal rather than a vertical scroll
+// that happens to start near the edge) blocks the gesture without
+// affecting normal scrolling or any other touch interaction elsewhere on
+// the page. Most disruptive on Word Hive (see docs/DEVLOG.md), whose
+// honeycomb runs edge-to-edge on narrow screens, but the same drag can
+// start from any page, hence handling it globally rather than per-game.
+(() => {
+    const EDGE_PX = 24;
+    let watching = false;
+    let startX = 0;
+    let startY = 0;
+
+    document.addEventListener('touchstart', (e) => {
+        const touch = e.touches[0];
+
+        if (!touch) {
+            watching = false;
+
+            return;
+        }
+
+        startX = touch.clientX;
+        startY = touch.clientY;
+        watching = startX <= EDGE_PX || startX >= window.innerWidth - EDGE_PX;
+    }, { passive: true });
+
+    document.addEventListener('touchmove', (e) => {
+        if (!watching) {
+            return;
+        }
+
+        const touch = e.touches[0];
+
+        if (!touch) {
+            return;
+        }
+
+        const dx = touch.clientX - startX;
+        const dy = touch.clientY - startY;
+
+        if (Math.abs(dx) > Math.abs(dy)) {
+            e.preventDefault();
+        }
+    }, { passive: false });
+
+    document.addEventListener('touchend', () => {
+        watching = false;
+    });
+})();
+
 document.addEventListener('DOMContentLoaded', () => {
     const themeToggle = document.querySelector('[data-theme-toggle]');
 
