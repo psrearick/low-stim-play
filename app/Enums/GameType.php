@@ -33,7 +33,7 @@ enum GameType: string
             self::Farkle => '10,000',
             self::AppleMatch => 'Best Match',
             self::ClearTheDeck => 'Clear the Deck (Tens)',
-            self::Quartiles => 'Word Blocks',
+            self::Quartiles => 'Quads',
             self::Wordle => 'Five Letters',
             self::SpellingBee => 'Word Hive',
             self::Punchline => 'Punchline',
@@ -76,7 +76,7 @@ enum GameType: string
      * spectating) without detouring through the lobby/seat-assignment
      * page roomRoute() above points at. Unlike `roomRoute()` above, this
      * *is* exhaustive over every case including `self::Quartiles` --
-     * `/word-blocks` is a real, valid solo page, so mapping it costs
+     * `/quads` is a real, valid solo page, so mapping it costs
      * nothing even though nothing currently calls `playRoute()` for a
      * Quartiles instance in practice (both call sites derive their
      * `GameType` from an active room's game, and Quartiles never has one).

@@ -8,20 +8,19 @@ The Order of Work list is a separate, ordinary numbered list reflecting current 
 
 ## Order of Work
 
-1. [Task 24: Rename "Word Blocks" to "Quads"](#24-rename-word-blocks-to-quads)
-2. [Task 20: Apply CommonWordFilter to Word Blocks' answer selection](#20-apply-commonwordfilter-to-word-blocks-answer-selection)
-3. [Task 28: Add a pre-game setup screen for Wordle's Hard Mode](#28-add-a-pre-game-setup-screen-for-wordles-hard-mode)
-4. [Task 29: Support tapping a tile to edit a single letter mid-guess](#29-support-tapping-a-tile-to-edit-a-single-letter-mid-guess)
-5. [Task 21: Change Wordle scoring to reflect guess count directly](#21-change-wordle-scoring-to-reflect-guess-count-directly)
-6. [Task 25: Fix homepage game-grid responsive columns](#25-fix-homepage-game-grid-responsive-columns)
-7. [Task 30: Fix the Game Menu's dangling divider, and consider making it a right-side sidebar](#30-fix-the-game-menus-dangling-divider-and-consider-making-it-a-right-side-sidebar)
-8. [Task 32: Spec and build Fibbage](#32-spec-and-build-fibbage)
-9. [Task 22: Notify players when they're challenged, and surface it in the UI](#22-notify-players-when-theyre-challenged-and-surface-it-in-the-ui)
-10. [Task 23: Add "Sign in with Google"](#23-add-sign-in-with-google)
-11. [Task 26: Add "average percent of board found" to Word Grid stats](#26-add-average-percent-of-board-found-to-word-grid-stats)
-12. [Task 27: Split solo vs. multiplayer score stats on the Word Grid stats page](#27-split-solo-vs-multiplayer-score-stats-on-the-word-grid-stats-page)
-13. [Task 10: Spec and build Pips](#10-spec-and-build-pips)
-14. [Task 19: Spec and build Connections and Strands](#19-spec-and-build-connections-and-strands)
+1. [Task 20: Apply CommonWordFilter to Word Blocks' answer selection](#20-apply-commonwordfilter-to-word-blocks-answer-selection)
+2. [Task 28: Add a pre-game setup screen for Wordle's Hard Mode](#28-add-a-pre-game-setup-screen-for-wordles-hard-mode)
+3. [Task 29: Support tapping a tile to edit a single letter mid-guess](#29-support-tapping-a-tile-to-edit-a-single-letter-mid-guess)
+4. [Task 21: Change Wordle scoring to reflect guess count directly](#21-change-wordle-scoring-to-reflect-guess-count-directly)
+5. [Task 25: Fix homepage game-grid responsive columns](#25-fix-homepage-game-grid-responsive-columns)
+6. [Task 30: Fix the Game Menu's dangling divider, and consider making it a right-side sidebar](#30-fix-the-game-menus-dangling-divider-and-consider-making-it-a-right-side-sidebar)
+7. [Task 32: Spec and build Fibbage](#32-spec-and-build-fibbage)
+8. [Task 22: Notify players when they're challenged, and surface it in the UI](#22-notify-players-when-theyre-challenged-and-surface-it-in-the-ui)
+9. [Task 23: Add "Sign in with Google"](#23-add-sign-in-with-google)
+10. [Task 26: Add "average percent of board found" to Word Grid stats](#26-add-average-percent-of-board-found-to-word-grid-stats)
+11. [Task 27: Split solo vs. multiplayer score stats on the Word Grid stats page](#27-split-solo-vs-multiplayer-score-stats-on-the-word-grid-stats-page)
+12. [Task 10: Spec and build Pips](#10-spec-and-build-pips)
+13. [Task 19: Spec and build Connections and Strands](#19-spec-and-build-connections-and-strands)
 
 ## Tasks
 
@@ -70,14 +69,6 @@ Moved from `docs/concerns.md` (2026-08-23): "sign in with google."
 Fully greenfield — no OAuth package installed (`laravel/socialite` is not in `composer.json`), no `google` entry in `config/services.php`, and no provider/`google_id` column on `users`. Fortify (`app/Providers/FortifyServiceProvider.php`) only handles email/password, 2FA, and passkeys — it has no social-login concept, so this doesn't hook into it.
 
 Needs: `composer require laravel/socialite`; a `google` block in `config/services.php` (`client_id`, `client_secret`, `redirect`) plus an actual Google Cloud OAuth app/credentials; new redirect/callback routes and a controller (Socialite has no Fortify-style scaffolding for this); and a migration adding a nullable `google_id` (or a small `provider`/`provider_id` pair) to `users`, plus a decision for the collision case where a Google account's email already matches an existing password-based account (link vs. reject vs. auto-merge).
-
-### 24. Rename "Word Blocks" to "Quads"
-
-Moved from `docs/concerns.md` (2026-08-23): `rename "Word Blocks" to "Quads"`.
-
-Note: `docs/specs/quartiles.md` records that "Word Blocks" was itself picked from a shortlist specifically to dodge trademark issues with "Quartiles" (NYT's real name) — confirm "Quads" is similarly safe before committing to it.
-
-The single source of truth for the display label is `GameType::Quartiles => 'Word Blocks'` in `app/Enums/GameType.php` (internal `quartiles` route/DB values are unaffected — per that enum's own docblock, the internal slug doesn't need to match the display name). User-facing occurrences beyond that one line: `resources/views/welcome.blade.php` (homepage card), `resources/views/pages/⚡daily-puzzles.blade.php` (meta description, intro copy, button, archive link), `resources/views/pages/quartiles/⚡play.blade.php` (page title, meta description, rules dialog title), and `resources/views/pages/profile/quartiles/{⚡index,⚡show}.blade.php` (stats headings/empty states) — roughly 6 view files plus the one enum method. `docs/DEVLOG.md`/`docs/CHANGELOG.md`/spec files also reference "Word Blocks" extensively (~40 occurrences) but are a historical record of decisions already made under that name — leave those as-is rather than rewriting history; only new entries going forward should use the new name.
 
 ### 25. Fix homepage game-grid responsive columns
 

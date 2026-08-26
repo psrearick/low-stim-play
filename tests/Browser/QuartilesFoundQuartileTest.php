@@ -18,7 +18,7 @@
  * test's own bug.
  */
 test('finding a quartile moves its tiles into their own row with a distinct look', function () {
-    $page = visit('/word-blocks?seed=1');
+    $page = visit('/quads?seed=1');
 
     $page->assertPresent('#tile-0')
         ->assertMissing('#found-group-0');

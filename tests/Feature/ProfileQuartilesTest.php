@@ -27,14 +27,14 @@ function quartilesParticipantFor(User $user, int $score = 20, int $wordsFound = 
 }
 
 test('guests are redirected to login for the word blocks stats index', function () {
-    $this->get('/profile/word-blocks')->assertRedirect('/login');
+    $this->get('/profile/quads')->assertRedirect('/login');
 });
 
 test('guests are redirected to login for a word blocks game detail page', function () {
     $user = User::factory()->create();
     $participant = quartilesParticipantFor($user);
 
-    $this->get("/profile/word-blocks/{$participant->id}")->assertRedirect('/login');
+    $this->get("/profile/quads/{$participant->id}")->assertRedirect('/login');
 });
 
 test('the word blocks stats index renders for an authenticated user', function () {
@@ -42,7 +42,7 @@ test('the word blocks stats index renders for an authenticated user', function (
     quartilesParticipantFor($user, score: 48);
 
     $this->actingAs($user)
-        ->get('/profile/word-blocks')
+        ->get('/profile/quads')
         ->assertSeeLivewire('pages::profile.quartiles.index')
         ->assertSee('48');
 });
@@ -65,7 +65,7 @@ test('the word blocks stats index links the highest-score personal best to the g
     $best = quartilesParticipantFor($user, score: 50);
 
     $this->actingAs($user)
-        ->get('/profile/word-blocks')
+        ->get('/profile/quads')
         ->assertSee(route('profile.quartiles.show', $best), escape: false);
 });
 
@@ -74,7 +74,7 @@ test('a word blocks game detail page shows its headline stats', function () {
     $participant = quartilesParticipantFor($user, score: 62, wordsFound: 8, quartilesFound: 3);
 
     $this->actingAs($user)
-        ->get("/profile/word-blocks/{$participant->id}")
+        ->get("/profile/quads/{$participant->id}")
         ->assertSeeLivewire('pages::profile.quartiles.show')
         ->assertSee('62')
         ->assertSee('8')
@@ -92,7 +92,7 @@ test('a word blocks game detail page lists found words', function () {
     ]);
 
     $this->actingAs($user)
-        ->get("/profile/word-blocks/{$participant->id}")
+        ->get("/profile/quads/{$participant->id}")
         ->assertSee('CATS')
         ->assertSee('AT');
 });
@@ -103,7 +103,7 @@ test('a user cannot view another user\'s word blocks game detail page', function
     $participant = quartilesParticipantFor($otherUser);
 
     $this->actingAs($user)
-        ->get("/profile/word-blocks/{$participant->id}")
+        ->get("/profile/quads/{$participant->id}")
         ->assertNotFound();
 });
 
@@ -113,7 +113,7 @@ test('a word blocks game detail page 404s for a non-Quartiles participant', func
     $participant = GameParticipant::factory()->create(['game_session_id' => $session->id, 'user_id' => $user->id]);
 
     $this->actingAs($user)
-        ->get("/profile/word-blocks/{$participant->id}")
+        ->get("/profile/quads/{$participant->id}")
         ->assertNotFound();
 });
 

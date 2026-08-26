@@ -111,7 +111,7 @@ test('an expired room is never offered as resumable', function () {
     expect($component->get('resumable'))->toBeNull();
 });
 
-test('room-less games (e.g. Word Blocks) never show a resume link', function () {
+test('room-less games (e.g. Quads) never show a resume link', function () {
     $user = User::factory()->create();
 
     $component = Livewire::actingAs($user)->test('game-card-resume', ['type' => GameType::Quartiles]);

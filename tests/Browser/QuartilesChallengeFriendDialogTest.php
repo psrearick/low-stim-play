@@ -21,7 +21,7 @@ function loginAsAndVisitQuartiles(User $user): PendingAwaitablePage
         ->fill('password', 'password')
         ->click('#login-submit');
 
-    $page->navigate('/word-blocks?seed=1');
+    $page->navigate('/quads?seed=1');
 
     return $page;
 }

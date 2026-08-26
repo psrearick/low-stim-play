@@ -11,7 +11,7 @@
  * intended 56x56px (`min-h-14 w-14`).
  */
 test('a quartile tile renders as the intended 56x56px square, not the padding-inflated size', function () {
-    $page = visit('/word-blocks?seed=1');
+    $page = visit('/quads?seed=1');
 
     $page->assertPresent('#tile-0');
 

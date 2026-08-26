@@ -45,14 +45,14 @@ new class extends Component
 };
 ?>
 
-<x-slot:title>Word Blocks Game — Low Stim Play</x-slot>
+<x-slot:title>Quads Game — Low Stim Play</x-slot>
 <x-slot:sidebar>1</x-slot:sidebar>
 
 <div class="flex flex-col items-center gap-6 w-full max-w-2xl">
-    <a href="{{ route('profile.quartiles') }}" class="self-start text-sm text-text/65 hover:text-text">&larr; Word Blocks Stats</a>
+    <a href="{{ route('profile.quartiles') }}" class="self-start text-sm text-text/65 hover:text-text">&larr; Quads Stats</a>
 
     <div class="flex flex-col items-center gap-1">
-        <h1 class="text-bar font-bold tracking-wide text-2xl text-center">Word Blocks Game</h1>
+        <h1 class="text-bar font-bold tracking-wide text-2xl text-center">Quads Game</h1>
         <p class="text-sm text-text/65">{{ $participant->created_at->format('M j, Y g:ia') }}</p>
     </div>
 

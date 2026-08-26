@@ -54,16 +54,16 @@ function quartilesComponent()
 }
 
 test('the page renders for a guest, no auth required', function () {
-    $this->get('/word-blocks')->assertSeeLivewire('pages::quartiles.play');
+    $this->get('/quads')->assertSeeLivewire('pages::quartiles.play');
 });
 
 test('the trademarked "Quartiles" name never appears on the page, only "Quads"', function () {
     // docs/specs/quartiles.md's own header: this game ships under the
-    // display name "Word Blocks" (and the 4-tile groups are called
+    // display name "Quads" (and the 4-tile groups are also called
     // "Quads" in-page) specifically because "Quartiles" is NYT Games'
     // trademarked name for this mechanic, same as Boggle/Yahtzee/Family
     // Feud/Apples-to-Apples before their own renames.
-    $this->get('/word-blocks')
+    $this->get('/quads')
         ->assertDontSee('Quartiles')
         ->assertSee('Quads');
 });

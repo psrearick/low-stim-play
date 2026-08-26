@@ -27,13 +27,13 @@ new class extends Component
 ?>
 
 <x-slot:title>Daily Puzzles — Low Stim Play</x-slot>
-<x-slot:description>Play today's Word Grid, Word Blocks, Five Letters, and Word Hive daily puzzle, or catch up on a past day from the archive.</x-slot:description>
+<x-slot:description>Play today's Word Grid, Quads, Five Letters, and Word Hive daily puzzle, or catch up on a past day from the archive.</x-slot:description>
 
 <div class="flex flex-col items-center w-full gap-6" style="max-width: 640px;">
     <div class="heading">Daily Puzzles</div>
 
     <p class="text-sm text-text/65 text-center">
-        A new puzzle every day for Word Grid, Word Blocks, Five Letters, and Word Hive — everyone gets the same board. Signed in, each day can only be played once; browse back through the archive any time.
+        A new puzzle every day for Word Grid, Quads, Five Letters, and Word Hive — everyone gets the same board. Signed in, each day can only be played once; browse back through the archive any time.
     </p>
 
     {{--
@@ -50,7 +50,7 @@ new class extends Component
                 <button type="button">Play Today's Word Grid</button>
             </a>
             <a href="{{ route('quartiles.play', ['dailyDate' => now()->toDateString()]) }}" id="daily-quartiles-today">
-                <button type="button">Play Today's Word Blocks</button>
+                <button type="button">Play Today's Quads</button>
             </a>
             <a href="{{ route('wordle.play', ['dailyDate' => now()->toDateString()]) }}" id="daily-wordle-today">
                 <button type="button">Play Today's Five Letters</button>
@@ -74,7 +74,7 @@ new class extends Component
                             <a href="{{ route('boggle.play', ['dailyDate' => $date->toDateString()]) }}" id="daily-boggle-{{ $date->toDateString() }}">Word Grid</a>
                         </span>
                         <span class="px-3 py-3 {{ $loop->first ? '' : 'border-t border-surface-border' }} text-sm">
-                            <a href="{{ route('quartiles.play', ['dailyDate' => $date->toDateString()]) }}" id="daily-quartiles-{{ $date->toDateString() }}">Word Blocks</a>
+                            <a href="{{ route('quartiles.play', ['dailyDate' => $date->toDateString()]) }}" id="daily-quartiles-{{ $date->toDateString() }}">Quads</a>
                         </span>
                         <span class="px-3 py-3 {{ $loop->first ? '' : 'border-t border-surface-border' }} text-sm">
                             <a href="{{ route('wordle.play', ['dailyDate' => $date->toDateString()]) }}" id="daily-wordle-{{ $date->toDateString() }}">Five Letters</a>

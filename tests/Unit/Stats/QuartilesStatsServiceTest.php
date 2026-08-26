@@ -33,7 +33,7 @@ function quartilesGame(User $user, int $score, int $wordsFound = 0, int $quartil
     ]);
 }
 
-test('gamesForUser only returns the given user\'s own Word Blocks participants, newest first', function () {
+test('gamesForUser only returns the given user\'s own Quads participants, newest first', function () {
     $user = User::factory()->create();
     $otherUser = User::factory()->create();
 

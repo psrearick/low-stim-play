@@ -11,7 +11,7 @@ uses(RefreshDatabase::class);
  * button is actually hidden/shown in the rendered page.
  */
 test('End Game is shown during play; New Game only appears once the game has ended', function () {
-    $page = visit('/word-blocks');
+    $page = visit('/quads');
 
     $page->click('#game-menu-toggle');
 

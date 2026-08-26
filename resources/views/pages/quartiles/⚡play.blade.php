@@ -638,10 +638,10 @@ new class extends Component
 };
 ?>
 
-<x-slot:title>Word Blocks — Low Stim Play</x-slot>
-<x-slot:description>Play Word Blocks online — combine 2-4 letter tiles into words, find all 5 hidden Quads for a bonus, calm low-contrast visuals with no flashing or motion.</x-slot:description>
+<x-slot:title>Quads — Low Stim Play</x-slot>
+<x-slot:description>Play Quads online — combine 2-4 letter tiles into words, find all 5 hidden Quads for a bonus, calm low-contrast visuals with no flashing or motion.</x-slot:description>
 <x-slot:bodyClass>quartiles-play</x-slot:bodyClass>
-<x-slot:rulesTitle>Word Blocks Rules</x-slot:rulesTitle>
+<x-slot:rulesTitle>Quads Rules</x-slot:rulesTitle>
 <x-slot:rules>
     <h3>How to Use This Page</h3>
     <ul>

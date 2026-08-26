@@ -25,7 +25,7 @@ test('today gets its own prominent play card, separate from the archive list', f
     $this->get('/daily-puzzles')
         ->assertOk()
         ->assertSee("Play Today's Word Grid", false)
-        ->assertSee("Play Today's Word Blocks", false)
+        ->assertSee("Play Today's Quads", false)
         ->assertSee("Play Today's Word Hive", false);
 });
 

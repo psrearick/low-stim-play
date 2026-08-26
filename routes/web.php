@@ -102,11 +102,11 @@ Route::livewire('/profile/clear-the-deck/{gameParticipant}', 'pages::profile.cle
     ->name('profile.clear-the-deck.show');
 
 // Same registration-order reasoning as /profile/word-grid etc. above.
-Route::livewire('/profile/word-blocks', 'pages::profile.quartiles.index')
+Route::livewire('/profile/quads', 'pages::profile.quartiles.index')
     ->middleware(['auth', 'verified'])
     ->name('profile.quartiles');
 
-Route::livewire('/profile/word-blocks/{gameParticipant}', 'pages::profile.quartiles.show')
+Route::livewire('/profile/quads/{gameParticipant}', 'pages::profile.quartiles.show')
     ->middleware(['auth', 'verified'])
     ->name('profile.quartiles.show');
 
@@ -251,9 +251,9 @@ Route::livewire('/punchline/room/{code}', 'pages::punchline.room')
 // there's no room/presence-channel involved -- a guest just plays and,
 // same as an authenticated user, only gets a GameParticipant row if
 // Auth::check() at endGame().
-Route::livewire('/word-blocks', 'pages::quartiles.play')->name('quartiles.play');
+Route::livewire('/quads', 'pages::quartiles.play')->name('quartiles.play');
 
-// Solo only, no room mode at all -- same reasoning as /word-blocks above
+// Solo only, no room mode at all -- same reasoning as /quads above
 // (GameType::Wordle::supportsRooms() is false). Unlike Word Blocks, this
 // game *does* have real hidden information (the secret answer), so its own
 // mount() still needs the guest-provisioning-free "just play, only get a
@@ -277,7 +277,7 @@ Route::get('/five-letters/share/{gameSession}', function (GameSession $gameSessi
     return redirect()->route('wordle.play', ['challenge' => $gameSession->id]);
 })->name('wordle.share');
 
-// Solo only, no room mode at all -- same reasoning as /word-blocks above
+// Solo only, no room mode at all -- same reasoning as /quads above
 // (GameType::SpellingBee::supportsRooms() is false). No hidden information
 // from a server's perspective either (docs/specs/spelling-bee.md section 1):
 // every findable word is discoverable by the player from the moment the
