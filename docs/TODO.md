@@ -8,20 +8,20 @@ The Order of Work list is a separate, ordinary numbered list reflecting current 
 
 ## Order of Work
 
-1. [Task 10: Spec and build Pips](#10-spec-and-build-pips)
-2. [Task 19: Spec and build Connections and Strands](#19-spec-and-build-connections-and-strands)
-3. [Task 20: Apply CommonWordFilter to Word Blocks' answer selection](#20-apply-commonwordfilter-to-word-blocks-answer-selection)
-4. [Task 21: Change Wordle scoring to reflect guess count directly](#21-change-wordle-scoring-to-reflect-guess-count-directly)
-5. [Task 22: Notify players when they're challenged, and surface it in the UI](#22-notify-players-when-theyre-challenged-and-surface-it-in-the-ui)
-6. [Task 23: Add "Sign in with Google"](#23-add-sign-in-with-google)
-7. [Task 24: Rename "Word Blocks" to "Quads"](#24-rename-word-blocks-to-quads)
-8. [Task 25: Fix homepage game-grid responsive columns](#25-fix-homepage-game-grid-responsive-columns)
-9. [Task 26: Add "average percent of board found" to Word Grid stats](#26-add-average-percent-of-board-found-to-word-grid-stats)
-10. [Task 27: Split solo vs. multiplayer score stats on the Word Grid stats page](#27-split-solo-vs-multiplayer-score-stats-on-the-word-grid-stats-page)
-11. [Task 28: Add a pre-game setup screen for Wordle's Hard Mode](#28-add-a-pre-game-setup-screen-for-wordles-hard-mode)
-12. [Task 29: Support tapping a tile to edit a single letter mid-guess](#29-support-tapping-a-tile-to-edit-a-single-letter-mid-guess)
-13. [Task 30: Fix the Game Menu's dangling divider, and consider making it a right-side sidebar](#30-fix-the-game-menus-dangling-divider-and-consider-making-it-a-right-side-sidebar)
-14. [Task 32: Spec and build Fibbage](#32-spec-and-build-fibbage)
+1. [Task 24: Rename "Word Blocks" to "Quads"](#24-rename-word-blocks-to-quads)
+2. [Task 20: Apply CommonWordFilter to Word Blocks' answer selection](#20-apply-commonwordfilter-to-word-blocks-answer-selection)
+3. [Task 28: Add a pre-game setup screen for Wordle's Hard Mode](#28-add-a-pre-game-setup-screen-for-wordles-hard-mode)
+4. [Task 29: Support tapping a tile to edit a single letter mid-guess](#29-support-tapping-a-tile-to-edit-a-single-letter-mid-guess)
+5. [Task 21: Change Wordle scoring to reflect guess count directly](#21-change-wordle-scoring-to-reflect-guess-count-directly)
+6. [Task 25: Fix homepage game-grid responsive columns](#25-fix-homepage-game-grid-responsive-columns)
+7. [Task 30: Fix the Game Menu's dangling divider, and consider making it a right-side sidebar](#30-fix-the-game-menus-dangling-divider-and-consider-making-it-a-right-side-sidebar)
+8. [Task 32: Spec and build Fibbage](#32-spec-and-build-fibbage)
+9. [Task 22: Notify players when they're challenged, and surface it in the UI](#22-notify-players-when-theyre-challenged-and-surface-it-in-the-ui)
+10. [Task 23: Add "Sign in with Google"](#23-add-sign-in-with-google)
+11. [Task 26: Add "average percent of board found" to Word Grid stats](#26-add-average-percent-of-board-found-to-word-grid-stats)
+12. [Task 27: Split solo vs. multiplayer score stats on the Word Grid stats page](#27-split-solo-vs-multiplayer-score-stats-on-the-word-grid-stats-page)
+13. [Task 10: Spec and build Pips](#10-spec-and-build-pips)
+14. [Task 19: Spec and build Connections and Strands](#19-spec-and-build-connections-and-strands)
 
 ## Tasks
 
