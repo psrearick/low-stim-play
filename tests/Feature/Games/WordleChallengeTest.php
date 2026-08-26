@@ -22,6 +22,7 @@ function setWordleChallengeAnswer($component, string $answer): void
 
 test('a completed solo game gets a session id for building a challenge link', function () {
     Livewire::test('pages::wordle.play')
+        ->call('startGame')
         ->set('currentGuess', 'zzzzz') // rejected as not a word -- just proves gameSessionId exists pre-finish
         ->call('submitGuess')
         ->tap(function ($component) {
@@ -165,7 +166,7 @@ test('resetting is a no-op for a challenge game', function () {
 test('the reveal screen offers a Challenge a Friend button for a signed-in player finishing an ordinary game, but not a daily or a shared session', function () {
     $user = User::factory()->create();
 
-    $ordinary = Livewire::actingAs($user)->test('pages::wordle.play');
+    $ordinary = Livewire::actingAs($user)->test('pages::wordle.play')->call('startGame');
     setWordleChallengeAnswer($ordinary, 'crane');
     $ordinary->set('currentGuess', 'crane')
         ->call('submitGuess')
@@ -191,7 +192,7 @@ test('the reveal screen offers a Challenge a Friend button for a signed-in playe
 });
 
 test('the button is absent for a guest', function () {
-    $component = Livewire::test('pages::wordle.play');
+    $component = Livewire::test('pages::wordle.play')->call('startGame');
     setWordleChallengeAnswer($component, 'crane');
 
     $component->set('currentGuess', 'crane')

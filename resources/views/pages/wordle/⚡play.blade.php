@@ -66,9 +66,23 @@ new class extends Component
     public ?int $gameSessionId = null;
 
     /**
+     * True once the pre-game setup screen's "Start Game" has actually
+     * begun this playthrough -- same shape as Yahtzee's own `$started`
+     * (`docs/TODO.md`'s former Task 28). Only the plain "brand new solo
+     * game" path (no daily, no challenge, no resumable in-progress
+     * session) ever renders the setup screen; resuming, joining a
+     * challenge, or restoring an already-in-progress/finished daily all
+     * set this true immediately in mount() -- none of those has a
+     * meaningful "before you begin" decision left to make, since Hard
+     * Mode is already fixed by whatever session they're rejoining.
+     */
+    public bool $started = false;
+
+    /**
      * Whether every subsequent guess must reuse each already-revealed
-     * correct/present letter (docs/specs/wordle.md section 3). Locked once
-     * guessing starts -- see toggleHardMode().
+     * correct/present letter (docs/specs/wordle.md section 3). Chosen on
+     * the pre-game setup screen, before $started flips true -- never
+     * editable mid-game (see toggleHardMode()).
      */
     public bool $hardMode = false;
 
@@ -111,33 +125,72 @@ new class extends Component
 
     public ?string $message = null;
 
-    public function mount(AnswerPicker $answerPicker, DailyPuzzle $dailyPuzzle, GuessEvaluator $evaluator): void
+    public function mount(GuessEvaluator $evaluator): void
     {
         $this->hardModeRequirements = $evaluator->emptyHardModeRequirements(self::WORD_LENGTH);
 
         if ($this->dailyDate !== null) {
             $this->isDaily = true;
-            $this->mountDaily($answerPicker, $dailyPuzzle);
+            $this->mountDaily();
 
             return;
         }
 
         if ($this->challenge !== null) {
             $this->joinChallenge($this->challenge);
+            $this->started = true;
 
             return;
         }
 
         if (Auth::check() && $this->resumeInProgressGame()) {
+            $this->started = true;
+
             return;
         }
 
-        $this->startNewGame($answerPicker);
+        // Plain brand-new game -- the only path with a real "before you
+        // begin" choice (Hard Mode) left to make, so this is the one case
+        // that stops here and shows the setup screen instead of starting
+        // immediately. startGame() (bound to that screen's own button)
+        // does the actual startNewGame() call once Hard Mode is chosen.
+    }
+
+    /**
+     * Actually begins a playthrough once the pre-game setup screen's Hard
+     * Mode choice is confirmed -- the only place `$started` flips true for
+     * a plain new game or a first-time daily attempt (see mount()'s and
+     * mountDaily()'s own docblocks for why every other path sets it
+     * immediately instead). A no-op if already started, since this is a
+     * public Livewire action a client could otherwise call again mid-game.
+     */
+    public function startGame(AnswerPicker $answerPicker, DailyPuzzle $dailyPuzzle): void
+    {
+        if ($this->started) {
+            return;
+        }
+
+        if (! $this->isDaily) {
+            $this->startNewGame($answerPicker);
+            $this->started = true;
+
+            return;
+        }
+
+        $date = Carbon::parse($this->dailyDate)->startOfDay();
+        $this->resetProgress();
+        $this->startedAt = now()->timestamp;
+
+        if ($date->isToday() && Auth::check()) {
+            $this->startDailySession($date, $answerPicker, $dailyPuzzle);
+        }
+
+        $this->started = true;
     }
 
     public function pressKey(string $letter): void
     {
-        if ($this->ended || mb_strlen($this->currentGuess) >= self::WORD_LENGTH) {
+        if (! $this->started || $this->ended || mb_strlen($this->currentGuess) >= self::WORD_LENGTH) {
             return;
         }
 
@@ -146,7 +199,7 @@ new class extends Component
 
     public function backspace(): void
     {
-        if ($this->ended) {
+        if (! $this->started || $this->ended) {
             return;
         }
 
@@ -155,7 +208,7 @@ new class extends Component
 
     public function submitGuess(AnswerPicker $answerPicker, GuessEvaluator $evaluator, DailyPuzzle $dailyPuzzle, Solver $dictionary): void
     {
-        if ($this->ended) {
+        if (! $this->started || $this->ended) {
             return;
         }
 
@@ -212,20 +265,30 @@ new class extends Component
 
     public function toggleHardMode(): void
     {
-        if ($this->guesses !== []) {
+        if ($this->started) {
             return;
         }
 
         $this->hardMode = ! $this->hardMode;
     }
 
-    public function resetGame(AnswerPicker $answerPicker): void
+    /**
+     * Returns to the pre-game setup screen rather than immediately
+     * starting a fresh game -- Hard Mode is a setup-time choice (see
+     * $started's own docblock), so "New Game" needs to offer that choice
+     * again, not silently reuse whatever it was last set to. $hardMode
+     * itself is deliberately left untouched by resetProgress() below (a
+     * player's own preference persists across New Game), so the setup
+     * screen simply reopens pre-filled with their last choice.
+     */
+    public function resetGame(): void
     {
         if ($this->isSharedSession || $this->isDaily) {
             return;
         }
 
-        $this->startNewGame($answerPicker);
+        $this->resetProgress();
+        $this->started = false;
     }
 
     /**
@@ -519,29 +582,28 @@ new class extends Component
      * (unlike a signed-in player) since the answer never needs to be
      * looked up from anywhere but $dailyDate itself in that case -- see
      * resolveAnswer().
+     *
+     * Only restores an *existing* today's session here -- a first-time
+     * attempt at today's daily (nothing found), any other date, or a
+     * guest all leave $started false and stop here instead, same as a
+     * plain new game: startGame() is what actually begins the attempt
+     * once Hard Mode is chosen on the setup screen (see its own
+     * docblock).
      */
-    private function mountDaily(AnswerPicker $answerPicker, DailyPuzzle $dailyPuzzle): void
+    private function mountDaily(): void
     {
         $date = Carbon::parse($this->dailyDate)->startOfDay();
 
-        if ($date->isToday() && Auth::check()) {
-            $session = $this->findDailySession($date);
-
-            if ($session !== null) {
-                $this->restoreDailySession($session);
-
-                return;
-            }
-
-            $this->resetProgress();
-            $this->startedAt = now()->timestamp;
-            $this->startDailySession($date, $answerPicker, $dailyPuzzle);
-
+        if (! $date->isToday() || ! Auth::check()) {
             return;
         }
 
-        $this->resetProgress();
-        $this->startedAt = now()->timestamp;
+        $session = $this->findDailySession($date);
+
+        if ($session !== null) {
+            $this->restoreDailySession($session);
+            $this->started = true;
+        }
     }
 
     private function findDailySession(Carbon $date): ?GameSession
@@ -668,7 +730,7 @@ new class extends Component
     <h3>Full Rules</h3>
     <ul>
         <li>Guesses must be real 5-letter words, checked against the same word list Word Grid uses.</li>
-        <li>Hard mode (toggle before your first guess): every later guess must reuse each letter already revealed correct or present.</li>
+        <li>Hard mode (chosen on the setup screen before you start): every later guess must reuse each letter already revealed correct or present.</li>
         <li>The on-screen keyboard recolors each letter to the best status it's earned across all your guesses so far.</li>
     </ul>
 </x-slot:rules>
@@ -686,140 +748,162 @@ new class extends Component
         </div>
     @endteleport
 
+    {{--
+        Shown regardless of $started -- a player choosing Hard Mode on the
+        setup screen below should already know this is today's daily, not
+        an ordinary game, before they commit to starting it.
+    --}}
     @if ($isDaily)
         <p id="daily-badge" class="text-xs text-center text-accent font-bold">
             Daily Puzzle — {{ Carbon::parse($dailyDate)->format('M j, Y') }}
         </p>
     @endif
 
-    @unless ($ended)
-        <div class="flex items-center gap-2" id="hard-mode-toggle-wrap">
-            <button type="button" id="hard-mode-toggle" wire:click="toggleHardMode" @disabled($guesses !== [])
-                aria-pressed="{{ $hardMode ? 'true' : 'false' }}">
-                Hard Mode: {{ $hardMode ? 'On' : 'Off' }}
-            </button>
-        </div>
-    @endunless
+    @unless ($started)
+        {{--
+            Hard Mode used to be an in-game toggle, disabled after the
+            first guess -- confusing, since "locked but still visible"
+            reads as broken rather than intentional (docs/concerns.md).
+            Moved to its own pre-game screen instead, the same
+            `.setup`/`.setup-row`/`.option-group` shape Yahtzee's own
+            player-count/Undo setup already established: nothing about
+            this playthrough exists yet (no GameSession row, no word
+            picked) until startGame() runs.
+        --}}
+        <div class="setup" id="setup">
+            <div class="heading">Five Letters</div>
 
-    {{--
-        Explains what the color + corner mark on a guessed tile actually
-        means -- previously only described in prose inside the Rules
-        dialog, easy to miss entirely for a first-time player. Reuses
-        tileClasses()/tileMark() directly (same source the real grid/
-        keyboard render from below), so this can never silently drift out
-        of sync with what a real guessed tile actually looks like.
-    --}}
-    <div class="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-text/80" id="wordle-legend">
-        @foreach (['correct' => 'Correct spot', 'present' => 'Wrong spot', 'absent' => 'Not in word'] as $legendStatus => $legendLabel)
-            <span class="flex items-center gap-1.5" wire:key="legend-{{ $legendStatus }}">
-                <span class="relative flex items-center justify-center rounded border-2 text-[0.65rem] font-bold uppercase w-5 h-5 {{ $this->tileClasses($legendStatus) }}">
-                    A
-                    @if ($this->tileMark($legendStatus) !== '')
-                        <span class="absolute -top-0.5 -right-0.5 text-[0.5rem] leading-none" aria-hidden="true">{{ $this->tileMark($legendStatus) }}</span>
-                    @endif
-                </span>
-                {{ $legendLabel }}
-            </span>
-        @endforeach
-    </div>
-
-    <div class="flex flex-col items-center gap-1" id="wordle-grid">
-        @for ($row = 0; $row < self::MAX_GUESSES; $row++)
-            <div class="grid grid-cols-5 gap-1.5" wire:key="row-{{ $row }}">
-                @for ($col = 0; $col < self::WORD_LENGTH; $col++)
-                    @php
-                        $guessRow = $guesses[$row] ?? null;
-                        $letter = $guessRow['word'][$col] ?? ($row === count($guesses) ? ($currentGuess[$col] ?? '') : '');
-                        $status = $guessRow['result'][$col] ?? null;
-                        $mark = $this->tileMark($status);
-                    @endphp
-                    <div id="cell-{{ $row }}-{{ $col }}" wire:key="cell-{{ $row }}-{{ $col }}"
-                        class="relative aspect-square w-14 flex items-center justify-center rounded-lg border-2 text-xl font-bold uppercase {{ $this->tileClasses($status) }}">
-                        {{ $letter }}
-                        @if ($mark !== '')
-                            <span class="absolute top-0.5 right-1 text-[0.6rem] leading-none" aria-hidden="true">{{ $mark }}</span>
-                        @endif
-                    </div>
-                @endfor
+            <div class="setup-row">
+                <div class="label">Hard Mode</div>
+                <div class="option-group">
+                    <button type="button" id="hard-mode-off" class="option {{ ! $hardMode ? 'active' : '' }}" wire:click="$set('hardMode', false)">Off</button>
+                    <button type="button" id="hard-mode-on" class="option {{ $hardMode ? 'active' : '' }}" wire:click="$set('hardMode', true)">On</button>
+                </div>
             </div>
-        @endfor
-    </div>
 
-    @if ($message)
-        <p class="status-line" style="color: var(--warn);" id="wordle-message">{{ $message }}</p>
-    @endif
-
-    @unless ($ended)
-        <div class="flex flex-col items-center gap-3 w-full">
-            <form class="flex gap-2 w-full justify-center" wire:submit="submitGuess">
-                <input type="text" id="wordle-input" wire:model="currentGuess"
-                    maxlength="{{ self::WORD_LENGTH }}" autocomplete="off" autocapitalize="off" spellcheck="false"
-                    class="text-center uppercase tracking-widest" style="width: 10rem;">
-                <button type="submit" id="wordle-submit-btn">Submit</button>
-            </form>
-
-            {{--
-                A read-only-status, clickable QWERTY keyboard -- clicking a
-                letter appends to $currentGuess (same as typing it), and
-                each key recolors to its best-known status across every
-                guess so far (getKeyboardStatusProperty()). Pairing color
-                with the small mark below (not shown on the keyboard itself,
-                since a full-size mark per tiny key would be unreadable) is
-                covered by the main grid above -- this row's job is glanceable
-                recoloring, not the primary correctness signal.
-            --}}
-            <div class="flex flex-col items-center gap-1.5 w-full" id="wordle-keyboard">
-                @foreach (['qwertyuiop', 'asdfghjkl', 'zxcvbnm'] as $rowLetters)
-                    <div class="flex gap-1 justify-center">
-                        @foreach (str_split($rowLetters) as $letter)
-                            @php $keyStatus = $this->keyboardStatus[$letter] ?? null; @endphp
-                            <button type="button" id="key-{{ $letter }}" wire:key="key-{{ $letter }}" wire:click="pressKey('{{ $letter }}')"
-                                class="rounded border-2 text-xs font-bold uppercase px-2 py-2.5 {{ $this->tileClasses($keyStatus) }}">
-                                {{ $letter }}
-                            </button>
-                        @endforeach
-                    </div>
-                @endforeach
-                <button type="button" id="wordle-backspace-btn" wire:click="backspace" class="text-xs px-3 py-2">Backspace</button>
-            </div>
+            <button type="button" id="start-game-btn" wire:click="startGame">Start Game</button>
         </div>
     @else
-        <div class="flex flex-col items-center gap-4 w-full">
-            <p class="status-line text-center" id="wordle-result">
-                @if ($won)
-                    Solved in {{ count($guesses) }} {{ count($guesses) === 1 ? 'guess' : 'guesses' }}!
-                @else
-                    The word was {{ strtoupper((string) $answerReveal) }}.
-                @endif
-            </p>
-
-            @if ($isSharedSession && $this->otherParticipants->isNotEmpty())
-                <div class="flex flex-col gap-2 w-full">
-                    <p class="text-sm text-text/80 font-bold">Others who've played this challenge</p>
-                    <div class="flex flex-wrap justify-center gap-2 w-full">
-                        @foreach ($this->otherParticipants as $participant)
-                            <span wire:key="other-{{ $participant->id }}" class="text-sm bg-surface border border-surface-border rounded px-3 py-1.5 text-text">
-                                {{ $participant->user->name ?? $participant->guest_name }} —
-                                {{ ($participant->stats['won'] ?? false) ? ($participant->stats['guess_count'].' guesses') : 'did not solve it' }}
-                            </span>
-                        @endforeach
-                    </div>
-                </div>
-            @endif
-
-            @if ($isDaily && $dailyDate === now()->toDateString())
-                {{-- Covers both a just-finished today's daily (this same
-                     request) and a restored, already-done one
-                     ($dailyAlreadyDone) -- either way there's nothing left
-                     to play until tomorrow. --}}
-                <x-daily-countdown :resets-at="now()->addDay()->startOfDay()->timestamp" />
-            @elseif (! $isDaily && ! $isSharedSession && $gameSessionId !== null)
-                @auth
-                    <livewire:challenge-friend :game-type="GameType::Wordle"
-                        :link="route('wordle.share', ['gameSession' => $gameSessionId])"
-                        wire:key="challenge-friend-wordle-{{ $gameSessionId }}" />
-                @endauth
-            @endif
+        {{--
+            Explains what the color + corner mark on a guessed tile actually
+            means -- previously only described in prose inside the Rules
+            dialog, easy to miss entirely for a first-time player. Reuses
+            tileClasses()/tileMark() directly (same source the real grid/
+            keyboard render from below), so this can never silently drift out
+            of sync with what a real guessed tile actually looks like.
+        --}}
+        <div class="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-text/80" id="wordle-legend">
+            @foreach (['correct' => 'Correct spot', 'present' => 'Wrong spot', 'absent' => 'Not in word'] as $legendStatus => $legendLabel)
+                <span class="flex items-center gap-1.5" wire:key="legend-{{ $legendStatus }}">
+                    <span class="relative flex items-center justify-center rounded border-2 text-[0.65rem] font-bold uppercase w-5 h-5 {{ $this->tileClasses($legendStatus) }}">
+                        A
+                        @if ($this->tileMark($legendStatus) !== '')
+                            <span class="absolute -top-0.5 -right-0.5 text-[0.5rem] leading-none" aria-hidden="true">{{ $this->tileMark($legendStatus) }}</span>
+                        @endif
+                    </span>
+                    {{ $legendLabel }}
+                </span>
+            @endforeach
         </div>
+
+        <div class="flex flex-col items-center gap-1" id="wordle-grid">
+            @for ($row = 0; $row < self::MAX_GUESSES; $row++)
+                <div class="grid grid-cols-5 gap-1.5" wire:key="row-{{ $row }}">
+                    @for ($col = 0; $col < self::WORD_LENGTH; $col++)
+                        @php
+                            $guessRow = $guesses[$row] ?? null;
+                            $letter = $guessRow['word'][$col] ?? ($row === count($guesses) ? ($currentGuess[$col] ?? '') : '');
+                            $status = $guessRow['result'][$col] ?? null;
+                            $mark = $this->tileMark($status);
+                        @endphp
+                        <div id="cell-{{ $row }}-{{ $col }}" wire:key="cell-{{ $row }}-{{ $col }}"
+                            class="relative aspect-square w-14 flex items-center justify-center rounded-lg border-2 text-xl font-bold uppercase {{ $this->tileClasses($status) }}">
+                            {{ $letter }}
+                            @if ($mark !== '')
+                                <span class="absolute top-0.5 right-1 text-[0.6rem] leading-none" aria-hidden="true">{{ $mark }}</span>
+                            @endif
+                        </div>
+                    @endfor
+                </div>
+            @endfor
+        </div>
+
+        @if ($message)
+            <p class="status-line" style="color: var(--warn);" id="wordle-message">{{ $message }}</p>
+        @endif
+
+        @unless ($ended)
+            <div class="flex flex-col items-center gap-3 w-full">
+                <form class="flex gap-2 w-full justify-center" wire:submit="submitGuess">
+                    <input type="text" id="wordle-input" wire:model="currentGuess"
+                        maxlength="{{ self::WORD_LENGTH }}" autocomplete="off" autocapitalize="off" spellcheck="false"
+                        class="text-center uppercase tracking-widest" style="width: 10rem;">
+                    <button type="submit" id="wordle-submit-btn">Submit</button>
+                </form>
+
+                {{--
+                    A read-only-status, clickable QWERTY keyboard -- clicking a
+                    letter appends to $currentGuess (same as typing it), and
+                    each key recolors to its best-known status across every
+                    guess so far (getKeyboardStatusProperty()). Pairing color
+                    with the small mark below (not shown on the keyboard itself,
+                    since a full-size mark per tiny key would be unreadable) is
+                    covered by the main grid above -- this row's job is glanceable
+                    recoloring, not the primary correctness signal.
+                --}}
+                <div class="flex flex-col items-center gap-1.5 w-full" id="wordle-keyboard">
+                    @foreach (['qwertyuiop', 'asdfghjkl', 'zxcvbnm'] as $rowLetters)
+                        <div class="flex gap-1 justify-center">
+                            @foreach (str_split($rowLetters) as $letter)
+                                @php $keyStatus = $this->keyboardStatus[$letter] ?? null; @endphp
+                                <button type="button" id="key-{{ $letter }}" wire:key="key-{{ $letter }}" wire:click="pressKey('{{ $letter }}')"
+                                    class="rounded border-2 text-xs font-bold uppercase px-2 py-2.5 {{ $this->tileClasses($keyStatus) }}">
+                                    {{ $letter }}
+                                </button>
+                            @endforeach
+                        </div>
+                    @endforeach
+                    <button type="button" id="wordle-backspace-btn" wire:click="backspace" class="text-xs px-3 py-2">Backspace</button>
+                </div>
+            </div>
+        @else
+            <div class="flex flex-col items-center gap-4 w-full">
+                <p class="status-line text-center" id="wordle-result">
+                    @if ($won)
+                        Solved in {{ count($guesses) }} {{ count($guesses) === 1 ? 'guess' : 'guesses' }}!
+                    @else
+                        The word was {{ strtoupper((string) $answerReveal) }}.
+                    @endif
+                </p>
+
+                @if ($isSharedSession && $this->otherParticipants->isNotEmpty())
+                    <div class="flex flex-col gap-2 w-full">
+                        <p class="text-sm text-text/80 font-bold">Others who've played this challenge</p>
+                        <div class="flex flex-wrap justify-center gap-2 w-full">
+                            @foreach ($this->otherParticipants as $participant)
+                                <span wire:key="other-{{ $participant->id }}" class="text-sm bg-surface border border-surface-border rounded px-3 py-1.5 text-text">
+                                    {{ $participant->user->name ?? $participant->guest_name }} —
+                                    {{ ($participant->stats['won'] ?? false) ? ($participant->stats['guess_count'].' guesses') : 'did not solve it' }}
+                                </span>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
+
+                @if ($isDaily && $dailyDate === now()->toDateString())
+                    {{-- Covers both a just-finished today's daily (this same
+                         request) and a restored, already-done one
+                         ($dailyAlreadyDone) -- either way there's nothing left
+                         to play until tomorrow. --}}
+                    <x-daily-countdown :resets-at="now()->addDay()->startOfDay()->timestamp" />
+                @elseif (! $isDaily && ! $isSharedSession && $gameSessionId !== null)
+                    @auth
+                        <livewire:challenge-friend :game-type="GameType::Wordle"
+                            :link="route('wordle.share', ['gameSession' => $gameSessionId])"
+                            wire:key="challenge-friend-wordle-{{ $gameSessionId }}" />
+                    @endauth
+                @endif
+            </div>
+        @endif
     @endif
 </div>

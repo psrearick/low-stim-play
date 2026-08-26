@@ -13,8 +13,8 @@ test('a daily link produces the same answer regardless of who opens it', functio
     $firstUser = User::factory()->create();
     $secondUser = User::factory()->create();
 
-    $first = Livewire::actingAs($firstUser)->test('pages::wordle.play', ['dailyDate' => $date]);
-    $second = Livewire::actingAs($secondUser)->test('pages::wordle.play', ['dailyDate' => $date]);
+    $first = Livewire::actingAs($firstUser)->test('pages::wordle.play', ['dailyDate' => $date])->call('startGame');
+    $second = Livewire::actingAs($secondUser)->test('pages::wordle.play', ['dailyDate' => $date])->call('startGame');
 
     // The answer is never a public property (see docs/specs/wordle.md
     // section 1), so determinism is confirmed indirectly: the same guess
@@ -25,7 +25,10 @@ test('a daily link produces the same answer regardless of who opens it', functio
     expect($first->get('guesses'))->toBe($second->get('guesses'));
 });
 
-test('a daily puzzle shows an in-play badge naming it as such, unlike an ordinary game', function () {
+test('a daily puzzle shows an in-play badge naming it as such, unlike an ordinary game, even before Start Game', function () {
+    // TODO Task 28: the badge lives outside the $started gate specifically
+    // so it's visible on the pre-game setup screen too -- a player
+    // choosing Hard Mode should already know this is today's daily.
     $date = now()->startOfDay()->toDateString();
 
     Livewire::test('pages::wordle.play', ['dailyDate' => $date])
@@ -36,12 +39,16 @@ test('a daily puzzle shows an in-play badge naming it as such, unlike an ordinar
         ->assertDontSee('Daily Puzzle');
 });
 
-test("a signed-in user gets an early GameSession for today's daily, tagged is_daily, with the answer already stored", function () {
+test("a signed-in user gets an early GameSession for today's daily once started, tagged is_daily, with the answer already stored", function () {
     $user = User::factory()->create();
     Livewire::actingAs($user);
 
     $date = now()->startOfDay()->toDateString();
     $component = Livewire::test('pages::wordle.play', ['dailyDate' => $date]);
+
+    expect(GameSession::count())->toBe(0); // not yet -- still on the setup screen
+
+    $component->call('startGame');
 
     $session = GameSession::sole();
     expect($session->is_daily)->toBeTrue()
@@ -55,9 +62,13 @@ test('reloading a finished daily restores the stored result instead of a fresh g
     $user = User::factory()->create();
     $date = now()->startOfDay()->toDateString();
 
-    $component = Livewire::actingAs($user)->test('pages::wordle.play', ['dailyDate' => $date]);
+    $component = Livewire::actingAs($user)->test('pages::wordle.play', ['dailyDate' => $date])->call('startGame');
     $answer = GameSession::sole()->settings['answer'];
 
+    // A second mount of the same user/date finds the now-existing session
+    // and restores it automatically ($started true without calling
+    // startGame() again) -- this is "reopening the page mid-attempt," not
+    // a fresh start.
     Livewire::actingAs($user)
         ->test('pages::wordle.play', ['dailyDate' => $date])
         ->set('currentGuess', $answer)
@@ -65,7 +76,8 @@ test('reloading a finished daily restores the stored result instead of a fresh g
 
     $resumed = Livewire::actingAs($user)->test('pages::wordle.play', ['dailyDate' => $date]);
 
-    expect($resumed->get('ended'))->toBeTrue()
+    expect($resumed->get('started'))->toBeTrue()
+        ->and($resumed->get('ended'))->toBeTrue()
         ->and($resumed->get('dailyAlreadyDone'))->toBeTrue()
         ->and($resumed->get('won'))->toBeTrue()
         ->and($resumed->get('answerReveal'))->toBe($answer);
@@ -79,12 +91,15 @@ test('reloading an in-progress daily resumes the guesses made so far', function 
 
     Livewire::actingAs($user)
         ->test('pages::wordle.play', ['dailyDate' => $date])
+        ->call('startGame')
         ->set('currentGuess', 'stone')
         ->call('submitGuess');
 
+    // Same "reopening mid-attempt auto-restores" shape as the test above.
     $resumed = Livewire::actingAs($user)->test('pages::wordle.play', ['dailyDate' => $date]);
 
-    expect($resumed->get('ended'))->toBeFalse()
+    expect($resumed->get('started'))->toBeTrue()
+        ->and($resumed->get('ended'))->toBeFalse()
         ->and($resumed->get('dailyAlreadyDone'))->toBeFalse()
         ->and($resumed->get('guesses'))->toHaveCount(1)
         ->and($resumed->get('guesses')[0]['word'])->toBe('stone');
@@ -98,6 +113,7 @@ test('a past daily date is always freely replayable, with no lock and no early s
 
     Livewire::actingAs($user)
         ->test('pages::wordle.play', ['dailyDate' => $pastDate])
+        ->call('startGame')
         ->set('currentGuess', 'stone')
         ->call('submitGuess');
 
@@ -111,6 +127,7 @@ test('a guest gets no lock and no early session row for a daily, even for today'
     $date = now()->startOfDay()->toDateString();
 
     Livewire::test('pages::wordle.play', ['dailyDate' => $date])
+        ->call('startGame')
         ->set('currentGuess', 'stone')
         ->call('submitGuess');
 
@@ -123,9 +140,9 @@ test('a guest still gets a real, evaluated guess against the deterministic daily
     // The same date always resolves to the same answer -- confirmed the
     // same way as the multi-user test above, since the answer itself is
     // never a public property to compare directly.
-    $first = Livewire::test('pages::wordle.play', ['dailyDate' => $date])
+    $first = Livewire::test('pages::wordle.play', ['dailyDate' => $date])->call('startGame')
         ->set('currentGuess', 'crane')->call('submitGuess');
-    $second = Livewire::test('pages::wordle.play', ['dailyDate' => $date])
+    $second = Livewire::test('pages::wordle.play', ['dailyDate' => $date])->call('startGame')
         ->set('currentGuess', 'crane')->call('submitGuess');
 
     expect($first->get('guesses'))->toBe($second->get('guesses'));
@@ -135,7 +152,7 @@ test("today's daily New Game button links to the archive instead of offering a r
     $user = User::factory()->create();
     $date = now()->startOfDay()->toDateString();
 
-    $component = Livewire::actingAs($user)->test('pages::wordle.play', ['dailyDate' => $date]);
+    $component = Livewire::actingAs($user)->test('pages::wordle.play', ['dailyDate' => $date])->call('startGame');
     $answer = GameSession::sole()->settings['answer'];
     $component->set('currentGuess', $answer)->call('submitGuess');
 
@@ -147,6 +164,7 @@ test("resetGame is a no-op for a daily, whether or not it's finished", function 
     $date = now()->startOfDay()->toDateString();
 
     $component = Livewire::test('pages::wordle.play', ['dailyDate' => $date])
+        ->call('startGame')
         ->set('currentGuess', 'stone')
         ->call('submitGuess')
         ->call('resetGame');
@@ -158,7 +176,7 @@ test('a finished daily shows the come-back-tomorrow countdown instead of a chall
     $user = User::factory()->create();
     $date = now()->startOfDay()->toDateString();
 
-    $component = Livewire::actingAs($user)->test('pages::wordle.play', ['dailyDate' => $date]);
+    $component = Livewire::actingAs($user)->test('pages::wordle.play', ['dailyDate' => $date])->call('startGame');
     $answer = GameSession::sole()->settings['answer'];
     $component->set('currentGuess', $answer)->call('submitGuess');
 

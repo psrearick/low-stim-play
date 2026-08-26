@@ -8,18 +8,17 @@ The Order of Work list is a separate, ordinary numbered list reflecting current 
 
 ## Order of Work
 
-1. [Task 28: Add a pre-game setup screen for Wordle's Hard Mode](#28-add-a-pre-game-setup-screen-for-wordles-hard-mode)
-2. [Task 29: Support tapping a tile to edit a single letter mid-guess](#29-support-tapping-a-tile-to-edit-a-single-letter-mid-guess)
-3. [Task 21: Change Wordle scoring to reflect guess count directly](#21-change-wordle-scoring-to-reflect-guess-count-directly)
-4. [Task 25: Fix homepage game-grid responsive columns](#25-fix-homepage-game-grid-responsive-columns)
-5. [Task 30: Fix the Game Menu's dangling divider, and consider making it a right-side sidebar](#30-fix-the-game-menus-dangling-divider-and-consider-making-it-a-right-side-sidebar)
-6. [Task 32: Spec and build Fibbage](#32-spec-and-build-fibbage)
-7. [Task 22: Notify players when they're challenged, and surface it in the UI](#22-notify-players-when-theyre-challenged-and-surface-it-in-the-ui)
-8. [Task 23: Add "Sign in with Google"](#23-add-sign-in-with-google)
-9. [Task 26: Add "average percent of board found" to Word Grid stats](#26-add-average-percent-of-board-found-to-word-grid-stats)
-10. [Task 27: Split solo vs. multiplayer score stats on the Word Grid stats page](#27-split-solo-vs-multiplayer-score-stats-on-the-word-grid-stats-page)
-11. [Task 10: Spec and build Pips](#10-spec-and-build-pips)
-12. [Task 19: Spec and build Connections and Strands](#19-spec-and-build-connections-and-strands)
+1. [Task 29: Support tapping a tile to edit a single letter mid-guess](#29-support-tapping-a-tile-to-edit-a-single-letter-mid-guess)
+2. [Task 21: Change Wordle scoring to reflect guess count directly](#21-change-wordle-scoring-to-reflect-guess-count-directly)
+3. [Task 25: Fix homepage game-grid responsive columns](#25-fix-homepage-game-grid-responsive-columns)
+4. [Task 30: Fix the Game Menu's dangling divider, and consider making it a right-side sidebar](#30-fix-the-game-menus-dangling-divider-and-consider-making-it-a-right-side-sidebar)
+5. [Task 32: Spec and build Fibbage](#32-spec-and-build-fibbage)
+6. [Task 22: Notify players when they're challenged, and surface it in the UI](#22-notify-players-when-theyre-challenged-and-surface-it-in-the-ui)
+7. [Task 23: Add "Sign in with Google"](#23-add-sign-in-with-google)
+8. [Task 26: Add "average percent of board found" to Word Grid stats](#26-add-average-percent-of-board-found-to-word-grid-stats)
+9. [Task 27: Split solo vs. multiplayer score stats on the Word Grid stats page](#27-split-solo-vs-multiplayer-score-stats-on-the-word-grid-stats-page)
+10. [Task 10: Spec and build Pips](#10-spec-and-build-pips)
+11. [Task 19: Spec and build Connections and Strands](#19-spec-and-build-connections-and-strands)
 
 ## Tasks
 
@@ -84,14 +83,6 @@ Moved from `docs/concerns.md` (2026-08-23): "The score in word grid should be di
 Confirmed: the backend already distinguishes the two. `GameSession.mode` (`GameMode::Solo`/`Online`/etc.) and `PlayerStatsService::avgScoreByMode()` (`app/Services/Stats/PlayerStatsService.php`) already compute separate solo/online averages precisely because Boggle's room score is rewritten into an "exclusive" score by `SharedSessionFinalizer` (a word found by more than one player scores nothing for anyone) — a genuinely different scale from solo scoring, not just a different mode label. This split already renders on the dashboard (`resources/views/components/player-stats.blade.php`, "X avg score (solo)" / "Y avg score (rooms)").
 
 The gap is specifically the dedicated Word Grid stats page (`resources/views/pages/profile/boggle/⚡index.blade.php`): `BoggleStatsService::bestMetrics()` computes "Highest score" and friends across **all modes combined**, blending solo raw scores with room "exclusive" scores into one figure — exactly the mixed-scale problem `avgScoreByMode()`'s own docblock warns against, just not yet applied here. The "All games" table already shows a per-row Mode column, so this is about the aggregate tiles, not the raw list: split `bestMetrics()` into solo/online variants (or filter by mode before computing), mirroring `avgScoreByMode()`'s existing approach.
-
-### 28. Add a pre-game setup screen for Wordle's Hard Mode
-
-Moved from `docs/concerns.md` (2026-08-23): "Wordle/Five Letters needs a setup screen like the other games where Hard Mode can be selected. Hard Mode should not be a toggle on the actual game, but selected before beginning the game."
-
-Hard Mode currently toggles in-game (`resources/views/pages/wordle/⚡play.blade.php`: `$hardMode`, `toggleHardMode()`) as a button sitting directly above the grid, disabled but still visible once the first guess is made — there's no separate setup step before play begins at all; Wordle starts playing immediately in `mount()`.
-
-Yahtzee's component (`resources/views/pages/yahtzee/⚡play.blade.php`) is the existing pattern to match: a `$started` flag gates `@unless ($started)` setup markup (player count, names, an `$undoEnabled` toggle explicitly documented as "chosen on the setup screen") versus `@if ($started)` gameplay, flipped by a `startGame()` action. Bringing Wordle in line means adding an equivalent `$started` property, moving the Hard Mode toggle into a new pre-game setup block, gating the grid/keyboard behind `$started`, and adding a `startGame()` action — a bigger structural change than it sounds, since today nothing in Wordle defers rendering until an explicit start action.
 
 ### 29. Support tapping a tile to edit a single letter mid-guess
 

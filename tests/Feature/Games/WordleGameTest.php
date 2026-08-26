@@ -34,13 +34,36 @@ test('the trademarked "Wordle" name never appears on the page, only "Five Letter
         ->assertSee('Five Letters');
 });
 
-test('mounting an ordinary game creates an early GameSession row for a guest too, unlike Word Blocks', function () {
+test('a fresh visit shows the pre-game setup screen instead of starting immediately', function () {
+    // TODO Task 28: Hard Mode moved from an in-game toggle to a setup
+    // screen choice -- nothing about the playthrough (word, GameSession
+    // row) should exist until startGame() actually runs.
+    $component = Livewire::test('pages::wordle.play');
+
+    $component->assertSee('Start Game')
+        ->assertDontSee('wordle-input', false);
+
+    expect($component->get('started'))->toBeFalse()
+        ->and(GameSession::count())->toBe(0);
+});
+
+test('actions are no-ops before the game has started', function () {
+    $component = Livewire::test('pages::wordle.play');
+
+    $component->call('pressKey', 'a')->call('submitGuess');
+
+    expect($component->get('currentGuess'))->toBe('')
+        ->and($component->get('guesses'))->toBe([])
+        ->and(GameSession::count())->toBe(0);
+});
+
+test('starting an ordinary game creates an early GameSession row for a guest too, unlike Word Blocks', function () {
     // Deliberate divergence from Quartiles' own "a guest gets no early row"
     // behavior -- see docs/specs/wordle.md section 3: the secret answer has
     // to live somewhere server-side from the very first request, since
     // (unlike Word Blocks) there's no public seed to regenerate it from on
     // demand.
-    Livewire::test('pages::wordle.play');
+    Livewire::test('pages::wordle.play')->call('startGame');
 
     $session = GameSession::sole();
     expect($session->type)->toBe(GameType::Wordle)
@@ -48,11 +71,11 @@ test('mounting an ordinary game creates an early GameSession row for a guest too
         ->and($session->settings)->toHaveKey('answer');
 });
 
-test('mounting an ordinary game creates an early GameSession row for a signed-in user', function () {
+test('starting an ordinary game creates an early GameSession row for a signed-in user', function () {
     $user = User::factory()->create();
     Livewire::actingAs($user);
 
-    $component = Livewire::test('pages::wordle.play');
+    $component = Livewire::test('pages::wordle.play')->call('startGame');
 
     $session = GameSession::sole();
     expect($session->user_id)->toBe($user->id)
@@ -61,7 +84,7 @@ test('mounting an ordinary game creates an early GameSession row for a signed-in
 });
 
 test('the secret answer is never exposed on any public property while playing', function () {
-    $component = Livewire::test('pages::wordle.play');
+    $component = Livewire::test('pages::wordle.play')->call('startGame');
     setWordleAnswer($component, 'crane');
 
     $component->set('currentGuess', 'chase')->call('submitGuess');
@@ -77,7 +100,7 @@ test('the secret answer is never exposed on any public property while playing', 
 });
 
 test('submitGuess rejects a guess of the wrong length', function () {
-    $component = Livewire::test('pages::wordle.play')
+    $component = Livewire::test('pages::wordle.play')->call('startGame')
         ->set('currentGuess', 'ab')
         ->call('submitGuess');
 
@@ -86,7 +109,7 @@ test('submitGuess rejects a guess of the wrong length', function () {
 });
 
 test('submitGuess rejects a guess not in the dictionary', function () {
-    $component = Livewire::test('pages::wordle.play')
+    $component = Livewire::test('pages::wordle.play')->call('startGame')
         ->set('currentGuess', 'zzzzz')
         ->call('submitGuess');
 
@@ -95,7 +118,7 @@ test('submitGuess rejects a guess not in the dictionary', function () {
 });
 
 test('submitGuess evaluates correct, present, and absent letters correctly', function () {
-    $component = Livewire::test('pages::wordle.play');
+    $component = Livewire::test('pages::wordle.play')->call('startGame');
     setWordleAnswer($component, 'crane');
 
     // "raise" vs "crane": r present, a present, i absent, s absent, e correct.
@@ -107,7 +130,7 @@ test('submitGuess evaluates correct, present, and absent letters correctly', fun
 });
 
 test('a winning guess ends the game, scores it, and reveals the answer', function () {
-    $component = Livewire::test('pages::wordle.play');
+    $component = Livewire::test('pages::wordle.play')->call('startGame');
     setWordleAnswer($component, 'crane');
 
     $component->set('currentGuess', 'crane')->call('submitGuess');
@@ -123,7 +146,7 @@ test('a winning guess ends the game, scores it, and reveals the answer', functio
 });
 
 test('using all 6 guesses without winning ends the game with a zero score and reveals the answer', function () {
-    $component = Livewire::test('pages::wordle.play');
+    $component = Livewire::test('pages::wordle.play')->call('startGame');
     setWordleAnswer($component, 'crane');
 
     foreach (['stone', 'plumb', 'light', 'words', 'happy', 'zonal'] as $guess) {
@@ -142,7 +165,7 @@ test('using all 6 guesses without winning ends the game with a zero score and re
 });
 
 test('a guest ended game creates a guest GameParticipant', function () {
-    $component = Livewire::test('pages::wordle.play');
+    $component = Livewire::test('pages::wordle.play')->call('startGame');
     setWordleAnswer($component, 'crane');
 
     $component->set('currentGuess', 'crane')->call('submitGuess');
@@ -152,21 +175,23 @@ test('a guest ended game creates a guest GameParticipant', function () {
         ->and($participant->guest_name)->toBe('Guest');
 });
 
-test('toggleHardMode only works before the first guess is submitted', function () {
+test('toggleHardMode only works on the pre-game setup screen', function () {
+    // TODO Task 28: Hard Mode is a setup-time choice now, not an in-game
+    // toggle -- toggling before startGame() should stick; toggling after
+    // should be a no-op regardless of how many guesses have been made.
     $component = Livewire::test('pages::wordle.play');
-    setWordleAnswer($component, 'crane');
 
     $component->call('toggleHardMode');
     expect($component->get('hardMode'))->toBeTrue();
 
-    $component->set('currentGuess', 'chase')->call('submitGuess');
+    $component->call('startGame');
 
     $component->call('toggleHardMode');
-    expect($component->get('hardMode'))->toBeTrue(); // unchanged, locked
+    expect($component->get('hardMode'))->toBeTrue(); // unchanged, locked once started
 });
 
 test('hard mode rejects a guess that abandons an already-revealed correct letter', function () {
-    $component = Livewire::test('pages::wordle.play')->call('toggleHardMode');
+    $component = Livewire::test('pages::wordle.play')->call('toggleHardMode')->call('startGame');
     setWordleAnswer($component, 'crane');
 
     // "chase": c correct at position 0.
@@ -181,7 +206,7 @@ test('hard mode rejects a guess that abandons an already-revealed correct letter
 });
 
 test('hard mode accepts a guess that correctly reuses every revealed letter', function () {
-    $component = Livewire::test('pages::wordle.play')->call('toggleHardMode');
+    $component = Livewire::test('pages::wordle.play')->call('toggleHardMode')->call('startGame');
     setWordleAnswer($component, 'crane');
 
     $component->set('currentGuess', 'chase')->call('submitGuess');
@@ -193,7 +218,7 @@ test('hard mode accepts a guess that correctly reuses every revealed letter', fu
 });
 
 test('keyboardStatus reflects the best-known status per letter across every guess', function () {
-    $component = Livewire::test('pages::wordle.play');
+    $component = Livewire::test('pages::wordle.play')->call('startGame');
     setWordleAnswer($component, 'crane');
 
     // "arena" vs "crane": a present (pos0) then absent (pos4, only one 'a'
@@ -206,14 +231,17 @@ test('keyboardStatus reflects the best-known status per letter across every gues
         ->and($status['r'])->toBe('correct');
 });
 
-test('New Game reuses the same unfinished session row instead of creating a duplicate', function () {
+test('New Game returns to the setup screen, then reuses the same unfinished session row instead of creating a duplicate', function () {
     $user = User::factory()->create();
     Livewire::actingAs($user);
 
-    $component = Livewire::test('pages::wordle.play');
+    $component = Livewire::test('pages::wordle.play')->call('startGame');
     $firstSessionId = $component->get('gameSessionId');
 
     $component->call('resetGame');
+    expect($component->get('started'))->toBeFalse();
+
+    $component->call('startGame');
 
     expect(GameSession::count())->toBe(1)
         ->and($component->get('gameSessionId'))->toBe($firstSessionId);
@@ -223,12 +251,12 @@ test('New Game after ending creates a genuinely new session, leaving the finishe
     $user = User::factory()->create();
     Livewire::actingAs($user);
 
-    $component = Livewire::test('pages::wordle.play');
+    $component = Livewire::test('pages::wordle.play')->call('startGame');
     setWordleAnswer($component, 'crane');
     $component->set('currentGuess', 'crane')->call('submitGuess');
     $finishedSessionId = $component->get('gameSessionId');
 
-    $component->call('resetGame');
+    $component->call('resetGame')->call('startGame');
 
     expect(GameSession::count())->toBe(2)
         ->and($component->get('gameSessionId'))->not->toBe($finishedSessionId)
@@ -236,7 +264,7 @@ test('New Game after ending creates a genuinely new session, leaving the finishe
 });
 
 test('actions are no-ops once the game has ended', function () {
-    $component = Livewire::test('pages::wordle.play');
+    $component = Livewire::test('pages::wordle.play')->call('startGame');
     setWordleAnswer($component, 'crane');
     $component->set('currentGuess', 'crane')->call('submitGuess');
 
@@ -246,12 +274,12 @@ test('actions are no-ops once the game has ended', function () {
 });
 
 test('the reveal screen shows guesses-to-win on a win, or the answer on a loss', function () {
-    $winComponent = Livewire::test('pages::wordle.play');
+    $winComponent = Livewire::test('pages::wordle.play')->call('startGame');
     setWordleAnswer($winComponent, 'crane');
     $winComponent->set('currentGuess', 'crane')->call('submitGuess');
     $winComponent->assertSee('Solved in 1 guess');
 
-    $lossComponent = Livewire::test('pages::wordle.play');
+    $lossComponent = Livewire::test('pages::wordle.play')->call('startGame');
     setWordleAnswer($lossComponent, 'crane');
     foreach (['stone', 'plumb', 'light', 'words', 'happy', 'zonal'] as $guess) {
         $lossComponent->set('currentGuess', $guess)->call('submitGuess');
