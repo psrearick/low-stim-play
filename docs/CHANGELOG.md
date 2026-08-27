@@ -11,6 +11,7 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 - Added Hoax, a new Fibbage-style room game (TODO Task 32): each round, everyone writes a fake fill-in-the-blank answer to a trivia question, the real answer is seeded anonymously among the lies, and everyone votes on which one they think is true -- fooling other players and finding the truth both earn points. Fixed 5-round game, 3-8 players. New `hoax_questions` bank (84 questions), `Hoax\{ScoringService,FillerAnswers}`, profile stats, and homepage/sidebar wiring.
 - Moved `BallotService` from `App\Services\Punchline` to a shared `App\Services\SubmitVote` namespace now that Hoax reuses it, and added a `voterChoices()` method for Hoax's own reveal needs.
 - Fixed a pre-existing bug where `pages::profile.games`'s route-lookup match was missing a `GameType::Punchline` arm entirely.
+- Fixed game-card button text overflowing its own button on the homepage at every screen size, by letting long labels (e.g. "Clear the Deck (Tens)") wrap onto a second line instead of forcing a single un-wrappable line past the button's edges.
 
 ## 2026-08-26
 

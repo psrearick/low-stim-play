@@ -63,3 +63,28 @@ test('the homepage game grid drops to a single column on a narrow screen', funct
     // One card per row -- as many rows as there are cards.
     expect(gameCardRowCount($page))->toBe(count($widths));
 });
+
+/**
+ * The shared base `button` rule sets `white-space: nowrap`, which
+ * assumes a button sized to its own text -- but `.game-card-actions
+ * button` forces every game button to the card's full width instead, so
+ * a long label (e.g. "Clear the Deck (Tens)") had nowhere to go but
+ * overflow past the button's own edges at narrower widths instead of
+ * wrapping onto a second line. Checks every real game-card button's
+ * `scrollWidth` against its `clientWidth` at three widths -- a plain
+ * `assertSee` can't catch this, since the overflowing text is still
+ * present and "visible," just rendered outside its own button.
+ */
+test('every game button\'s label text stays within its own button at every grid width, never overflowing', function () {
+    foreach ([1400, 800, 375, 320] as $width) {
+        $page = visit('/')->resize($width, 3000);
+
+        $overflowing = $page->script(
+            "Array.from(document.querySelectorAll('.game-card-actions button'))
+                .filter(b => b.scrollWidth > b.clientWidth + 1)
+                .map(b => b.textContent.trim())"
+        );
+
+        expect($overflowing)->toBe([]);
+    }
+});

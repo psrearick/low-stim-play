@@ -999,6 +999,14 @@ button.option.active {
 
 .game-card-actions button {
     width: 100%;
+    /* Overrides the shared base button rule's white-space: nowrap --
+       that rule assumes a button sized to its own text, but these are
+       forced to the card's full width (see width: 100% above), so a
+       long label like "Clear the Deck (Tens)" had nowhere to go but
+       overflow past the button's edges at narrow widths instead of
+       wrapping onto a second line. */
+    white-space: normal;
+    line-height: 1.3;
 }
 
 /* =====================================================================
