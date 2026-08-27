@@ -20,6 +20,7 @@ class HoaxQuestionFactory extends Factory
         return [
             'text' => fake()->unique()->sentence().' ____.',
             'answer' => fake()->word(),
+            'alternate_answers' => [],
         ];
     }
 }

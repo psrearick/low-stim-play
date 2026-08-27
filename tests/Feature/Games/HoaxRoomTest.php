@@ -208,6 +208,93 @@ test('writing opens voting once every seat has submitted, revealing an anonymize
     }
 });
 
+test('submitting the exact real answer is rejected and not counted as submitted', function () {
+    seedHoaxQuestions();
+    $question = HoaxQuestion::factory()->create(['answer' => 'Nebraska', 'alternate_answers' => ['NE']]);
+    $host = User::factory()->create();
+    $p1 = User::factory()->create();
+    $p2 = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    startHoaxRoom($room, [$host, $p1, $p2]);
+    $room->refresh();
+
+    // Force this round onto the question with a known answer, so the
+    // rejection check has something deterministic to compare against --
+    // pickQuestion() would otherwise choose any of the seeded questions.
+    $session = GameSession::find($room->game_session_id);
+    $state = $session->state;
+    $state['questionId'] = $question->id;
+    $state['questionText'] = $question->text;
+    $session->update(['state' => $state]);
+
+    Livewire::actingAs($host)->test('pages::hoax.play', ['room' => $room->code])
+        ->set('draftAnswer', 'nebraska') // different case, still the real answer
+        ->call('submitAnswer')
+        ->assertOk()
+        ->assertSet('submitError', 'That\'s the real answer -- write something else to try to fool people instead.')
+        ->assertSet('draftAnswer', 'nebraska'); // left in place so the player can edit it
+
+    $session = GameSession::find($room->game_session_id);
+    expect($session->state['submittedSeats'])->toBe([]);
+});
+
+test('submitting a known alternate spelling of the real answer is also rejected', function () {
+    seedHoaxQuestions();
+    $question = HoaxQuestion::factory()->create(['answer' => 'Nebraska', 'alternate_answers' => ['NE']]);
+    $host = User::factory()->create();
+    $p1 = User::factory()->create();
+    $p2 = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    startHoaxRoom($room, [$host, $p1, $p2]);
+    $room->refresh();
+
+    $session = GameSession::find($room->game_session_id);
+    $state = $session->state;
+    $state['questionId'] = $question->id;
+    $state['questionText'] = $question->text;
+    $session->update(['state' => $state]);
+
+    Livewire::actingAs($host)->test('pages::hoax.play', ['room' => $room->code])
+        ->set('draftAnswer', 'ne')
+        ->call('submitAnswer')
+        ->assertSet('submitError', 'That\'s the real answer -- write something else to try to fool people instead.');
+
+    $session = GameSession::find($room->game_session_id);
+    expect($session->state['submittedSeats'])->toBe([]);
+});
+
+test('after a rejected submission, writing a genuinely different answer still submits successfully', function () {
+    seedHoaxQuestions();
+    $question = HoaxQuestion::factory()->create(['answer' => 'Nebraska', 'alternate_answers' => ['NE']]);
+    $host = User::factory()->create();
+    $p1 = User::factory()->create();
+    $p2 = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    startHoaxRoom($room, [$host, $p1, $p2]);
+    $room->refresh();
+
+    $session = GameSession::find($room->game_session_id);
+    $state = $session->state;
+    $state['questionId'] = $question->id;
+    $state['questionText'] = $question->text;
+    $session->update(['state' => $state]);
+
+    $hostComponent = Livewire::actingAs($host)->test('pages::hoax.play', ['room' => $room->code])
+        ->set('draftAnswer', 'Nebraska')
+        ->call('submitAnswer')
+        ->assertSet('submitError', 'That\'s the real answer -- write something else to try to fool people instead.');
+
+    $hostComponent->set('draftAnswer', 'a live tarantula')
+        ->call('submitAnswer')
+        ->assertSet('submitError', null);
+
+    $session = GameSession::find($room->game_session_id);
+    expect($session->state['submittedSeats'])->toBe([0]);
+});
+
 test('a voter never sees their own answer as a votable option, but does see the real answer', function () {
     seedHoaxQuestions();
     $host = User::factory()->create();

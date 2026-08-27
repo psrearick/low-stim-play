@@ -1380,6 +1380,84 @@ genuinely open question, not a known quantity," per that task's own writeup. Ful
   history included a Punchline game. Found by grepping every `match ($x->type)` over `GameType`
   while adding Hoax's own arms, fixed in the same pass.
 
+**Full question-bank audit and answer-matching follow-up (2026-08-27), raised directly by the
+user after playing a few rounds.** Four separate concerns, addressed together:
+
+- **The original 84-question bank had a real content-quality problem, not just a few weak
+  entries.** Read through fact by fact rather than trusting "sounds obscure enough": a chunk
+  were viral-tier common knowledge (octopus hearts, Scotland's national-animal unicorn, "a
+  murder of crows," Cleopatra/Moon-landing/pyramids) that most tables already knew, defeating the
+  bluffing mechanic outright; several had the blank positioned somewhere the sentence's own
+  grammar or an already-famous base fact gave the answer away for free (`"...hotter than the
+  surface of the ____"` only ever admits "the Sun"; `"the unofficial national dish of ____ is
+  poutine"` is trivial once you know what poutine is); and a broader "moderately known" middle
+  tier wasn't viral but wasn't genuinely obscure either. **Replaced wholesale, not patched**:
+  the new 83-entry bank was authored fact-by-fact against real sources (`WebSearch`, not
+  recalled-from-memory) for every claim with a specific number, "first X," or named-case
+  attached — a Great Fire of London death toll, an Olympic medal's minimum gold content, a
+  Supreme Court case name, several word etymologies — rather than trusting general trivia
+  knowledge for anything checkable. A handful of the strongest original entries survived
+  unchanged; several were kept but reworded to relocate the blank onto the actually-obscure part
+  of the same fact (Olympus Mons's own name instead of "which planet," the hummingbird's exact
+  heart rate instead of "per what time unit").
+- **A real, previously-unhandled gap: nothing stopped a player from typing the literal correct
+  answer as their own "fake" submission.** No comparison against the real answer existed
+  anywhere — `submitAnswer()` just stored whatever text arrived. A collision (accidental, or a
+  player fishing for credit) would put two identically-worded entries in the reveal, one under
+  the real `truth` sentinel and one under that player's own seat, completely undetected; a voter
+  who picked the player's copy would be scored as *fooled* rather than as having found the
+  truth, silently breaking both the scoring and the joke. Fixed with a new pure
+  `App\Services\Hoax\AnswerMatcher::matches()`, checked inside `submitAnswer()` before a draft is
+  ever accepted into the ballot: normalizes both sides (lowercase, trim, collapsed whitespace,
+  stripped trailing punctuation and thousands commas, one leading article dropped) and compares
+  for an **exact** match against the real answer or any of a new `hoax_questions.alternate_answers`
+  column (nullable JSON, added via its own follow-up migration — the established "bolt a nullable
+  column onto the existing table" pattern this app already uses elsewhere, rather than a new
+  table). Deliberately exact-after-normalization, not fuzzy/typo-tolerant: a Levenshtein-style
+  "close enough" check risks rejecting a genuinely different fake answer that merely looks
+  similar, which is worse than the rare true collision this exists to catch. An LLM-judge
+  approach was considered (this app already has one real precedent, `FamilyFeud\JudgeService`)
+  and rejected specifically for this check — "did they basically type the real fact" is a much
+  narrower problem than Family Feud's open-ended survey-response judging, and a deterministic
+  list is cheaper, instant, and never produces a surprising judgment call.
+- **The rejection itself had to be a soft, retriable no-op, not a hard abort.** `submitAnswer()`
+  sets a plain public `$submitError` string (read by the writing-form UI) instead of calling
+  `abort_unless()` — a hard abort here would trip this app's global Livewire error handler into a
+  silent redirect to the homepage on anything other than a deliberate 422, exactly the class of
+  bug this app has been burned by more than once already (see Punchline's own staleness-handling
+  history above). `$draftAnswer` is deliberately left untouched on rejection so the player can
+  edit what they already typed rather than starting over, and every fresh `submitAnswer()` call
+  clears any stale `$submitError` from a previous attempt first.
+- **A second, quieter tell, independent of the matching problem: consistent-vs-inconsistent
+  capitalization.** The real answer's casing always comes from the curated seed data (clean,
+  consistent style), while a player's fake answer is typed however they happen to type it
+  (all-lowercase from a phone keyboard, careless capitalization, etc.) — left alone, that
+  formatting difference would become a cross-round tell independent of the actual trivia, letting
+  an attentive table learn "the cleanly capitalized one is real." Fixed by uppercasing every
+  candidate answer the same way in `interpolatedText()` before display — a pure rendering change,
+  nothing about storage or matching touched.
+- **Caught by the test suite itself, the hard way**: the display-uppercasing change broke one
+  existing browser test's `click('exact lowercase text')` call, since Playwright's `click($text)`
+  needs the real rendered casing and doesn't fail fast when it can't find a match — it waits
+  (auto-retries) for an element that will never appear, which reads as a multi-minute-plus hang
+  rather than a quick assertion failure (this app's own docs already flag `click()`'s
+  non-fast-failing behavior as a recurring trap). Confirmed by bisecting the browser suite
+  (isolating tests one at a time via `--filter`) after a full run hung for over an hour;
+  `assertSee()`/`assertDontSee()` in this Pest Browser version match case-insensitively so
+  those calls were unaffected, only the one `click()` call needed its expected text updated to
+  match the real uppercased rendering.
+- **The wholesale content-bank swap above also exposed a real seeder bug, caught only because a
+  fresh re-seed left 127 rows instead of the expected 83.** `HoaxQuestionSeeder::run()` only ever
+  `updateOrCreate()`s by `text` — it never removes a row whose text no longer appears in the
+  current JSON, so replacing most of the bank left every dropped question still sitting in the
+  table, undetected, in any environment that had already run the old seeder. Fixed by adding a
+  `HoaxQuestion::whereNotIn('text', ...)->delete()` pass at the end of `run()`, so the JSON file
+  is treated as the actual single source of truth for the table's contents (matching how the bank
+  is described in `docs/specs/hoax.md`) — safe to delete outright, since `GameSession.state`
+  copies each round's `questionId`/`questionText` as plain values at play time, so no live
+  foreign key or past game's history depends on a row continuing to exist. Confirmed live: seeded
+  a stray extra row by hand, re-ran the seeder, watched the count drop back to exactly 83.
+
 ## User profiles & stats
 
 - `/dashboard` (own stats) and `/profile/{username}` (public, `is_public`-gated).

@@ -176,7 +176,12 @@ test('casting a vote records it and shows the vote-cast waiting message', functi
 
     $page = loginAsAndVisitHoax($host, "/hoax?room={$room->code}");
 
-    $page->click('The world\'s largest ball of twine is located in Nebraska.');
+    // interpolatedText() uppercases the answer portion on display (see
+    // that method's own docblock for why) -- unlike assertSee(), which
+    // this Pest Browser version matches case-insensitively, click($text)
+    // needs the real rendered casing or it waits indefinitely for an
+    // element that will never appear.
+    $page->click('The world\'s largest BALL OF TWINE is located in Nebraska.');
 
     $page->assertSee('Vote cast');
 });

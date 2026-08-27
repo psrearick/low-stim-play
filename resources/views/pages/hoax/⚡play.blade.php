@@ -10,6 +10,7 @@ use App\Models\GameSession;
 use App\Models\HoaxQuestion;
 use App\Models\Room;
 use App\Models\RoomSeat;
+use App\Services\Hoax\AnswerMatcher;
 use App\Services\Hoax\FillerAnswers;
 use App\Services\Hoax\ScoringService;
 use App\Services\SubmitVote\BallotService;
@@ -122,20 +123,31 @@ new class extends Component
      */
     public string $draftAnswer = '';
 
+    /**
+     * Set only on this connection when submitAnswer() rejects a draft
+     * for matching the real answer -- local-only feedback, never synced
+     * into $state, same reasoning as $draftAnswer itself.
+     */
+    public ?string $submitError = null;
+
     private ScoringService $scoringService;
 
     private BallotService $ballotService;
 
     private FillerAnswers $fillerAnswers;
 
+    private AnswerMatcher $answerMatcher;
+
     public function boot(
         ScoringService $scoringService,
         BallotService $ballotService,
         FillerAnswers $fillerAnswers,
+        AnswerMatcher $answerMatcher,
     ): void {
         $this->scoringService = $scoringService;
         $this->ballotService = $ballotService;
         $this->fillerAnswers = $fillerAnswers;
+        $this->answerMatcher = $answerMatcher;
     }
 
     public function mount(): void
@@ -387,10 +399,21 @@ new class extends Component
      * both HTML-escaped first -- the classic Fibbage reveal, reading as a
      * complete (often absurd) sentence per candidate answer. Returns a
      * pre-escaped HTML string; render with {!! !!}, never {{ }}.
+     *
+     * $answerText is uppercased before display -- the real answer's
+     * casing always comes from the curated seed data (clean, consistent
+     * style), while a player's fake answer is typed however they happen
+     * to type it (all-lowercase from a phone keyboard, careless
+     * capitalization, etc.). Left alone, that consistent-vs-inconsistent
+     * formatting difference would itself become a tell across a whole
+     * game, letting an attentive table learn "the cleanly capitalized
+     * one is always real" independent of the actual trivia. Uppercasing
+     * every candidate the same way removes that signal without touching
+     * how anything is stored or matched.
      */
     public function interpolatedText(string $answerText): string
     {
-        return str_replace('____', '<strong>'.e($answerText).'</strong>', e($this->questionText));
+        return str_replace('____', '<strong>'.e(mb_strtoupper($answerText)).'</strong>', e($this->questionText));
     }
 
     /**
@@ -399,12 +422,26 @@ new class extends Component
      * staleness reasoning as Punchline's own submitAnswer() -- a stale
      * "already left Writing" or "already submitted" is a quiet no-op, not
      * a violation.
+     *
+     * Rejects (via $submitError, not abort_unless()) a draft that's
+     * actually just the real answer or one of its known alternate
+     * spellings -- a quiet 200-OK no-op that leaves $draftAnswer in place
+     * for the player to edit, not a hard failure. A hard abort here would
+     * trip this app's global Livewire error handler into a silent
+     * redirect to the homepage on anything other than a deliberate 422,
+     * which this app's other games have been burned by before (see
+     * Punchline's own staleness-handling docblocks) -- and a genuinely
+     * common, non-malicious mistake like "typed the real fact by
+     * accident" is exactly the kind of thing that shouldn't ever risk
+     * that.
      */
     public function submitAnswer(): void
     {
         abort_unless($this->mySeatIndex !== null, 403);
 
         $this->refreshFromDatabase();
+
+        $this->submitError = null;
 
         if ($this->phase !== HoaxPhase::Writing) {
             return;
@@ -416,6 +453,14 @@ new class extends Component
 
         $text = trim($this->draftAnswer);
         abort_unless($text !== '', 422);
+
+        $question = HoaxQuestion::find($this->questionId);
+
+        if ($question !== null && $this->answerMatcher->matches($text, $question->answer, $question->alternate_answers ?? [])) {
+            $this->submitError = 'That\'s the real answer -- write something else to try to fool people instead.';
+
+            return;
+        }
 
         $this->ballotService->submit($this->ballotKey(), $this->mySeatIndex, "{$this->mySeatIndex}-0", $text);
         $this->submittedSeats[] = $this->mySeatIndex;
@@ -711,6 +756,7 @@ new class extends Component
     <h3>Full Rules</h3>
     <ul>
         <li>Finding the real answer earns you points. Fooling another player with your fake answer also earns you points -- once for every player who fell for it.</li>
+        <li>If you accidentally write the real answer, you'll be asked to write something else before you can submit.</li>
         <li>A fixed 5-round game. Writing and voting are both timed; anyone who runs out of time is auto-filled with a placeholder answer, earning no points.</li>
         <li>The host can press End Game any time to stop early and show final scores; only the host can advance from one round's reveal to the next.</li>
     </ul>
@@ -797,6 +843,9 @@ new class extends Component
                         @else
                             <form wire:submit="submitAnswer" class="flex flex-col items-stretch gap-2 w-full">
                                 <input type="text" wire:model="draftAnswer" id="hoax-answer-input" maxlength="140" placeholder="Your fake answer&hellip;" autocomplete="off">
+                                @if ($submitError)
+                                    <p class="status-line" id="hoax-submit-error" style="color: var(--warn);">{{ $submitError }}</p>
+                                @endif
                                 <button type="submit" id="hoax-submit-btn">Submit</button>
                             </form>
                         @endif

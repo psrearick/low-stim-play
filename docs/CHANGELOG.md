@@ -13,6 +13,10 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 - Fixed a pre-existing bug where `pages::profile.games`'s route-lookup match was missing a `GameType::Punchline` arm entirely.
 - Fixed game-card button text overflowing its own button on the homepage at every screen size, by letting long labels (e.g. "Clear the Deck (Tens)") wrap onto a second line instead of forcing a single un-wrappable line past the button's edges.
 - Shortened every homepage game-card button's label to just its action ("Play", "Group Play", "Dice Only") instead of repeating the game name already shown as the card's own heading; added an `aria-label` to each button restoring that context for screen readers.
+- Fully audited and replaced Hoax's question bank (84 -> 83 entries): removed viral/common-knowledge and moderately-known facts, reworded questions whose blank gave the answer away, and fact-checked every specific claim against real sources.
+- Fixed Hoax silently allowing a player to submit the literal correct answer (or a known alternate spelling) as their own fake answer -- now rejected at submission time and the player is asked to write something else, without losing their turn. New `alternate_answers` field per question.
+- Fixed Hoax's voting/reveal display always showing the real answer's clean, consistent capitalization next to players' inconsistently-typed fake answers, a tell across a whole game -- every answer now renders in uppercase.
+- Fixed `HoaxQuestionSeeder` never removing a question dropped from the bank on re-seed, leaving stale rows behind indefinitely.
 
 ## 2026-08-26
 
