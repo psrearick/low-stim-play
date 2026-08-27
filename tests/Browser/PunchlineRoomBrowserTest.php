@@ -40,12 +40,12 @@ function seededPunchlineRoom(array $matchupOverrides = []): array
     $room = Room::factory()->active()->create(['host_user_id' => $host->id]);
 
     $matchups = [
-        ['id' => 'r1-0', 'promptId' => 1, 'promptText' => 'Prompt A', 'seatIndices' => [3, 0], 'answersPerSeat' => 1, 'status' => PunchlineMatchupStatus::Writing->value, 'submittedCounts' => [], 'votedSeats' => [], 'answers' => [], 'results' => null],
+        ['id' => 'r1-0', 'promptId' => 1, 'promptText' => 'Prompt A', 'seatIndices' => [3, 0], 'answersPerSeat' => 1, 'voteLimit' => 1, 'status' => PunchlineMatchupStatus::Writing->value, 'submittedCounts' => [], 'votedSeats' => [], 'answers' => [], 'results' => null],
         [...[
-            'id' => 'r1-1', 'promptId' => 2, 'promptText' => 'The worst gift you could give a toddler', 'seatIndices' => [1, 2], 'answersPerSeat' => 1, 'status' => PunchlineMatchupStatus::Writing->value, 'submittedCounts' => [], 'votedSeats' => [], 'answers' => [], 'results' => null,
+            'id' => 'r1-1', 'promptId' => 2, 'promptText' => 'The worst gift you could give a toddler', 'seatIndices' => [1, 2], 'answersPerSeat' => 1, 'voteLimit' => 1, 'status' => PunchlineMatchupStatus::Writing->value, 'submittedCounts' => [], 'votedSeats' => [], 'answers' => [], 'results' => null,
         ], ...$matchupOverrides],
-        ['id' => 'r1-2', 'promptId' => 3, 'promptText' => 'Prompt C', 'seatIndices' => [3, 2], 'answersPerSeat' => 1, 'status' => PunchlineMatchupStatus::Writing->value, 'submittedCounts' => [], 'votedSeats' => [], 'answers' => [], 'results' => null],
-        ['id' => 'r1-3', 'promptId' => 4, 'promptText' => 'Prompt D', 'seatIndices' => [0, 1], 'answersPerSeat' => 1, 'status' => PunchlineMatchupStatus::Writing->value, 'submittedCounts' => [], 'votedSeats' => [], 'answers' => [], 'results' => null],
+        ['id' => 'r1-2', 'promptId' => 3, 'promptText' => 'Prompt C', 'seatIndices' => [3, 2], 'answersPerSeat' => 1, 'voteLimit' => 1, 'status' => PunchlineMatchupStatus::Writing->value, 'submittedCounts' => [], 'votedSeats' => [], 'answers' => [], 'results' => null],
+        ['id' => 'r1-3', 'promptId' => 4, 'promptText' => 'Prompt D', 'seatIndices' => [0, 1], 'answersPerSeat' => 1, 'voteLimit' => 1, 'status' => PunchlineMatchupStatus::Writing->value, 'submittedCounts' => [], 'votedSeats' => [], 'answers' => [], 'results' => null],
     ];
 
     $state = [
@@ -113,6 +113,33 @@ test('an author sees their own prompt, submits an answer, and the matchup shows 
         ->click('#submit-r1-1-0');
 
     $page->assertSee('Waiting for the other player');
+});
+
+/**
+ * docs/concerns.md: the answer input inherited the shared base
+ * input[type="text"] rule's font-size, which clamps as low as 13px --
+ * well under the 16px floor iOS Safari uses to decide whether to zoom
+ * the viewport in on focus. app.css now scopes a 16px+ floor to this
+ * input specifically. Uses on()->iPhoneSE() rather than resize(), per
+ * this repo's own documented gotcha that resize() doesn't reliably
+ * reflect real narrow-viewport vmin-based clamp() values -- and this is
+ * a script()-only check with no click()/fill() afterward, so device
+ * emulation's broken click delivery doesn't apply here.
+ */
+test('the answer input keeps a real 16px+ font-size on a narrow mobile viewport, so iOS Safari does not zoom in on focus', function () {
+    [$room, , $users] = seededPunchlineRoom();
+    $guest1 = $users[1]; // seat 1, author of r1-1's still-open writing matchup
+
+    $page = loginAsAndVisitPunchline($guest1, "/punchline?room={$room->code}");
+    $page->on()->iPhoneSE();
+
+    $page->assertSee('The worst gift you could give a toddler');
+
+    $fontSize = $page->script(
+        "getComputedStyle(document.querySelector('#answer-r1-1-0')).fontSize"
+    );
+
+    expect((int) $fontSize)->toBeGreaterThanOrEqual(16);
 });
 
 test('several matchups render their own independent writing status at once on the same page', function () {
@@ -212,6 +239,7 @@ function seededPunchlineRoomAtReveal(): array
         'promptText' => 'Prompt',
         'seatIndices' => $m['seatIndices'],
         'answersPerSeat' => 1,
+        'voteLimit' => 1,
         'status' => PunchlineMatchupStatus::Closed->value,
         'submittedCounts' => [],
         'votedSeats' => [],

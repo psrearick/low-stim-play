@@ -3003,3 +3003,13 @@ body.scrollable.family-feud-play {
 .hive-hex-center {
     z-index: 1;
 }
+
+/* ---- Punchline answer input -- floors font-size at 16px (the shared
+   base input[type="text"] rule above can resolve as low as 13px), the
+   threshold iOS Safari uses to decide whether to zoom the viewport in on
+   focus. Scoped to this one field rather than raising the base rule
+   everywhere, since other games' narrower inputs rely on that smaller
+   floor for layout. ---- */
+#punchline-matchups input[type="text"] {
+    font-size: clamp(16px, 1.9vmin, 18px);
+}

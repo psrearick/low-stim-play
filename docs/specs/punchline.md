@@ -39,40 +39,37 @@ Point pools escalate per round: **Round 1 = 1000, Round 2 = 2000, Round 3 = 3000
 matchup gets that round's full pool as its own pot — the pool is not divided across a round's
 several matchups).
 
-**Rounds 1–2 ("pairing rounds").** For `P` seated players, generate that round's prompts so
-every player answers exactly 2 different prompts against 2 different opponents:
-- **Even `P`** → `P` prompts, every matchup 2 players, via the standard round-robin **circle
-  method** run twice (fix seat `P-1`, rotate the rest; hand-verified for `P=4`:
-  pass 0 → `{(3,0),(1,2)}`, pass 1 → `{(3,2),(0,1)}` — 4 distinct pairs, no repeats, every seat
-  exactly twice).
-- **Odd `P`** → `P - 1` prompts. Run the circle method on the `P - 3` "core" seats for both
-  passes, plus a fixed 3-way matchup of the remaining 3 seats **in both passes**. This resolves
-  a contradiction in the original request (see box below) — the practical result is `P = 3`
-  degenerates to "both prompts are the same trio" and `P = 5` provably can't avoid one repeated
-  core pair no matter how it's arranged; both are accepted, documented edge cases, not bugs.
-
-> **Why two triples, not one.** The request called for "one prompt answered by 3 players" per
-> odd-`P` round *and* "every player answers exactly 2 prompts" — these can't both hold: total
-> seat-appearances in a round must equal `2P`, and `3·(triples) + 2·(pairs) = 2P` only balances
-> with an **even** number of triples. One triple for a whole round is mathematically impossible;
-> the fix is one triple per pairing pass (two total), which for `P=3` is simply the same trio
-> answering both prompts — actually simpler than the single-triple reading, and still matches
-> the "three-way matchup is simpler and reads fine on screen" preference behind the original
-> ask.
+**Rounds 1–2 ("pairing rounds").** For `P` seated players, generate that round's `P` prompts so
+every matchup is a plain 2-player pair, and every player answers exactly 2 different prompts
+against 2 different opponents (docs/concerns.md):
+- **Even `P`** → the standard round-robin **circle method** run twice (fix seat `P-1`, rotate
+  the rest; hand-verified for `P=4`: pass 0 → `{(3,0),(1,2)}`, pass 1 → `{(3,2),(0,1)}` — 4
+  distinct pairs, no repeats, every seat exactly twice).
+- **Odd `P`** → a single **Hamiltonian cycle** over all `P` seats: `(0,1), (1,2), ..., (P-1,0)`.
+  `P` distinct pairs, every seat appearing in exactly 2 of them (its two cycle-neighbors), no
+  pair repeated. For `P=3` this is exactly `(0,1), (1,2), (2,0)` — three head-to-head matchups,
+  each answered by 2 players, each player voting on the one prompt they weren't in.
+  (An earlier version paired odd `P` via a "core + shared triple" scheme so one prompt could be
+  answered by 3 players at once; docs/concerns.md later replaced that requirement with "every
+  prompt is a plain pair," which the cycle achieves directly and more simply.)
 
 Once every author in a specific matchup submits, that matchup's answers become visible —
 anonymized, no author name — to every other seated player, who vote for the funnier one.
-Voting eligibility is one general rule, not a `P === 3` special case:
-`eligibleVoters = allSeats - matchup.seatIndices`; **if that set is empty** (only possible when
-a matchup already contains everyone — round 3, or `P=3`'s degenerate trio), fall back to
+Voting eligibility is one general rule: `eligibleVoters = allSeats - matchup.seatIndices`;
+**if that set is empty** (only possible when a matchup already contains everyone — round 3 is
+the only remaining case now that rounds 1–2 are always plain pairs), fall back to
 `eligibleVoters = matchup.seatIndices` and disallow voting for your own answer.
 
-**Round 3 ("final round").** One shared prompt for every player; each player writes **3**
-separate answers to it. Once everyone's submitted (or the writing timer expires), voting opens
-on every submitted answer from every player at once. Every player gets **3 votes**, freely
-stackable on up to 3 different other players' answers (never their own). Modeled as a single
-matchup whose `seatIndices` = every seat and `answersPerSeat` = 3 — the exact same
-submit/reveal/vote/tally machinery as a pairing-round matchup, not a separate game mode.
+**Round 3 ("final round").** One shared prompt for every player; each player writes **one**
+answer to it (docs/concerns.md). Once everyone's submitted (or the writing timer expires),
+voting opens on every submitted answer from every player at once. Every player gets **3
+votes**, freely stackable on up to 3 different other players' answers (never their own).
+Modeled as a single matchup whose `seatIndices` = every seat, `answersPerSeat` = 1, and
+`voteLimit` = 3 — vote count is a field of its own now, not derived from `answersPerSeat`
+(an earlier version required 3 answers per player specifically so `answersPerSeat === 3` could
+double as "this matchup allows 3 votes"; decoupling the two was needed once round 3 dropped
+back to 1 answer per player) — the exact same submit/reveal/vote/tally machinery as a
+pairing-round matchup, not a separate game mode.
 
 ### Scoring — proportional pool split by vote share
 
@@ -93,11 +90,11 @@ bigger too), not a gap to patch.
 ### Timing — a real per-round countdown, not per-answer
 
 No per-answer/per-matchup timer; one round-wide writing deadline and one round-wide voting
-deadline. **Writing: 120s** (rounds 1–2) / **240s** (round 3 — 3 answers instead of 1) —
-raised from an initial 75s/150s after real play found that too tight to actually think of
-something funny; the round-3-needs-3-answers-so-double-it relationship was kept. **Voting:
-30s** (rounds 1–2 — 2–3 short answers to read) / **90s** (round 3 — up to `3P`
-answers). A player still missing an answer when writing ends is auto-filled from a small
+deadline, the same duration for every round. **Writing: 180s. Voting: 180s** — raised from an
+initial 75s/150s writing (120s/240s split by round after real play found the original still too
+tight), then to a flat 3 minutes for both writing and voting on every round (docs/concerns.md)
+once players wanted more breathing room for voting too, not just writing. A player still
+missing an answer when writing ends is auto-filled from a small
 canned filler-answer list (deterministic per missing slot, so a partial round-3 timeout gets
 distinct fillers, not the same line repeated); **no default score is awarded** to an absent
 author — their opponent's real answer will typically just sweep.
@@ -168,8 +165,9 @@ infrastructure is introduced.
               'id'              => 'r1-0',                 // "r{round}-{sequence}"
               'promptId'        => 47,
               'promptText'      => 'The worst gift you could give a toddler',
-              'seatIndices'     => [0, 3],                 // 2 | 3 | all P (round 3)
-              'answersPerSeat'  => 1,                       // 1 for rounds 1-2, 3 for round 3
+              'seatIndices'     => [0, 3],                 // 2 (rounds 1-2) | all P (round 3)
+              'answersPerSeat'  => 1,                       // always 1 -- one answer per player, every round
+              'voteLimit'    => 1,                       // 1 for rounds 1-2, 3 for round 3
               'status'          => 'writing',               // PunchlineMatchupStatus
               'submittedCounts' => [0 => 0, 3 => 1],        // per-seat filed-answer count, NEVER text
               'votedSeats'      => [],                       // who's cast a vote already, NEVER content
@@ -232,12 +230,11 @@ Three pure/near-pure services in `app/Services/Punchline/`, matching Farkle's `S
 `DiceRoller` precedent rather than Best Match's fully-inline style — unlike judging-a-raw-pick,
 these are real algorithms/cycles worth testing in isolation:
 
-- **`PairingService::generateRoundMatchups(int $playerCount, int $roundNumber): array`** +
-  `promptCountForRound(int $playerCount): int` — the circle-method construction from §2.
-  Tested invariants: matchup/prompt count matches `P`'s parity, every seat appears in exactly 2
-  matchups, `sum(count($seatIndices)) === 2P`, odd `P` produces exactly one triple per pass, no
-  two core-only seats repeat a partner (the provably-achievable subset of "no repeats" — `P=5`
-  is a documented, unavoidable exception, not a bug).
+- **`PairingService::generateRoundMatchups(int $playerCount): array`** +
+  `promptCountForRound(int $playerCount): int` — the circle-method/Hamiltonian-cycle
+  construction from §2. Tested invariants: matchup count always equals `P`, every matchup has
+  exactly 2 seats, every seat appears in exactly 2 matchups against 2 different opponents,
+  `sum(count($seatIndices)) === 2P`, no pair of seats faces off twice in the same round.
 - **`ScoringService::scoreMatchup(int $pool, array $votesByAnswerId, array $answerIds): array`**
   — the pool-split/rounding/zero-vote/sweep-bonus rules from §2, pure and with no knowledge of
   voter identity (the caller aggregates `Cache` votes into counts first).

@@ -18,46 +18,37 @@ class PairingService
 
     /**
      * Number of prompts a round needs for $playerCount seated players --
-     * $playerCount for an even count (every matchup is a plain pair), or
-     * $playerCount - 1 for an odd count (both pairing passes replace their
-     * would-be leftover pair with one shared triple instead -- see
-     * generateRoundMatchups()'s own docblock for why). Kept as its own
-     * tested method since it's the detail most likely to get "fixed" back
-     * to $playerCount for an odd count by a future reader who misses why
-     * it isn't.
+     * always $playerCount, since every matchup (even or odd player count)
+     * is a plain pair (docs/concerns.md: "every prompt should be
+     * received by exactly two players").
      */
     public function promptCountForRound(int $playerCount): int
     {
-        return $playerCount % 2 === 0 ? $playerCount : $playerCount - 1;
+        return $playerCount;
     }
 
     /**
      * Builds one round's matchups for $playerCount seated players (seat
      * indices 0..$playerCount-1), so every player answers exactly 2
-     * prompts this round against 2 different opponents. Two "passes"
-     * each produce half of the round's matchups.
+     * prompts this round against 2 different opponents, and every prompt
+     * is answered by exactly 2 players (docs/concerns.md).
      *
      * Even player counts use the standard round-robin circle method (see
      * circlePairs()): fix the last seat, rotate the rest by one seat
-     * between passes. This is provably repeat-free -- the two passes used
-     * here are the first two rounds of a full round-robin schedule, which
-     * together partition every possible pair exactly once.
+     * between passes, run twice. This is provably repeat-free -- the two
+     * passes used here are the first two rounds of a full round-robin
+     * schedule, which together partition every possible pair exactly
+     * once.
      *
-     * Odd player counts can't be fully paired (an odd seat count always
-     * leaves one out of any single pass of pairs), so each pass instead
-     * pairs off a "core" of the first $playerCount - 3 seats via the same
-     * circle method and puts the remaining 3 seats into one shared 3-way
-     * matchup -- for *both* passes, i.e. two triples for the round, not
-     * one. (`docs/specs/punchline.md` section 2 works through why it has
-     * to be two: every player appearing in exactly 2 matchups forces an
-     * even count of odd-sized matchups, and one triple for the whole
-     * round is mathematically impossible.) For $playerCount === 3 the
-     * core is empty, so both prompts are simply the same trio; for
-     * $playerCount === 5 the core is a single pair, so it necessarily
-     * repeats across both passes -- both are accepted, unavoidable
-     * results of the underlying combinatorics, not bugs.
+     * Odd player counts can't be fully paired by the circle method (an
+     * odd seat count always leaves one seat out of any single pass of
+     * pairs), so they instead use a single Hamiltonian cycle over all
+     * seats -- seat 0 with seat 1, seat 1 with seat 2, ..., the last seat
+     * back around to seat 0 (see cyclePairs()). That's $playerCount
+     * pairs, every seat appearing in exactly 2 of them (its two
+     * cycle-neighbors), and no pair repeated.
      *
-     * @return list<list<int>> each entry is one matchup's seat indices (2 or 3)
+     * @return list<list<int>> each entry is one matchup's seat indices (always 2)
      */
     public function generateRoundMatchups(int $playerCount): array
     {
@@ -67,20 +58,16 @@ class PairingService
             );
         }
 
-        $isOdd = $playerCount % 2 !== 0;
-        $coreSize = $isOdd ? $playerCount - 3 : $playerCount;
-        $core = $coreSize > 0 ? range(0, $coreSize - 1) : [];
-        $triple = $isOdd ? range($playerCount - 3, $playerCount - 1) : [];
+        if ($playerCount % 2 !== 0) {
+            return $this->cyclePairs($playerCount);
+        }
 
+        $seats = range(0, $playerCount - 1);
         $matchups = [];
 
         foreach ([0, 1] as $pass) {
-            foreach ($this->circlePairs($core, $pass) as $pair) {
+            foreach ($this->circlePairs($seats, $pass) as $pair) {
                 $matchups[] = $pair;
-            }
-
-            if ($isOdd) {
-                $matchups[] = $triple;
             }
         }
 
@@ -91,8 +78,7 @@ class PairingService
      * One pass of the standard round-robin circle method over $seats: fix
      * the last seat in place, rotate everyone else by $pass positions,
      * then pair the fixed seat with whichever seat lands first and
-     * mirror-pair the rest. Returns [] for fewer than 2 seats (nothing to
-     * pair -- $playerCount === 3's empty core).
+     * mirror-pair the rest.
      *
      * @param  list<int>  $seats
      * @return list<list<int>>
@@ -100,10 +86,6 @@ class PairingService
     private function circlePairs(array $seats, int $pass): array
     {
         $count = count($seats);
-
-        if ($count < 2) {
-            return [];
-        }
 
         $fixed = $seats[$count - 1];
         $others = array_slice($seats, 0, $count - 1);
@@ -116,6 +98,21 @@ class PairingService
         }
 
         return $pairs;
+    }
+
+    /**
+     * A single Hamiltonian cycle over $playerCount seats: (0,1), (1,2),
+     * ..., (playerCount-1, 0). Every seat appears in exactly 2 pairs (its
+     * two neighbors in the cycle), and no pair repeats.
+     *
+     * @return list<list<int>>
+     */
+    private function cyclePairs(int $playerCount): array
+    {
+        return array_map(
+            fn (int $seat) => [$seat, ($seat + 1) % $playerCount],
+            range(0, $playerCount - 1),
+        );
     }
 
     /**

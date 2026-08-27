@@ -23,16 +23,13 @@ use Livewire\Component;
 new class extends Component
 {
     // 75s/150s (docs/specs/punchline.md's original "roughly 60-90s" estimate,
-    // doubled for round 3) felt too tight in real play -- bumped to give
-    // real breathing room to actually think of something funny, keeping
-    // the same round-3-needs-3-answers-so-double-it relationship.
-    public const int WRITING_SECONDS = 120;
+    // doubled for round 3) felt too tight in real play -- bumped to
+    // 120s/240s, then to a flat 3 minutes for both phases of every round
+    // (docs/concerns.md) once players wanted more breathing room for
+    // voting too, not just writing.
+    public const int WRITING_SECONDS = 180;
 
-    public const int ROUND3_WRITING_SECONDS = 240;
-
-    public const int VOTING_SECONDS = 30;
-
-    public const int ROUND3_VOTING_SECONDS = 90;
+    public const int VOTING_SECONDS = 180;
 
     /**
      * The online room this play-through belongs to. Punchline has no
@@ -90,7 +87,7 @@ new class extends Component
     public array $usedPromptIds = [];
 
     /**
-     * @var list<array{id: string, promptId: int, promptText: string, seatIndices: list<int>, answersPerSeat: int, status: string, submittedCounts: array<int, int>, votedSeats: list<int>, answers: list<array{answerId: string, text: string}>, results: ?array}>
+     * @var list<array{id: string, promptId: int, promptText: string, seatIndices: list<int>, answersPerSeat: int, voteLimit: int, status: string, submittedCounts: array<int, int>, votedSeats: list<int>, answers: list<array{answerId: string, text: string}>, results: ?array}>
      */
     public array $matchups = [];
 
@@ -451,7 +448,7 @@ new class extends Component
 
     public function matchupVotesAllowed(array $matchup): int
     {
-        return $matchup['answersPerSeat'] === 3 ? 3 : 1;
+        return $matchup['voteLimit'];
     }
 
     /**
@@ -555,8 +552,8 @@ new class extends Component
             return;
         }
 
-        $votesAllowed = $this->matchupVotesAllowed($matchup);
-        abort_unless(count($answerIds) >= 1 && count($answerIds) <= $votesAllowed, 422);
+        $voteLimit = $this->matchupVotesAllowed($matchup);
+        abort_unless(count($answerIds) >= 1 && count($answerIds) <= $voteLimit, 422);
 
         $validAnswerIds = array_column($matchup['answers'], 'answerId');
         foreach ($answerIds as $answerId) {
@@ -689,7 +686,7 @@ new class extends Component
             && collect($this->matchups)->every(fn (array $m) => $m['status'] !== PunchlineMatchupStatus::Writing->value)) {
             $this->phase = PunchlinePhase::Voting;
             $this->writingEndsAt = null;
-            $this->votingEndsAt = now()->addSeconds($this->votingSecondsForRound())->timestamp;
+            $this->votingEndsAt = now()->addSeconds(self::VOTING_SECONDS)->timestamp;
         }
 
         if ($this->phase === PunchlinePhase::Voting
@@ -697,16 +694,6 @@ new class extends Component
             $this->phase = PunchlinePhase::RoundReveal;
             $this->votingEndsAt = null;
         }
-    }
-
-    private function writingSecondsForRound(): int
-    {
-        return $this->round === 3 ? self::ROUND3_WRITING_SECONDS : self::WRITING_SECONDS;
-    }
-
-    private function votingSecondsForRound(): int
-    {
-        return $this->round === 3 ? self::ROUND3_VOTING_SECONDS : self::VOTING_SECONDS;
     }
 
     /**
@@ -833,7 +820,7 @@ new class extends Component
         $this->pool = $this->scoringService->poolForRound($this->round);
         $this->buildRoundMatchups();
         $this->phase = PunchlinePhase::Writing;
-        $this->writingEndsAt = now()->addSeconds($this->writingSecondsForRound())->timestamp;
+        $this->writingEndsAt = now()->addSeconds(self::WRITING_SECONDS)->timestamp;
         $this->votingEndsAt = null;
 
         $this->syncOnlineState();
@@ -841,10 +828,12 @@ new class extends Component
 
     /**
      * Builds the next round's matchups -- round 3 is modeled as one
-     * matchup whose seatIndices is every seat and answersPerSeat is 3,
-     * the same submit/reveal/vote/tally machinery as a pairing-round
-     * matchup, not a separate game mode (docs/specs/punchline.md section
-     * 2).
+     * matchup whose seatIndices is every seat, answering the single
+     * shared prompt once each (answersPerSeat 1) but voting with 3
+     * stackable votes (voteLimit 3, decoupled from answersPerSeat --
+     * docs/concerns.md), the same submit/reveal/vote/tally machinery as a
+     * pairing-round matchup, not a separate game mode (docs/specs/
+     * punchline.md section 2).
      */
     private function buildRoundMatchups(): void
     {
@@ -856,7 +845,8 @@ new class extends Component
                 'promptId' => $promptId,
                 'promptText' => PunchlinePrompt::find($promptId)->text,
                 'seatIndices' => array_column($this->seats, 'seatIndex'),
-                'answersPerSeat' => 3,
+                'answersPerSeat' => 1,
+                'voteLimit' => 3,
                 'status' => PunchlineMatchupStatus::Writing->value,
                 'submittedCounts' => [],
                 'votedSeats' => [],
@@ -885,6 +875,7 @@ new class extends Component
                 'promptText' => $prompts[$promptId]->text,
                 'seatIndices' => $seatIndices,
                 'answersPerSeat' => 1,
+                'voteLimit' => 1,
                 'status' => PunchlineMatchupStatus::Writing->value,
                 'submittedCounts' => [],
                 'votedSeats' => [],

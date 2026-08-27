@@ -136,6 +136,7 @@ new class extends Component
                 'promptText' => $prompts[$promptId]->text,
                 'seatIndices' => $seatIndices,
                 'answersPerSeat' => 1,
+                'voteLimit' => 1,
                 'status' => PunchlineMatchupStatus::Writing->value,
                 'submittedCounts' => [],
                 'votedSeats' => [],
@@ -157,12 +158,11 @@ new class extends Component
             'pointsByRound' => [],
             'sweepsWon' => [],
             // Same duration as pages::punchline.play's own WRITING_SECONDS
-            // constant (round 1 is always a plain pairing round) -- kept as
-            // a literal here rather than importing the other page's class
-            // just for one constant, matching this app's existing
-            // room-vs-play duplication tolerance (see Best Match's own
-            // room/play split).
-            'writingEndsAt' => now()->addSeconds(120)->timestamp,
+            // constant -- kept as a literal here rather than importing the
+            // other page's class just for one constant, matching this
+            // app's existing room-vs-play duplication tolerance (see Best
+            // Match's own room/play split).
+            'writingEndsAt' => now()->addSeconds(180)->timestamp,
             'votingEndsAt' => null,
             'usedPromptIds' => $usedPromptIds,
             'matchups' => $matchups,

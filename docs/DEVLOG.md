@@ -1269,6 +1269,51 @@ of which used exactly 3 players *and* actually inspected the rendered vote optio
   Wired into the `#game-actions` Game-menu dialog with the same confirm-dialog pattern as
   Farkle's own End Game button (a `data-dialog-open` trigger + `<x-confirm-dialog>`), not a bare
   click, since this ends the game for every seat at once.
+- **Replaced the odd-player-count "shared triple" pairing with a plain-pairs Hamiltonian cycle**
+  (docs/concerns.md), superseding the triple design described above. The earlier design resolved
+  a contradiction in the *original* ask ("one 3-way matchup per odd round" + "every player
+  answers exactly 2 prompts") by using two triples per round; a later request dropped the
+  3-way-matchup requirement entirely in favor of "every prompt is answered by exactly two
+  players," for every player count including odd ones — which removes the contradiction outright
+  rather than needing to resolve it. `PairingService::generateRoundMatchups()` now pairs odd `P`
+  via a single cycle `(0,1), (1,2), ..., (P-1,0)`: `P` distinct pairs, every seat in exactly 2 of
+  them, none repeated. `promptCountForRound()` simplifies to always returning `P` (previously
+  `P - 1` for odd counts). `P=3` now produces 3 head-to-head matchups instead of "both prompts
+  are the same trio" — matching the concern's own worked example exactly. The P=3-specific
+  self-vote-fallback tests (`eligibleVoters()` falling back to "everyone votes" when the diff is
+  empty) moved from round 1 to round 3, since round 3's single shared-prompt matchup is now the
+  only place that fallback is still reachable.
+- **Writing and voting timers unified to a flat 3 minutes each, every round** (docs/concerns.md)
+  — previously 120s/240s writing (split by round) and 30s/90s voting, the voting duration never
+  revisited since the original build. Removed the round-3-doubles-it relationship entirely rather
+  than keeping a separate round-3 constant, since the request asked for one flat duration.
+  `pages::punchline.room`'s own duplicated literal for round 1's initial `writingEndsAt` (kept as
+  a literal rather than importing the other page's class for one constant, per this app's
+  existing room-vs-play duplication tolerance) had to be updated in lockstep, or round 1 would
+  silently start on the old duration even after the shared constant changed — worth remembering
+  next time either timer moves again.
+- **Fixed the answer input zooming the viewport in on focus on mobile** (docs/concerns.md) — the
+  shared base `input[type="text"]` rule in `app.css` clamps font-size as low as 13px, under the
+  16px floor iOS Safari uses to decide whether to zoom in on focus. Scoped a 16px+ floor to
+  `#punchline-matchups input[type="text"]` specifically rather than raising the shared base rule,
+  since other games' narrower inputs rely on that smaller floor for their own layout. Confirmed
+  live via `on()->iPhoneSE()` device emulation asserting the input's real computed font-size —
+  not `resize()`, per this repo's own documented gotcha that `resize()` doesn't reliably reflect
+  real narrow-viewport `vmin`-based `clamp()` values.
+- **Round 3 dropped back to 1 answer per player (still 3 stackable votes), reversing the
+  original 3-answer design described above** (docs/concerns.md: "Everyone answers the prompt
+  one time... can cast three votes"). This was initially misread during triage as already
+  matching the request, since the original build's 3-answer/3-vote round 3 superficially looked
+  like the same "final round with extra votes" shape — the miss was conflating "how many answers
+  you write" with "how many votes you get." Fixing it required decoupling the two: `answersPerSeat`
+  was previously doing double duty as the *implicit* signal for "this is round 3, so allow 3
+  votes" (`matchupVotesAllowed()` returned `3` exactly when `answersPerSeat === 3`). Every matchup
+  now carries an explicit `voteLimit` field set independently of `answersPerSeat` (`1` for
+  rounds 1–2, `3` for round 3, regardless of how many answers that matchup requires) —
+  `matchupVotesAllowed()` just reads it directly. Round 3 now builds with `answersPerSeat = 1,
+  voteLimit = 3`; scoring, the writing/voting UI, and the stackable-vote allocator all already
+  read from `voteLimit`/`answersPerSeat` generically and needed no changes beyond that one
+  field split.
 
 ## User profiles & stats
 

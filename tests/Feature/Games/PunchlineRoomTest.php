@@ -320,7 +320,7 @@ test('a second vote from the same seat is a quiet no-op (a benign double-tap/sta
         ->assertStatus(422);
 });
 
-test('a P=3 game falls back to authors voting on each other\'s answers within the same trio matchup', function () {
+test('round 3\'s shared matchup falls back to authors voting on each other\'s answers (the only place that fallback still applies now that every pairing-round prompt is a plain pair)', function () {
     seedPunchlinePrompts();
     $host = User::factory()->create();
     $p1 = User::factory()->create();
@@ -329,44 +329,52 @@ test('a P=3 game falls back to authors voting on each other\'s answers within th
 
     startPunchlineRoom($room, [$host, $p1, $p2]);
     $room->refresh();
+    $usersBySeat = [$host, $p1, $p2];
+    $seats = punchlineSeatsByUser($room, [$host, $p1, $p2]);
+
+    // Play through rounds 1-2 for real so round 3 is reached honestly.
+    foreach ([1, 2] as $round) {
+        autoplayPunchlineWriting($room, $usersBySeat);
+        autoplayPunchlineVoting($room, $usersBySeat);
+        Livewire::actingAs($host)->test('pages::punchline.play', ['room' => $room->code])->call('advanceRound');
+    }
 
     $session = GameSession::find($room->game_session_id);
-    // P=3 degenerates to the same trio answering both prompts (PairingServiceTest).
-    expect(array_column($session->state['matchups'], 'seatIndices'))->toBe([
-        [0, 1, 2], [0, 1, 2],
-    ]);
+    // Round 3's single matchup always includes every seat, so
+    // eligibleVoters() falls back to "everyone votes" -- every player is
+    // simultaneously an author and an eligible voter of the same matchup
+    // (docs/specs/punchline.md).
+    expect($session->state['matchups'][0]['seatIndices'])->toBe([0, 1, 2]);
 
-    Livewire::actingAs($host)->test('pages::punchline.play', ['room' => $room->code])->set('drafts.r1-0-0', 'host answer')->call('submitAnswer', 'r1-0');
-    Livewire::actingAs($p1)->test('pages::punchline.play', ['room' => $room->code])->set('drafts.r1-0-0', 'p1 answer')->call('submitAnswer', 'r1-0');
-    Livewire::actingAs($p2)->test('pages::punchline.play', ['room' => $room->code])->set('drafts.r1-0-0', 'p2 answer')->call('submitAnswer', 'r1-0');
+    autoplayPunchlineWriting($room, $usersBySeat);
 
     $session = GameSession::find($room->game_session_id);
-    $matchup = collect($session->state['matchups'])->firstWhere('id', 'r1-0');
+    $matchup = $session->state['matchups'][0];
     expect($matchup['status'])->toBe(PunchlineMatchupStatus::Voting->value);
 
-    $hostAnswerId = collect($matchup['answers'])->firstWhere('text', 'host answer')['answerId'];
-    $p1AnswerId = collect($matchup['answers'])->firstWhere('text', 'p1 answer')['answerId'];
+    $hostAnswerId = collect($matchup['answers'])->firstWhere('text', "seat {$seats[$host->id]->seat_index} slot 0")['answerId'];
+    $p1AnswerId = collect($matchup['answers'])->firstWhere('text', "seat {$seats[$p1->id]->seat_index} slot 0")['answerId'];
 
     // host's own answer is never even offered as an option (see
     // matchupVotableAnswers()) -- and a vote for it that somehow arrives
     // anyway is silently dropped, not a hard error (see castVote()'s own
     // graceful self-vote handling below), so it never gets recorded...
     Livewire::actingAs($host)->test('pages::punchline.play', ['room' => $room->code])
-        ->call('castVote', 'r1-0', [$hostAnswerId])
+        ->call('castVote', 'r3-0', [$hostAnswerId])
         ->assertOk();
 
     $session = GameSession::find($room->game_session_id);
-    $matchup = collect($session->state['matchups'])->firstWhere('id', 'r1-0');
+    $matchup = $session->state['matchups'][0];
     expect($matchup['votedSeats'])->toBe([]);
 
     // ...but a real vote for someone else's answer works normally, even
     // though host is also an author of this matchup.
     Livewire::actingAs($host)->test('pages::punchline.play', ['room' => $room->code])
-        ->call('castVote', 'r1-0', [$p1AnswerId])
+        ->call('castVote', 'r3-0', [$p1AnswerId])
         ->assertOk();
 
     $session = GameSession::find($room->game_session_id);
-    $matchup = collect($session->state['matchups'])->firstWhere('id', 'r1-0');
+    $matchup = $session->state['matchups'][0];
     expect($matchup['votedSeats'])->toBe([0]);
 });
 
@@ -501,15 +509,16 @@ test('round 3 lets a voter stack all 3 votes on a single answer, and every seat 
     expect($session->state['pool'])->toBe(3000);
     expect($session->state['matchups'])->toHaveCount(1);
     expect($session->state['matchups'][0]['seatIndices'])->toBe([0, 1, 2, 3]);
-    expect($session->state['matchups'][0]['answersPerSeat'])->toBe(3);
+    expect($session->state['matchups'][0]['answersPerSeat'])->toBe(1);
+    expect($session->state['matchups'][0]['voteLimit'])->toBe(3);
 
-    // Every seat writes its 3 answers.
+    // Every seat writes its one answer.
     autoplayPunchlineWriting($room, $usersBySeat);
 
     $session = GameSession::find($room->game_session_id);
     $matchup = $session->state['matchups'][0];
     expect($matchup['status'])->toBe(PunchlineMatchupStatus::Voting->value);
-    expect($matchup['answers'])->toHaveCount(12); // 4 seats x 3 answers
+    expect($matchup['answers'])->toHaveCount(4); // 4 seats x 1 answer each, but 3 stackable votes
 
     $p1AnswerId = collect($matchup['answers'])->firstWhere('text', "seat {$seats[$p1->id]->seat_index} slot 0")['answerId'];
 
@@ -810,7 +819,7 @@ test('acting on a matchup id from a round that already moved on elsewhere quietl
     expect($session->state['round'])->toBe(2);
 });
 
-test('the actual reported bug: in a P=3 game, a voter never sees their own anonymized answer as a votable option', function () {
+test('the actual reported bug: in round 3, a voter never sees their own anonymized answer as a votable option', function () {
     seedPunchlinePrompts();
     $host = User::factory()->create();
     $p1 = User::factory()->create();
@@ -819,25 +828,30 @@ test('the actual reported bug: in a P=3 game, a voter never sees their own anony
 
     startPunchlineRoom($room, [$host, $p1, $p2]);
     $room->refresh();
+    $usersBySeat = [$host, $p1, $p2];
     $seats = punchlineSeatsByUser($room, [$host, $p1, $p2]);
 
-    // P=3 degenerates to the same trio answering both prompts (PairingServiceTest)
-    // -- every matchup includes every seat, so eligibleVoters() falls back to
-    // "everyone votes," making every player also one of the matchup's own authors.
-    Livewire::actingAs($host)->test('pages::punchline.play', ['room' => $room->code])->set('drafts.r1-0-0', 'host answer')->call('submitAnswer', 'r1-0');
-    Livewire::actingAs($p1)->test('pages::punchline.play', ['room' => $room->code])->set('drafts.r1-0-0', 'p1 answer')->call('submitAnswer', 'r1-0');
-    Livewire::actingAs($p2)->test('pages::punchline.play', ['room' => $room->code])->set('drafts.r1-0-0', 'p2 answer')->call('submitAnswer', 'r1-0');
+    // Round 3's single matchup always includes every seat, so
+    // eligibleVoters() falls back to "everyone votes," making every
+    // player also one of the matchup's own authors.
+    foreach ([1, 2] as $round) {
+        autoplayPunchlineWriting($room, $usersBySeat);
+        autoplayPunchlineVoting($room, $usersBySeat);
+        Livewire::actingAs($host)->test('pages::punchline.play', ['room' => $room->code])->call('advanceRound');
+    }
+
+    autoplayPunchlineWriting($room, $usersBySeat);
 
     $session = GameSession::find($room->game_session_id);
-    $matchup = collect($session->state['matchups'])->firstWhere('id', 'r1-0');
+    $matchup = $session->state['matchups'][0];
     expect($matchup['status'])->toBe(PunchlineMatchupStatus::Voting->value);
 
     $hostComponent = Livewire::actingAs($host)->test('pages::punchline.play', ['room' => $room->code]);
     $votable = collect($hostComponent->instance()->matchupVotableAnswers($matchup))->pluck('text');
 
-    expect($votable)->not->toContain('host answer')
-        ->toContain('p1 answer', 'p2 answer')
-        ->toHaveCount(2); // every answer except the viewer's own
+    expect($votable)->not->toContain("seat {$seats[$host->id]->seat_index} slot 0")
+        ->toContain("seat {$seats[$p1->id]->seat_index} slot 0", "seat {$seats[$p2->id]->seat_index} slot 0")
+        ->toHaveCount(2); // every answer (1 per seat) except the viewer's own
 });
 
 test('the actual reported bug, server-side: a vote that happens to include the voter\'s own answer (an old/buggy client) silently drops just that one instead of erroring the whole vote', function () {
@@ -849,24 +863,29 @@ test('the actual reported bug, server-side: a vote that happens to include the v
 
     startPunchlineRoom($room, [$host, $p1, $p2]);
     $room->refresh();
+    $usersBySeat = [$host, $p1, $p2];
     $seats = punchlineSeatsByUser($room, [$host, $p1, $p2]);
 
-    Livewire::actingAs($host)->test('pages::punchline.play', ['room' => $room->code])->set('drafts.r1-0-0', 'host answer')->call('submitAnswer', 'r1-0');
-    Livewire::actingAs($p1)->test('pages::punchline.play', ['room' => $room->code])->set('drafts.r1-0-0', 'p1 answer')->call('submitAnswer', 'r1-0');
-    Livewire::actingAs($p2)->test('pages::punchline.play', ['room' => $room->code])->set('drafts.r1-0-0', 'p2 answer')->call('submitAnswer', 'r1-0');
+    foreach ([1, 2] as $round) {
+        autoplayPunchlineWriting($room, $usersBySeat);
+        autoplayPunchlineVoting($room, $usersBySeat);
+        Livewire::actingAs($host)->test('pages::punchline.play', ['room' => $room->code])->call('advanceRound');
+    }
+
+    autoplayPunchlineWriting($room, $usersBySeat);
 
     $session = GameSession::find($room->game_session_id);
-    $matchup = collect($session->state['matchups'])->firstWhere('id', 'r1-0');
-    $hostAnswerId = collect($matchup['answers'])->firstWhere('text', 'host answer')['answerId'];
+    $matchup = $session->state['matchups'][0];
+    $hostAnswerId = collect($matchup['answers'])->firstWhere('text', "seat {$seats[$host->id]->seat_index} slot 0")['answerId'];
 
     // host votes for their OWN answer -- exactly the accidental click the
     // real bug report described (indistinguishable in the anonymized list).
     Livewire::actingAs($host)->test('pages::punchline.play', ['room' => $room->code])
-        ->call('castVote', 'r1-0', [$hostAnswerId])
+        ->call('castVote', 'r3-0', [$hostAnswerId])
         ->assertOk(); // not 403 -- no silent redirect home
 
     $session = GameSession::find($room->game_session_id);
-    $matchup = collect($session->state['matchups'])->firstWhere('id', 'r1-0');
+    $matchup = $session->state['matchups'][0];
     // The self-vote wasn't recorded at all -- not for anyone.
     expect($matchup['votedSeats'])->not->toContain($seats[$host->id]->seat_index);
 });

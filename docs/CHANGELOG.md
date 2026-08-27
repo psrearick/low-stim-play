@@ -2,6 +2,24 @@
 
 A terse, commit-by-commit record of what changed, newest first. No rationale or decisions here — see `docs/DEVLOG.md` for the *why* behind anything listed here, organized by feature instead of by commit. See `docs/TODO.md` for what's still outstanding.
 
+## 2026-08-27
+
+- Extended Punchline's writing and voting timers to a flat 3 minutes each, every round (previously 120s/240s writing and 30s/90s voting, split by round).
+- Fixed Punchline's answer input zooming the viewport in on focus on mobile, by floor-ing its font-size at 16px.
+- Changed Punchline's odd-player-count pairing (rounds 1-2) from two shared 3-player matchups to a Hamiltonian cycle of plain 2-player matchups, so every prompt is answered by exactly 2 players and every player votes only on the one prompt they weren't in, for any player count.
+- Fixed Punchline's final round requiring 3 answers per player instead of 1 (still 3 stackable votes) -- vote allowance is now its own field on each matchup, decoupled from answer count.
+
+## 2026-08-26
+
+- Prevented edge-swipe drags from triggering iOS Safari's back-navigation gesture, most noticeable on Word Hive's edge-to-edge honeycomb.
+- Renamed "Word Blocks" to "Quads" (TODO Task 24).
+- Applied `CommonWordFilter` to Quads' answer-word selection (TODO Task 20).
+- Moved Wordle's Hard Mode toggle to a pre-game setup screen instead of an in-game toggle (TODO Task 28).
+- Added the ability to tap a tile in Wordle's current row and edit a single letter before submitting (TODO Task 29).
+- Changed Wordle's score to reflect guess count directly (lower is better) instead of a points value (TODO Task 21).
+- Fixed the homepage game-grid's columns drifting to unequal widths across rows and screen sizes; now a real CSS grid (TODO Task 25).
+- Fixed the Game Menu's divider showing above an empty action-button area when a game had no action buttons yet (TODO Task 30).
+
 ## 2026-08-25
 
 - Fixed Word Hive's center hexagon showing a gray border instead of blue along its bottom-left/bottom-right edges, caused by the row below painting over it -- the center cell now always paints above its neighbors.
