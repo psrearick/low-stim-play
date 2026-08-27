@@ -51,6 +51,38 @@ test('the homepage links to Quads, not the trademarked "Quartiles" name', functi
         ->assertSeeHtml(route('quartiles.play'));
 });
 
+/**
+ * Every game-card button's visible text is now short and generic
+ * ("Play", "Group Play", "Dice Only" -- docs/DEVLOG.md's "Site-wide
+ * design system & chrome" section), which would otherwise leave a
+ * screen reader navigating by a buttons list hearing an ambiguous
+ * "Play, Play, Play, Play..." with no way to tell which game each one
+ * launches. Each button's aria-label restores that context ("Word Grid
+ * — Play") without bringing back the visible redundancy.
+ */
+test('every game-card button has a unique aria-label combining the game name and its own action', function () {
+    $html = $this->get('/')->getContent();
+
+    $dom = new DOMDocument;
+    @$dom->loadHTML($html);
+    $xpath = new DOMXPath($dom);
+
+    $buttons = $xpath->query("//div[contains(concat(' ', normalize-space(@class), ' '), ' game-card-actions ')]/a/button");
+
+    expect($buttons->length)->toBeGreaterThan(0);
+
+    $labels = [];
+    foreach ($buttons as $button) {
+        $label = $button->getAttribute('aria-label');
+        expect($label)->not->toBe('');
+        $labels[] = $label;
+    }
+
+    // No two buttons share an accessible name -- see this test's own
+    // docblock for why that matters.
+    expect($labels)->toBe(array_unique($labels));
+});
+
 test('logging out from the homepage redirects back to a guest view', function () {
     $user = User::factory()->create();
 

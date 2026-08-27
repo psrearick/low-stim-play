@@ -12,6 +12,7 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 - Moved `BallotService` from `App\Services\Punchline` to a shared `App\Services\SubmitVote` namespace now that Hoax reuses it, and added a `voterChoices()` method for Hoax's own reveal needs.
 - Fixed a pre-existing bug where `pages::profile.games`'s route-lookup match was missing a `GameType::Punchline` arm entirely.
 - Fixed game-card button text overflowing its own button on the homepage at every screen size, by letting long labels (e.g. "Clear the Deck (Tens)") wrap onto a second line instead of forcing a single un-wrappable line past the button's edges.
+- Shortened every homepage game-card button's label to just its action ("Play", "Group Play", "Dice Only") instead of repeating the game name already shown as the card's own heading; added an `aria-label` to each button restoring that context for screen readers.
 
 ## 2026-08-26
 
