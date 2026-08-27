@@ -61,6 +61,14 @@
             </div>
         </div>
         <div class="game-card">
+            <div class="game-card-title">Hoax</div>
+            <p class="game-card-desc">Write a convincing fake answer to a trivia question, then vote on which answer is real &mdash; fool other players or find the truth, for 3&ndash;8 players. Online rooms only, since everyone writes privately.</p>
+            <div class="game-card-actions">
+                <a href="{{ route('hoax.play') }}"><button type="button">Hoax</button></a>
+                <livewire:game-card-resume :type="\App\Enums\GameType::Hoax" wire:key="resume-hoax" />
+            </div>
+        </div>
+        <div class="game-card">
             <div class="game-card-title">Clear the Deck (Tens)</div>
             <p class="game-card-desc">A shared pile, a private hand, and table cards hidden even from you until you play them, for 3&ndash;10 players. Match or beat the pile, clear it with four of a kind, and try to be first to empty your hand. Online rooms only.</p>
             <div class="game-card-actions">

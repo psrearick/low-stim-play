@@ -3013,3 +3013,10 @@ body.scrollable.family-feud-play {
 #punchline-matchups input[type="text"] {
     font-size: clamp(16px, 1.9vmin, 18px);
 }
+
+/* ---- Hoax answer input -- same 16px iOS-zoom-avoidance floor as
+   Punchline's own rule above, applied from the start this time instead
+   of after a bug report (docs/DEVLOG.md's Hoax section). ---- */
+#hoax-game input[type="text"] {
+    font-size: clamp(16px, 1.9vmin, 18px);
+}

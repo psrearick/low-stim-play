@@ -1315,6 +1315,71 @@ of which used exactly 3 players *and* actually inspected the rendered vote optio
   read from `voteLimit`/`answersPerSeat` generically and needed no changes beyond that one
   field split.
 
+## Hoax
+
+A Fibbage-style room game (players write a fake answer to a fill-in-the-blank trivia question,
+the real answer is seeded among the lies, everyone votes on which is real), ships under the
+display name **"Hoax"** — "Fibbage" is Jackbox Games' trademark. Chosen directly by the user
+before any code existed, matching Punchline's own naming precedent (no internal-vs-display-name
+split to maintain). `docs/TODO.md`'s former Task 32, raised while building Punchline
+(2026-08-23) and left as an open design question until now — "the round/scoring model is a
+genuinely open question, not a known quantity," per that task's own writeup. Full build spec:
+`docs/specs/hoax.md`.
+
+- **Structurally simpler than Punchline, even though its scoring is genuinely new.** Every round
+  has exactly one shared question for the whole table — no pairing, no per-round matchup array.
+  `GameSession.state` is flat (`questionId`/`questionText`/`answers`/`submittedSeats`/
+  `votedSeats`/`results` directly on the state, not nested under a `matchups` list), closer to
+  Punchline's round-3 shape stretched across the whole game than to its rounds 1–2. This meant no
+  `PairingService` equivalent was needed at all.
+- **The real answer is "authored" by a sentinel seat index (`-1`), not a special case.** Written
+  into the same ballot as every player's fake answer via `BallotService::submit()` under
+  `Hoax\ScoringService::TRUTH_SEAT_INDEX`, a value that can never collide with a real room seat
+  (always `>= 0`). `revealAnonymized()` already strips all seat info from what it returns, so the
+  real answer is naturally camouflaged among the lies from the moment it's submitted — zero
+  changes needed to `BallotService` for this part.
+- **`BallotService` extracted to `App\Services\SubmitVote`, exactly as `docs/specs/punchline.md`
+  §4 predicted it would be once a second real consumer existed.** Moved from
+  `App\Services\Punchline` with zero method/signature changes — its submit → anonymize-reveal →
+  vote → tally cycle was already fully generic. Best Match untouched, as predicted (its
+  single-judge model never had a vote tally to begin with).
+- **One real, narrow addition to the shared `BallotService` was still needed: `voterChoices()`.**
+  Hoax's scoring needs per-voter identity (who specifically voted for the truth vs. who fell for
+  a given lie), not just `tally()`'s aggregated counts — Punchline never needed this, since its
+  vote-share scoring only ever cares about totals, so "who voted for what stays secret forever"
+  really was true for its one consumer. Hoax's entire reveal moment is *built* around exposing
+  exactly this ("you fooled Alice and Bob!"), so `voterChoices()` is a second, deliberate,
+  documented exception to that secrecy rule, alongside the existing `authors()` — not a general
+  loosening of it. `Hoax\ScoringService::scoreRound()` takes the resulting per-voter map (not an
+  aggregated tally) and returns per-seat points plus who found the truth.
+- **Classic flat Fibbage scoring, not an escalating pool.** User's choice over a Punchline-style
+  per-round pool: `TRUTH_POINTS = 1000` per voter who finds the real answer, `FOOL_POINTS = 500`
+  per other player fooled by a given lie (stacks). A single seat's round total can combine both
+  roles at once (wrote a lie that fooled people *and* separately voted correctly) since every
+  seat is always both an author and a voter every round — confirmed intentional via a test that
+  initially caught the "expected 1000, got 2000" case and needed the *test's* expectation fixed,
+  not the scoring code.
+- **5 fixed rounds, 90s writing / 60s voting** — both user choices over matching Punchline's
+  numbers exactly (3 rounds, 180s/180s), since each Hoax round's cycle is faster (one blank-fill
+  answer, fewer voting options to read) so more, shorter rounds fit a similar total playtime.
+- **Fill-in-the-blank format, not plain Q&A** — the actual comedic mechanic Fibbage is built
+  around (a completed, often absurd sentence per candidate, not a bare fact). `questionText`
+  carries a literal `____` placeholder; `interpolatedText()` substitutes each candidate's
+  (HTML-escaped) text into it for the voting/reveal UI, one of the only `{!! !!}` raw-HTML
+  usages in the app, deliberately narrow and pre-escaped.
+- **Question bank sized smaller than Punchline's on purpose: ~80 entries, not ~150.** Trivia has
+  a factual-correctness bar comedic prompts don't — a wrong "funniest answer" opinion is
+  harmless, a wrong "fact" is a real content bug — so a smaller, more carefully verified bank was
+  preferred over stretching for volume at higher error risk.
+- **Applied the `>=16px` mobile-input font-size fix from day one**, instead of after a bug
+  report the way Punchline needed it (see that section's own entry above) — same scoped
+  `#hoax-game input[type="text"]` pattern in `app.css`.
+- **Drive-by fix while wiring `GameType::Hoax` into every exhaustive match over the enum**:
+  `pages::profile.games`'s own `showRoute()` match was missing a `GameType::Punchline` arm
+  entirely — a real, pre-existing `UnhandledMatchError` waiting for anyone whose "All Games"
+  history included a Punchline game. Found by grepping every `match ($x->type)` over `GameType`
+  while adding Hoax's own arms, fixed in the same pass.
+
 ## User profiles & stats
 
 - `/dashboard` (own stats) and `/profile/{username}` (public, `is_public`-gated).

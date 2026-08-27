@@ -30,6 +30,11 @@ new class extends Component
             GameType::Quartiles => 'profile.quartiles.show',
             GameType::Wordle => 'profile.wordle.show',
             GameType::SpellingBee => 'profile.spelling-bee.show',
+            // Both missing here previously (a real UnhandledMatchError
+            // gap -- Punchline had a route but no arm in this specific
+            // match) -- see docs/DEVLOG.md's Hoax section.
+            GameType::Punchline => 'profile.punchline.show',
+            GameType::Hoax => 'profile.hoax.show',
         };
 
         return route($routeName, $participant);

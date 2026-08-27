@@ -1,17 +1,22 @@
 <?php
 
-namespace App\Services\Punchline;
+namespace App\Services\SubmitVote;
 
 use Illuminate\Support\Facades\Cache;
 
 /**
- * Owns the submit -> anonymize-reveal -> vote -> tally cycle every
- * Punchline matchup goes through (docs/specs/punchline.md sections 3-4),
- * keyed by an opaque $ballotKey the caller composes (one per matchup, e.g.
- * "punchline:{sessionId}:round:{r}:matchup:{id}") -- this class never
- * constructs that key itself and knows nothing about prompts, rounds, or
- * matchups, only ids/seats/text, so it stays extraction-ready if a future
- * game (see docs/specs/punchline.md section 4) ever needs the same cycle.
+ * Owns the submit -> anonymize-reveal -> vote -> tally cycle any
+ * submit-then-vote room game goes through, keyed by an opaque $ballotKey
+ * the caller composes (Punchline: one per matchup, e.g.
+ * "punchline:{sessionId}:round:{r}:matchup:{id}"; Hoax: one per round,
+ * e.g. "hoax:{sessionId}:round:{r}") -- this class never constructs that
+ * key itself and knows nothing about prompts, rounds, matchups, or
+ * questions, only ids/seats/text. Originally built inside
+ * `App\Services\Punchline` (docs/specs/punchline.md sections 3-4)
+ * deliberately generic so it could be extracted once there was a second
+ * real consumer to design the shared shape against, rather than guessed
+ * at with only one -- Hoax (docs/specs/hoax.md) is that second consumer,
+ * moved here unchanged (zero method/signature changes) once it existed.
  *
  * Directly extends the secret-attribution pattern Best Match's own
  * roundAttribution()/putRoundAttribution()/clearRoundAttribution()
@@ -124,9 +129,10 @@ class BallotService
     }
 
     /**
-     * Aggregated vote counts per answer -- never per-voter identity, which
-     * stays inside this class's own Cache entry forever (cleared, never
-     * read back out, by clear()).
+     * Aggregated vote counts per answer, with no voter identity attached --
+     * Punchline's only-ever use of the vote data, since its scoring is a
+     * pure vote-share split that never needs to know *who* cast a
+     * particular vote, only how many landed on each answer.
      *
      * @return array<string, int>
      */
@@ -156,6 +162,23 @@ class BallotService
             fn (array $entry) => $entry['seatIndex'],
             $this->submissions($ballotKey),
         );
+    }
+
+    /**
+     * Every voter's own choice(s), read once at ballot close -- a second
+     * deliberate exception to "who voted for what never leaves this
+     * class," alongside authors() above. Punchline never calls this (its
+     * scoring only ever needs tally()'s aggregated counts, so per-voter
+     * identity really does stay secret forever for it); Hoax's own reveal
+     * moment is fundamentally built around exposing exactly this ("you
+     * fooled Alice and Bob!", "Priya found the real answer!"), so it isn't
+     * optional for that consumer the way it is for Punchline.
+     *
+     * @return array<int, list<string>> voterSeatIndex => their chosen answerId(s)
+     */
+    public function voterChoices(string $ballotKey): array
+    {
+        return $this->votes($ballotKey);
     }
 
     /**

@@ -8,14 +8,13 @@ The Order of Work list is a separate, ordinary numbered list reflecting current 
 
 ## Order of Work
 
-1. [Task 32: Spec and build Fibbage](#32-spec-and-build-fibbage)
-2. [Task 22: Notify players when they're challenged, and surface it in the UI](#22-notify-players-when-theyre-challenged-and-surface-it-in-the-ui)
-3. [Task 23: Add "Sign in with Google"](#23-add-sign-in-with-google)
-4. [Task 26: Add "average percent of board found" to Word Grid stats](#26-add-average-percent-of-board-found-to-word-grid-stats)
-5. [Task 27: Split solo vs. multiplayer score stats on the Word Grid stats page](#27-split-solo-vs-multiplayer-score-stats-on-the-word-grid-stats-page)
-6. [Task 10: Spec and build Pips](#10-spec-and-build-pips)
-7. [Task 19: Spec and build Connections and Strands](#19-spec-and-build-connections-and-strands)
-8. [Task 33: Convert the Game Menu to a right-side off-canvas sidebar](#33-convert-the-game-menu-to-a-right-side-off-canvas-sidebar)
+1. [Task 22: Notify players when they're challenged, and surface it in the UI](#22-notify-players-when-theyre-challenged-and-surface-it-in-the-ui)
+2. [Task 23: Add "Sign in with Google"](#23-add-sign-in-with-google)
+3. [Task 26: Add "average percent of board found" to Word Grid stats](#26-add-average-percent-of-board-found-to-word-grid-stats)
+4. [Task 27: Split solo vs. multiplayer score stats on the Word Grid stats page](#27-split-solo-vs-multiplayer-score-stats-on-the-word-grid-stats-page)
+5. [Task 10: Spec and build Pips](#10-spec-and-build-pips)
+6. [Task 19: Spec and build Connections and Strands](#19-spec-and-build-connections-and-strands)
+7. [Task 33: Convert the Game Menu to a right-side off-canvas sidebar](#33-convert-the-game-menu-to-a-right-side-off-canvas-sidebar)
 
 ## Tasks
 
@@ -66,14 +65,6 @@ Moved from `docs/concerns.md` (2026-08-23): "The score in word grid should be di
 Confirmed: the backend already distinguishes the two. `GameSession.mode` (`GameMode::Solo`/`Online`/etc.) and `PlayerStatsService::avgScoreByMode()` (`app/Services/Stats/PlayerStatsService.php`) already compute separate solo/online averages precisely because Boggle's room score is rewritten into an "exclusive" score by `SharedSessionFinalizer` (a word found by more than one player scores nothing for anyone) — a genuinely different scale from solo scoring, not just a different mode label. This split already renders on the dashboard (`resources/views/components/player-stats.blade.php`, "X avg score (solo)" / "Y avg score (rooms)").
 
 The gap is specifically the dedicated Word Grid stats page (`resources/views/pages/profile/boggle/⚡index.blade.php`): `BoggleStatsService::bestMetrics()` computes "Highest score" and friends across **all modes combined**, blending solo raw scores with room "exclusive" scores into one figure — exactly the mixed-scale problem `avgScoreByMode()`'s own docblock warns against, just not yet applied here. The "All games" table already shows a per-row Mode column, so this is about the aggregate tiles, not the raw list: split `bestMetrics()` into solo/online variants (or filter by mode before computing), mirroring `avgScoreByMode()`'s existing approach.
-
-### 32. Spec and build Fibbage
-
-Raised while building Punchline (2026-08-23): the user wants another submit-then-vote room game, Fibbage-style — players write a plausible-sounding fake answer to a trivia question, the real answer is seeded among the lies, and everyone votes on which one they think is true (two-sided scoring: points for fooling other players *and* for finding the real answer, not just "did you win a vote" the way Punchline/Best Match work).
-
-Needs its own real design pass before a build spec, not just a copy of Punchline's shape — see `docs/specs/punchline.md` section 4 ("Abstraction scope") for why: Fibbage's defining trick (a real answer planted among player-submitted lies, plus the two-sided fooled-vs-found scoring) doesn't fit either Best Match's single-judge-pick or Punchline's proportional-vote-share-per-matchup shape, so the round/scoring model is a genuinely open question, not a known quantity. Also needs a trivia-question content source resolved (a static curated bank, matching Best Match's cards and Punchline's prompts, is the established low-risk default in this app — see `docs/specs/punchline.md` section 2's own reasoning for why LLM-authored content was deliberately avoided there) with real answers attached, which no existing seed data in this app provides.
-
-Once Fibbage's actual shape is designed, revisit whether `App\Services\Punchline\BallotService`'s submit → anonymize-reveal → vote → tally cycle is still a good fit to extract into a shared class both games use — it was deliberately built decoupled from Punchline-specific concepts for exactly this reason (see `docs/DEVLOG.md`'s Punchline section), but the decision to actually extract it was deferred until there's a second real consumer to design the shared shape against, rather than guessed at with only one.
 
 ### 33. Convert the Game Menu to a right-side off-canvas sidebar
 

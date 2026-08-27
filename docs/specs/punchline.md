@@ -197,7 +197,9 @@ infrastructure is introduced.
   | In-progress (unsubmitted) draft text | An ordinary public Livewire property, not `Cache`, not `state` | Never leaves the single connection that owns it — same reasoning Best Match already relies on for `$myHand`. |
 
   Owned by a new `App\Services\Punchline\BallotService` (see §5) rather than raw `Cache::` calls
-  scattered across the Livewire component, so this rule is enforced in one place.
+  scattered across the Livewire component, so this rule is enforced in one place. (Later moved
+  to `App\Services\SubmitVote\BallotService` unchanged once Hoax became the second real
+  consumer — see §4's own update and `docs/specs/hoax.md`.)
 - `GameParticipant.stats`: `pointsByRound` (3-int array), `sweepsWon` — same shape/spirit as
   Best Match's `green_cards_won`/`rounds_judged`.
 - `App\Services\Stats\PunchlineStatsService` (`gamesForUser()`/`statsFor()`/`bestMetrics()`),
@@ -224,6 +226,13 @@ class out of two real, working consumers is a mechanical move; designing it now 
 real game plus a guess at Fibbage's actual needs would be the premature-abstraction version of
 this same decision.
 
+**Update (Hoax build, `docs/specs/hoax.md`): this happened.** Hoax turned out to need exactly
+the same submit → anonymize-reveal → vote → tally cycle (one shared "matchup" per round instead
+of several concurrent ones, but the same primitive), so `BallotService` moved to
+`App\Services\SubmitVote\BallotService` with **zero method or signature changes** — the
+"mechanical move" predicted above, confirmed. Best Match still isn't touched: its single-judge
+model never had a vote tally to begin with, so it has nothing this class would help with.
+
 ## 5. Services & Livewire architecture
 
 Three pure/near-pure services in `app/Services/Punchline/`, matching Farkle's `Scorer`/
@@ -240,8 +249,9 @@ these are real algorithms/cycles worth testing in isolation:
   voter identity (the caller aggregates `Cache` votes into counts first).
 - **`FillerAnswers`** — small canned-line list + `pick(int $index): string`, deterministic by
   index.
-- **`BallotService`** — owns the submit → anonymize-reveal → vote → tally cycle, keyed
-  per-matchup (`gameSessionId`, `round`, `matchupId`). Signature kept generic on purpose (ids/
+- **`BallotService`** (now `App\Services\SubmitVote\BallotService` — see §4's update) — owns
+  the submit → anonymize-reveal → vote → tally cycle, keyed per-matchup (`gameSessionId`,
+  `round`, `matchupId`). Signature kept generic on purpose (ids/
   seats/text only, no `Prompt`/`Matchup` types) so a future extraction only has to move the
   class, not redesign its API: `submit(string $ballotKey, int $seatIndex, string $answerId,
   string $text): void`, `isComplete(string $ballotKey, array $expectedSeats, int
@@ -299,7 +309,8 @@ flashing/color-pulse as the deadline approaches.
   `App\Enums\PunchlinePhase`, `App\Enums\PunchlineMatchupStatus`.
 - `punchline_prompts` migration + `PunchlinePrompt` model, seeded via `PunchlinePromptSeeder`
   from a new `database/seeders/data/punchline_prompts.json` (~150–200 prompts).
-- `App\Services\Punchline\{PairingService,ScoringService,FillerAnswers,BallotService}`.
+- `App\Services\Punchline\{PairingService,ScoringService,FillerAnswers}` +
+  `App\Services\SubmitVote\BallotService` (moved there once Hoax needed it too — see §4).
 - Livewire pages: `pages::punchline.room`, `pages::punchline.play`.
 - `App\Services\Stats\PunchlineStatsService` + `pages::profile.punchline.{index,show}`.
 - Homepage card (`resources/views/welcome.blade.php`), sidebar link

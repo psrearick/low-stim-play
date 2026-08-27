@@ -93,6 +93,15 @@ Route::livewire('/profile/punchline/{gameParticipant}', 'pages::profile.punchlin
     ->name('profile.punchline.show');
 
 // Same registration-order reasoning as /profile/word-grid etc. above.
+Route::livewire('/profile/hoax', 'pages::profile.hoax.index')
+    ->middleware(['auth', 'verified'])
+    ->name('profile.hoax');
+
+Route::livewire('/profile/hoax/{gameParticipant}', 'pages::profile.hoax.show')
+    ->middleware(['auth', 'verified'])
+    ->name('profile.hoax.show');
+
+// Same registration-order reasoning as /profile/word-grid etc. above.
 Route::livewire('/profile/clear-the-deck', 'pages::profile.clear-the-deck.index')
     ->middleware(['auth', 'verified'])
     ->name('profile.clear-the-deck');
@@ -243,6 +252,16 @@ Route::livewire('/punchline', 'pages::punchline.play')->name('punchline.play');
 // anyone arriving without one.
 Route::livewire('/punchline/room/{code}', 'pages::punchline.room')
     ->name('punchline.room');
+
+// Online rooms only, no pass-and-play (see docs/specs/hoax.md section 1)
+// -- same reasoning and bare-visit behavior as /apple-match above.
+Route::livewire('/hoax', 'pages::hoax.play')->name('hoax.play');
+
+// No auth middleware -- same reasoning as boggle.room/yahtzee.room/etc.:
+// pages::hoax.room's mount() auto-provisions a guest account for anyone
+// arriving without one.
+Route::livewire('/hoax/room/{code}', 'pages::hoax.room')
+    ->name('hoax.room');
 
 // Solo only, no room mode at all (see docs/specs/quartiles.md section 1 --
 // GameType::Quartiles::supportsRooms() is false, and nothing here ever

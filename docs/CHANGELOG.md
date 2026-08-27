@@ -8,6 +8,9 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 - Fixed Punchline's answer input zooming the viewport in on focus on mobile, by floor-ing its font-size at 16px.
 - Changed Punchline's odd-player-count pairing (rounds 1-2) from two shared 3-player matchups to a Hamiltonian cycle of plain 2-player matchups, so every prompt is answered by exactly 2 players and every player votes only on the one prompt they weren't in, for any player count.
 - Fixed Punchline's final round requiring 3 answers per player instead of 1 (still 3 stackable votes) -- vote allowance is now its own field on each matchup, decoupled from answer count.
+- Added Hoax, a new Fibbage-style room game (TODO Task 32): each round, everyone writes a fake fill-in-the-blank answer to a trivia question, the real answer is seeded anonymously among the lies, and everyone votes on which one they think is true -- fooling other players and finding the truth both earn points. Fixed 5-round game, 3-8 players. New `hoax_questions` bank (84 questions), `Hoax\{ScoringService,FillerAnswers}`, profile stats, and homepage/sidebar wiring.
+- Moved `BallotService` from `App\Services\Punchline` to a shared `App\Services\SubmitVote` namespace now that Hoax reuses it, and added a `voterChoices()` method for Hoax's own reveal needs.
+- Fixed a pre-existing bug where `pages::profile.games`'s route-lookup match was missing a `GameType::Punchline` arm entirely.
 
 ## 2026-08-26
 

@@ -49,9 +49,9 @@ test('the homepage game grid drops to 2 equal-width columns on a medium screen',
     $widths = gameCardWidths($page);
     expect(array_unique($widths))->toHaveCount(1);
 
-    // Confirm it's actually 2 per row, not still 3 or already 1 -- 10
-    // cards at 2-per-row is exactly 5 rows.
-    expect(gameCardRowCount($page))->toBe(5);
+    // Confirm it's actually 2 per row, not still 3 or already 1 -- 11
+    // cards at 2-per-row is 6 rows (the last one a lone odd card out).
+    expect(gameCardRowCount($page))->toBe(6);
 });
 
 test('the homepage game grid drops to a single column on a narrow screen', function () {

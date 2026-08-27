@@ -1,6 +1,6 @@
 <?php
 
-use App\Services\Punchline\BallotService;
+use App\Services\SubmitVote\BallotService;
 use Tests\TestCase;
 
 // Cache::/now() need a booted app (the facade root), same reasoning
@@ -87,6 +87,18 @@ test('tally is keyed by answerId only, never by voter seat index', function () {
         ->and($tally['0-0'])->toBe(2);
 });
 
+test('voterChoices returns every voter\'s own choice(s), unlike tally\'s aggregated-only counts', function () {
+    $this->ballot->vote($this->key, 1, ['0-0']);
+    $this->ballot->vote($this->key, 2, ['0-0']);
+    $this->ballot->vote($this->key, 4, ['3-0', '3-0', '3-0']);
+
+    expect($this->ballot->voterChoices($this->key))->toBe([
+        1 => ['0-0'],
+        2 => ['0-0'],
+        4 => ['3-0', '3-0', '3-0'],
+    ]);
+});
+
 test('authors maps each answer back to its real seat, read fresh from submissions', function () {
     $this->ballot->submit($this->key, 0, '0-0', 'text');
     $this->ballot->submit($this->key, 3, '3-0', 'text');
@@ -106,5 +118,6 @@ test('clear drops both submissions and votes for this ballot only', function () 
     expect($this->ballot->submittedCount($this->key, 0))->toBe(0)
         ->and($this->ballot->tally($this->key))->toBe([])
         ->and($this->ballot->authors($this->key))->toBe([])
+        ->and($this->ballot->voterChoices($this->key))->toBe([])
         ->and($this->ballot->submittedCount($otherKey, 1))->toBe(1); // untouched
 });

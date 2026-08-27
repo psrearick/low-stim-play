@@ -14,6 +14,7 @@ enum GameType: string
     case Wordle = 'wordle';
     case SpellingBee = 'spelling_bee';
     case Punchline = 'punchline';
+    case Hoax = 'hoax';
 
     /**
      * The user-visible display name -- deliberately not the same as the
@@ -37,6 +38,7 @@ enum GameType: string
             self::Wordle => 'Five Letters',
             self::SpellingBee => 'Word Hive',
             self::Punchline => 'Punchline',
+            self::Hoax => 'Hoax',
         };
     }
 
@@ -66,6 +68,7 @@ enum GameType: string
             self::Wordle => throw new \LogicException('Wordle has no online-room mode; check supportsRooms() before calling roomRoute().'),
             self::SpellingBee => throw new \LogicException('SpellingBee has no online-room mode; check supportsRooms() before calling roomRoute().'),
             self::Punchline => 'punchline.room',
+            self::Hoax => 'hoax.room',
         };
     }
 
@@ -94,6 +97,7 @@ enum GameType: string
             self::Wordle => 'wordle.play',
             self::SpellingBee => 'spelling-bee.play',
             self::Punchline => 'punchline.play',
+            self::Hoax => 'hoax.play',
         };
     }
 

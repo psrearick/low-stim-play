@@ -11,7 +11,7 @@ use App\Models\GameSession;
 use App\Models\PunchlinePrompt;
 use App\Models\Room;
 use App\Models\RoomSeat;
-use App\Services\Punchline\BallotService;
+use App\Services\SubmitVote\BallotService;
 use App\Services\Punchline\FillerAnswers;
 use App\Services\Punchline\PairingService;
 use App\Services\Punchline\ScoringService;
