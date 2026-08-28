@@ -134,6 +134,52 @@ function autoplayPunchlineVoting(Room $room, array $usersBySeat): void
     }
 }
 
+/**
+ * docs/concerns.md: the pre-lobby screen and the waiting room used to be
+ * the same screen, and the instant this page loaded the room was already
+ * marked pending -- everyone could join before the host had even decided
+ * to run this game. openLobby() is the new explicit line between the two.
+ */
+test('landing on the room page does not mark the room pending until the host opens the lobby', function () {
+    $host = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    $component = Livewire::actingAs($host)->test('pages::punchline.room', ['code' => $room->code]);
+
+    expect($room->fresh()->pendingGameType())->toBeNull();
+
+    $component->call('openLobby');
+
+    expect($room->fresh()->pendingGameType())->toBe(GameType::Punchline);
+});
+
+test('a non-host cannot open the lobby', function () {
+    $host = User::factory()->create();
+    $guest = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+    $room->addMember($guest);
+
+    Livewire::actingAs($guest)
+        ->test('pages::punchline.room', ['code' => $room->code])
+        ->call('openLobby')
+        ->assertForbidden();
+
+    expect($room->fresh()->pendingGameType())->toBeNull();
+});
+
+test('a non-host sees a waiting message instead of the pre-lobby screen or the ready-up UI before the host opens the lobby', function () {
+    $host = User::factory()->create();
+    $guest = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+    $room->addMember($guest);
+
+    Livewire::actingAs($guest)
+        ->test('pages::punchline.room', ['code' => $room->code])
+        ->assertSee('Waiting for the host to finish setting up')
+        ->assertDontSee('fixed 3-round game')
+        ->assertDontSee('Ready');
+});
+
 test('starting a 4-player room builds the exact hand-verified round 1 pairing, no room_seats columns needed', function () {
     seedPunchlinePrompts();
     $host = User::factory()->create();

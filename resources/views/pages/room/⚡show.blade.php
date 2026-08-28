@@ -3,7 +3,6 @@
 use App\Enums\GameType;
 use App\Enums\RoomStatus;
 use App\Events\RoomEnded;
-use App\Events\RoomGameSwitched;
 use App\Models\Room;
 use App\Models\RoomMember;
 use App\Models\RoomSeat;
@@ -152,31 +151,22 @@ new class extends Component
      * button of its own on every individual game's own setup page, removed
      * (docs/concerns.md: that choice belongs on the room hub, not
      * scattered across every game's own page) in favor of this being the
-     * one place it happens. Without broadcasting this, only the host's own
-     * browser would navigate there; every other member sitting on this
-     * same hub page would be left behind with no way to follow, since
-     * nothing else tells them which game was just chosen. Resets
-     * game_session_id first for the same reason a stale non-null id
-     * anywhere would make that game's own onRoomStarting() skip creating a
-     * fresh session and silently reuse an old, already-finished one.
+     * one place it happens. Resets game_session_id first for the same
+     * reason a stale non-null id anywhere would make that game's own
+     * onRoomStarting() skip creating a fresh session and silently reuse an
+     * old, already-finished one.
+     *
+     * Deliberately does *not* mark the room pending or broadcast
+     * RoomGameSwitched (docs/concerns.md) -- both moved to that game's own
+     * openLobby() action instead, so nobody else is notified/able to join
+     * until the host actually confirms config there, not the instant they
+     * merely pick a game type here.
      */
     public function startGame(GameType $type): void
     {
         abort_unless($this->isHost, 403);
 
         $this->room->update(['game_session_id' => null]);
-
-        // Written synchronously, before broadcasting, so that any other
-        // member's onGameSwitched() below (fired by the broadcast this
-        // same request sends) recomputes $this->pendingGameType from an
-        // already-up-to-date cache rather than racing the host's own
-        // follow-up page load, which is what used to write this (see
-        // pages::{game}.room's own mount()). Also covers a late joiner who
-        // loads this hub after the fact -- Room::markPendingGame()'s own
-        // docblock.
-        $this->room->markPendingGame($type);
-
-        RoomGameSwitched::dispatch($this->room, $type);
 
         $this->redirect(route($type->roomRoute(), ['code' => $this->room->code]));
     }

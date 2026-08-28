@@ -66,6 +66,52 @@ test('only the host sees the board size and time limit controls', function () {
     $this->actingAs($guest)->get("/word-grid/room/{$room->code}")->assertDontSee('Board Size');
 });
 
+/**
+ * docs/concerns.md: config and the waiting room used to be the same
+ * screen, and the instant this page loaded the room was already marked
+ * pending -- everyone could join before the host had touched a setting.
+ * openLobby() is the new explicit line between the two.
+ */
+test('landing on the room page does not mark the room pending until the host opens the lobby', function () {
+    $host = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    $component = Livewire::actingAs($host)->test('pages::boggle.room', ['code' => $room->code]);
+
+    expect($room->fresh()->pendingGameType())->toBeNull();
+
+    $component->call('openLobby');
+
+    expect($room->fresh()->pendingGameType())->toBe(GameType::Boggle);
+});
+
+test('a non-host cannot open the lobby', function () {
+    $host = User::factory()->create();
+    $guest = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+    $room->addMember($guest);
+
+    Livewire::actingAs($guest)
+        ->test('pages::boggle.room', ['code' => $room->code])
+        ->call('openLobby')
+        ->assertForbidden();
+
+    expect($room->fresh()->pendingGameType())->toBeNull();
+});
+
+test('a non-host sees a waiting message instead of the config screen or the ready-up UI before the host opens the lobby', function () {
+    $host = User::factory()->create();
+    $guest = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+    $room->addMember($guest);
+
+    Livewire::actingAs($guest)
+        ->test('pages::boggle.room', ['code' => $room->code])
+        ->assertSee('Waiting for the host to finish setting up')
+        ->assertDontSee('Board Size')
+        ->assertDontSee('Ready');
+});
+
 test('starting the room creates a shared game session and redirects the host into it', function () {
     $host = User::factory()->create();
     $room = Room::factory()->create(['host_user_id' => $host->id]);

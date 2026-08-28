@@ -103,7 +103,10 @@ test('a host sees a dropdown of their own rooms on the setup screen and can jump
         ->click('#hosted-room-'.$room->code);
 
     $page->assertPathIs('/survey-says/room/'.$room->code)
-        ->assertSee("I'm ready");
+        ->assertSee('Open Lobby')
+        ->click('#open-lobby-btn');
+
+    $page->assertSee("I'm ready");
 });
 
 test('the acting seat sees the guess form, not a waiting message', function () {

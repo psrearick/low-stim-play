@@ -94,6 +94,52 @@ test('a guest_name cookie is picked up as the display name for a direct-link vis
     expect($guest->name)->toBe('Riley');
 });
 
+/**
+ * docs/concerns.md: config and the waiting room used to be the same
+ * screen, and the instant this page loaded the room was already marked
+ * pending -- everyone could join before the host had touched a setting.
+ * openLobby() is the new explicit line between the two.
+ */
+test('landing on the room page does not mark the room pending until the host opens the lobby', function () {
+    $host = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    $component = Livewire::actingAs($host)->test('pages::yahtzee.room', ['code' => $room->code]);
+
+    expect($room->fresh()->pendingGameType())->toBeNull();
+
+    $component->call('openLobby');
+
+    expect($room->fresh()->pendingGameType())->toBe(GameType::Yahtzee);
+});
+
+test('a non-host cannot open the lobby', function () {
+    $host = User::factory()->create();
+    $guest = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+    $room->addMember($guest);
+
+    Livewire::actingAs($guest)
+        ->test('pages::yahtzee.room', ['code' => $room->code])
+        ->call('openLobby')
+        ->assertForbidden();
+
+    expect($room->fresh()->pendingGameType())->toBeNull();
+});
+
+test('a non-host sees a waiting message instead of the config screen or the ready-up UI before the host opens the lobby', function () {
+    $host = User::factory()->create();
+    $guest = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+    $room->addMember($guest);
+
+    Livewire::actingAs($guest)
+        ->test('pages::yahtzee.room', ['code' => $room->code])
+        ->assertSee('Waiting for the host to finish setting up')
+        ->assertDontSee('Undo')
+        ->assertDontSee('Ready');
+});
+
 test('starting the room seat-assigns every ready player and persists an initial state blob', function () {
     $host = User::factory()->create();
     $guest = User::factory()->create();

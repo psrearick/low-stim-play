@@ -107,7 +107,10 @@ test('a host sees a dropdown of their own rooms on the setup screen and can jump
         ->click('#hosted-room-'.$room->code);
 
     $page->assertPathIs('/yacht/room/'.$room->code)
-        ->assertSee("I'm ready");
+        ->assertSee('Open Lobby')
+        ->click('#open-lobby-btn');
+
+    $page->assertSee("I'm ready");
 });
 
 test('the current seat can roll and score a category from a real browser', function () {

@@ -222,8 +222,10 @@ test('another member on the room hub sees a join prompt once the host picks a ga
     $room = Room::factory()->create(['host_user_id' => $host->id]);
     $room->addMember($guest);
 
-    // Written synchronously by the real startGame(), before it broadcasts --
-    // see pages::room.show::startGame()'s own comment.
+    // Stands in for the real pages::farkle.room::openLobby() -- that's the
+    // call site that actually marks pending/broadcasts now (docs/
+    // concerns.md), not this hub's own startGame() (see that method's own
+    // comment).
     $room->markPendingGame(GameType::Farkle);
 
     Livewire::actingAs($guest)

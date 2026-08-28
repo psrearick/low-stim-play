@@ -5,6 +5,7 @@ use App\Enums\GameType;
 use App\Enums\HoaxPhase;
 use App\Enums\RoomStatus;
 use App\Events\RoomGameStarting;
+use App\Events\RoomGameSwitched;
 use App\Models\GameSession;
 use App\Models\HoaxQuestion;
 use App\Models\Room;
@@ -40,6 +41,16 @@ new class extends Component
      */
     public ?string $startError = null;
 
+    /**
+     * Gates <livewire:game-lobby> -- false the entire time the host is on
+     * this page's own pre-lobby screen, so nobody else gets notified/can
+     * join until the host explicitly opens the lobby (see openLobby()
+     * below). Re-derived from Room::pendingGameType() on every mount()
+     * rather than stored anywhere new, so a reload or a return visit lands
+     * back in the right phase automatically.
+     */
+    public bool $lobbyOpened = false;
+
     public function mount(string $code): void
     {
         $this->room = Room::notExpired()->where('code', strtoupper($code))->firstOrFail();
@@ -57,11 +68,30 @@ new class extends Component
 
         $this->room->addMember(Auth::user());
 
-        if (Auth::id() === $this->room->host_user_id && $this->room->game_session_id === null) {
-            $this->room->markPendingGame(GameType::Hoax);
-        }
-
         $this->redirectIfAlreadyStarted();
+
+        // Reflects whatever's already true rather than assuming this is a
+        // fresh visit -- the host reloading after already clicking Open
+        // Lobby (or a member arriving after that already happened) both
+        // need to land past the pre-lobby screen, not back at square one.
+        $this->lobbyOpened = $this->room->pendingGameType() === GameType::Hoax;
+    }
+
+    /**
+     * The explicit moment this room's pre-lobby screen turns into the real
+     * waiting room -- everyone else was previously notified/able to join
+     * the instant the host so much as loaded this page (docs/concerns.md).
+     * markPendingGame()/RoomGameSwitched moved here from both this page's
+     * own mount() and pages::room.show's startGame(), so nothing fires
+     * until the host deliberately confirms.
+     */
+    public function openLobby(): void
+    {
+        abort_unless($this->isHost, 403);
+
+        $this->room->markPendingGame(GameType::Hoax);
+        RoomGameSwitched::dispatch($this->room, GameType::Hoax);
+        $this->lobbyOpened = true;
     }
 
     private function redirectIfAlreadyStarted(): void
@@ -78,8 +108,35 @@ new class extends Component
     {
         return [
             "echo-presence:room.{$this->room->code},RoomGameStarting" => 'onRoomStarted',
+            "echo-presence:room.{$this->room->code},RoomGameSwitched" => 'onGameSwitchedElsewhere',
             'room-game-starting' => 'onRoomStarting',
         ];
+    }
+
+    /**
+     * Recomputes $lobbyOpened for whoever's already sitting on this exact
+     * page -- covers both the host opening this same room in a second tab
+     * after already clicking Open Lobby elsewhere, and a non-host who
+     * loaded this page before the host had (see getSwitchedElsewhereProperty()
+     * below for the case where the broadcast is for a *different* game).
+     */
+    public function onGameSwitchedElsewhere(): void
+    {
+        $this->room->refresh();
+        $this->lobbyOpened = $this->room->pendingGameType() === GameType::Hoax;
+    }
+
+    /**
+     * Mirrors <livewire:game-lobby>'s own getSwitchedGameTypeProperty() --
+     * the equivalent case for a visitor still on *this* page's own
+     * pre-lobby-open screens, which game-lobby itself can't cover since it
+     * isn't rendered yet.
+     */
+    public function getSwitchedElsewhereProperty(): ?GameType
+    {
+        $pending = $this->room->pendingGameType();
+
+        return $pending !== null && $pending !== GameType::Hoax ? $pending : null;
     }
 
     /**
@@ -214,18 +271,31 @@ new class extends Component
 <div class="flex flex-col items-center" style="gap: inherit;">
     <div class="heading">Hoax Room</div>
 
-    @if ($this->isHost)
+    @if ($this->switchedElsewhere)
+        <div class="setup">
+            <p class="status-line">The host switched to {{ $this->switchedElsewhere->label() }}.</p>
+            <a href="{{ route($this->switchedElsewhere->roomRoute(), ['code' => $room->code]) }}">
+                <button type="button">Join</button>
+            </a>
+        </div>
+    @elseif ($lobbyOpened)
+        @if ($startError)
+            <p class="status-line" style="color: var(--warn);">{{ $startError }}</p>
+        @endif
+
+        <livewire:game-lobby :room="$room" :current-game="GameType::Hoax" />
+    @elseif ($this->isHost)
         <div class="setup">
             <div class="setup-note">
                 A fixed 5-round game &mdash; needs {{ $this::MIN_PLAYERS }}
                 to {{ $this::MAX_PLAYERS }} players to start.
             </div>
+
+            <button type="button" id="open-lobby-btn" wire:click="openLobby">Open Lobby</button>
+        </div>
+    @else
+        <div class="setup">
+            <p class="status-line">Waiting for the host to finish setting up&hellip;</p>
         </div>
     @endif
-
-    @if ($startError)
-        <p class="status-line" style="color: var(--warn);">{{ $startError }}</p>
-    @endif
-
-    <livewire:game-lobby :room="$room" :current-game="GameType::Hoax" />
 </div>

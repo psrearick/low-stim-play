@@ -9,6 +9,7 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 - Restructured Punchline's round UI into 3 filtered player-centric steps: only the matchups you still need to write, then only the ones you can still vote on, then (at round reveal) every matchup's full results -- replacing the old board that showed every matchup's status at once regardless of whether you could act on it.
 - Fixed Punchline's vote-button and Hoax's vote-button text overflowing past the button's edges on long player-submitted answers.
 - Extended Hoax's uppercase display fix from just the answer to the entire prompt sentence.
+- Split every room game's config screen from its waiting room: a host's settings now stay private until they click "Open Lobby," instead of the room being marked pending (and everyone notified/able to join) the instant the host's page loaded, before touching a setting.
 
 ## 2026-08-27
 

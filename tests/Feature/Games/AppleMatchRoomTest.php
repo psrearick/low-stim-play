@@ -95,14 +95,47 @@ test('starting the room deals a 7-card hand to every seat and creates the round 
     expect($session->state['round'])->toBe(1);
 });
 
-test('the host landing on the room page marks the room as pending Best Match, so a late-joining member can find it', function () {
+test('the host opening the lobby marks the room as pending Best Match, so a late-joining member can find it', function () {
     seedAppleMatchDeck();
     $host = User::factory()->create();
     $room = Room::factory()->create(['host_user_id' => $host->id]);
 
-    Livewire::actingAs($host)->test('pages::apple-match.room', ['code' => $room->code]);
+    $component = Livewire::actingAs($host)->test('pages::apple-match.room', ['code' => $room->code]);
+
+    // Not marked pending on mere mount -- config is private until the host
+    // explicitly opens the lobby (docs/concerns.md).
+    expect($room->fresh()->pendingGameType())->toBeNull();
+
+    $component->call('openLobby');
 
     expect($room->fresh()->pendingGameType())->toBe(GameType::AppleMatch);
+});
+
+test('a non-host cannot open the lobby', function () {
+    $host = User::factory()->create();
+    $guest = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+    $room->addMember($guest);
+
+    Livewire::actingAs($guest)
+        ->test('pages::apple-match.room', ['code' => $room->code])
+        ->call('openLobby')
+        ->assertForbidden();
+
+    expect($room->fresh()->pendingGameType())->toBeNull();
+});
+
+test('a non-host sees a waiting message instead of the config screen or the ready-up UI before the host opens the lobby', function () {
+    $host = User::factory()->create();
+    $guest = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+    $room->addMember($guest);
+
+    Livewire::actingAs($guest)
+        ->test('pages::apple-match.room', ['code' => $room->code])
+        ->assertSee('Waiting for the host to finish setting up')
+        ->assertDontSee('Points to Win')
+        ->assertDontSee('Ready');
 });
 
 test('visiting the play page for a room whose active session belongs to a different game redirects to the room hub instead of crashing', function () {

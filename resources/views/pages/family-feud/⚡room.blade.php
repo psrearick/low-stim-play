@@ -5,6 +5,7 @@ use App\Enums\GameMode;
 use App\Enums\GameType;
 use App\Enums\RoomStatus;
 use App\Events\RoomGameStarting;
+use App\Events\RoomGameSwitched;
 use App\Models\FamilyFeudQuestion;
 use App\Models\GameSession;
 use App\Models\Room;
@@ -64,6 +65,18 @@ new class extends Component
      */
     public array $captainAssignments = [];
 
+    /**
+     * Gates <livewire:game-lobby> -- false the entire time the host is
+     * still on this page's own config fields above, so nobody else gets
+     * notified/can join until the host explicitly opens the lobby (see
+     * openLobby() below). Re-derived from Room::pendingGameType() on every
+     * mount() rather than stored anywhere new, so a reload or a return
+     * visit lands back in the right phase automatically. Unrelated to
+     * $assigningTeams above -- that's a later, third stage that only
+     * begins once game-lobby's own Start Game has already fired.
+     */
+    public bool $lobbyOpened = false;
+
     public function mount(string $code): void
     {
         $this->room = Room::notExpired()->where('code', strtoupper($code))->firstOrFail();
@@ -88,14 +101,6 @@ new class extends Component
 
         $this->room->addMember(Auth::user());
 
-        // Lets a member who loads the room hub after the host already
-        // landed here (missing the real-time RoomGameSwitched broadcast
-        // entirely) still discover and join this lobby -- see Room::
-        // markPendingGame()'s own docblock.
-        if (Auth::id() === $this->room->host_user_id && $this->room->game_session_id === null) {
-            $this->room->markPendingGame(GameType::FamilyFeud);
-        }
-
         // See pages::yahtzee.room's identical check for why this matters:
         // a reconnecting player whose device dropped at the exact moment
         // the host clicked "Start" would otherwise never receive
@@ -106,6 +111,29 @@ new class extends Component
         // lands back on the plain lobby instead, an accepted limitation
         // (see docs/DEVLOG.md) rather than persisting draft assignments.
         $this->redirectIfAlreadyStarted();
+
+        // Reflects whatever's already true rather than assuming this is a
+        // fresh visit -- the host reloading after already clicking Open
+        // Lobby (or a member arriving after that already happened) both
+        // need to land past the config screen, not back at square one.
+        $this->lobbyOpened = $this->room->pendingGameType() === GameType::FamilyFeud;
+    }
+
+    /**
+     * The explicit moment this room's config screen turns into the real
+     * waiting room -- everyone else was previously notified/able to join
+     * the instant the host so much as loaded this page, before touching a
+     * single setting (docs/concerns.md). markPendingGame()/RoomGameSwitched
+     * moved here from both this page's own mount() and pages::room.show's
+     * startGame(), so nothing fires until the host deliberately confirms.
+     */
+    public function openLobby(): void
+    {
+        abort_unless($this->isHost, 403);
+
+        $this->room->markPendingGame(GameType::FamilyFeud);
+        RoomGameSwitched::dispatch($this->room, GameType::FamilyFeud);
+        $this->lobbyOpened = true;
     }
 
     private function redirectIfAlreadyStarted(): void
@@ -132,8 +160,35 @@ new class extends Component
     {
         return [
             "echo-presence:room.{$this->room->code},RoomGameStarting" => 'onRoomStarted',
+            "echo-presence:room.{$this->room->code},RoomGameSwitched" => 'onGameSwitchedElsewhere',
             'room-game-starting' => 'onRoomStarting',
         ];
+    }
+
+    /**
+     * Recomputes $lobbyOpened for whoever's already sitting on this exact
+     * page -- covers both the host opening this same room in a second tab
+     * after already clicking Open Lobby elsewhere, and a non-host who
+     * loaded this page before the host had (see getSwitchedElsewhereProperty()
+     * below for the case where the broadcast is for a *different* game).
+     */
+    public function onGameSwitchedElsewhere(): void
+    {
+        $this->room->refresh();
+        $this->lobbyOpened = $this->room->pendingGameType() === GameType::FamilyFeud;
+    }
+
+    /**
+     * Mirrors <livewire:game-lobby>'s own getSwitchedGameTypeProperty() --
+     * the equivalent case for a visitor still on *this* page's own
+     * pre-lobby-open screens (config or the non-host waiting message),
+     * which game-lobby itself can't cover since it isn't rendered yet.
+     */
+    public function getSwitchedElsewhereProperty(): ?GameType
+    {
+        $pending = $this->room->pendingGameType();
+
+        return $pending !== null && $pending !== GameType::FamilyFeud ? $pending : null;
     }
 
     /**
@@ -439,32 +494,43 @@ new class extends Component
                 <p class="status-line" style="color: var(--warn);">Each team needs at least one player.</p>
             @endunless
         </div>
-    @else
-        @if ($this->isHost)
-            <div class="setup">
-                <div class="team-inputs">
-                    <div class="team-input-row">
-                        <label for="team0">Team 1</label>
-                        <input type="text" id="team0" wire:model="teamNames.0" maxlength="24" placeholder="Team 1">
-                    </div>
-                    <div class="team-input-row">
-                        <label for="team1">Team 2</label>
-                        <input type="text" id="team1" wire:model="teamNames.1" maxlength="24" placeholder="Team 2">
-                    </div>
-                </div>
-
-                <div class="setup-row">
-                    <label>Rounds</label>
-                    <div class="stepper">
-                        <button type="button" wire:click="setRounds({{ $rounds - 1 }})" @disabled($rounds <= self::MIN_ROUNDS) aria-label="Fewer rounds">&minus;</button>
-                        <div class="stepper-value">{{ $rounds }}</div>
-                        <button type="button" wire:click="setRounds({{ $rounds + 1 }})" @disabled($rounds >= $this->maxRounds()) aria-label="More rounds">+</button>
-                    </div>
-                </div>
-                <div class="setup-note">Starting the game opens a team-assignment screen next, before the first round begins.</div>
-            </div>
-        @endif
-
+    @elseif ($this->switchedElsewhere)
+        <div class="setup">
+            <p class="status-line">The host switched to {{ $this->switchedElsewhere->label() }}.</p>
+            <a href="{{ route($this->switchedElsewhere->roomRoute(), ['code' => $room->code]) }}">
+                <button type="button">Join</button>
+            </a>
+        </div>
+    @elseif ($lobbyOpened)
         <livewire:game-lobby :room="$room" :current-game="GameType::FamilyFeud" />
+    @elseif ($this->isHost)
+        <div class="setup">
+            <div class="team-inputs">
+                <div class="team-input-row">
+                    <label for="team0">Team 1</label>
+                    <input type="text" id="team0" wire:model="teamNames.0" maxlength="24" placeholder="Team 1">
+                </div>
+                <div class="team-input-row">
+                    <label for="team1">Team 2</label>
+                    <input type="text" id="team1" wire:model="teamNames.1" maxlength="24" placeholder="Team 2">
+                </div>
+            </div>
+
+            <div class="setup-row">
+                <label>Rounds</label>
+                <div class="stepper">
+                    <button type="button" wire:click="setRounds({{ $rounds - 1 }})" @disabled($rounds <= self::MIN_ROUNDS) aria-label="Fewer rounds">&minus;</button>
+                    <div class="stepper-value">{{ $rounds }}</div>
+                    <button type="button" wire:click="setRounds({{ $rounds + 1 }})" @disabled($rounds >= $this->maxRounds()) aria-label="More rounds">+</button>
+                </div>
+            </div>
+            <div class="setup-note">Starting the game opens a team-assignment screen next, before the first round begins.</div>
+
+            <button type="button" id="open-lobby-btn" wire:click="openLobby">Open Lobby</button>
+        </div>
+    @else
+        <div class="setup">
+            <p class="status-line">Waiting for the host to finish setting up&hellip;</p>
+        </div>
     @endif
 </div>
