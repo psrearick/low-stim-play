@@ -452,6 +452,41 @@ new class extends Component
     }
 
     /**
+     * The matchups this seat still needs to write an answer for, right
+     * now -- the Writing step only ever renders these (docs/concerns.md:
+     * "you should only see the questions/answers you can interact with"),
+     * never a matchup this seat isn't part of, or has already finished
+     * writing for. Deliberately keyed off this seat's own progress, not
+     * the round-level $phase -- an individual matchup can reach Voting
+     * status (its own authors done) well before every matchup has, so
+     * "have I still got writing left to do" is a real, seat-specific
+     * question distinct from "has the whole round left Writing yet."
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function getMyPendingWritingMatchupsProperty(): array
+    {
+        return array_values(array_filter(
+            $this->matchups,
+            fn (array $m) => $this->matchupIsAuthor($m)
+                && $m['status'] === PunchlineMatchupStatus::Writing->value
+                && $this->matchupMySubmittedCount($m) < $m['answersPerSeat'],
+        ));
+    }
+
+    /**
+     * The matchups this seat can still vote on, right now -- the Voting
+     * step only ever renders these, same reasoning as
+     * getMyPendingWritingMatchupsProperty() above.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function getMyPendingVotingMatchupsProperty(): array
+    {
+        return array_values(array_filter($this->matchups, fn (array $m) => $this->matchupCanVote($m)));
+    }
+
+    /**
      * Writes one answer to one of this seat's answer slots on $matchupId,
      * reading the text from $this->drafts (already synced server-side by
      * the input's own wire:model before this action runs, so no need to
@@ -1061,67 +1096,29 @@ new class extends Component
                     @endforeach
                 </div>
 
+                {{--
+                    One player-centric step at a time (docs/concerns.md:
+                    "you should only see the questions/answers you can
+                    interact with"), not a per-matchup status board.
+                    RoundReveal always shows every matchup's results,
+                    regardless of who was in them, since that phase is a
+                    true round-wide sync point. Before that, this seat
+                    sees only the matchups it still owes an answer to; once
+                    those are all in, only the matchups it can still vote
+                    on; once those are all in too, a single "waiting for
+                    the table" holding message -- never a mix, and never a
+                    read-only preview of a matchup this seat can't act on.
+                    Writing is checked before voting on purpose: a
+                    still-unwritten matchup takes priority even if some
+                    other, unrelated matchup has already opened for
+                    voting, matching "nothing changes until you've
+                    submitted both answers."
+                --}}
                 <div class="flex flex-col items-stretch gap-3 w-full max-w-xl" id="punchline-matchups">
-                    @foreach ($matchups as $matchup)
-                        <div wire:key="matchup-{{ $matchup['id'] }}" class="panel" id="matchup-{{ $matchup['id'] }}">
-                            <div class="panel-title">{{ $matchup['promptText'] }}</div>
-
-                            @if ($matchup['status'] === \App\Enums\PunchlineMatchupStatus::Writing->value)
-                                @if ($this->matchupIsAuthor($matchup))
-                                    @php $mySlot = $this->matchupMySubmittedCount($matchup); @endphp
-                                    @if ($mySlot < $matchup['answersPerSeat'])
-                                        <form wire:submit="submitAnswer('{{ $matchup['id'] }}')" class="flex flex-col items-stretch gap-2 w-full">
-                                            <input type="text" wire:model="drafts.{{ $matchup['id'] }}-{{ $mySlot }}" id="answer-{{ $matchup['id'] }}-{{ $mySlot }}" maxlength="140" placeholder="Your answer&hellip;" autocomplete="off">
-                                            <button type="submit" id="submit-{{ $matchup['id'] }}-{{ $mySlot }}">Submit{{ $matchup['answersPerSeat'] > 1 ? ' ('.($mySlot + 1).'/'.$matchup['answersPerSeat'].')' : '' }}</button>
-                                        </form>
-                                    @else
-                                        <p class="status-line">Waiting for the other player{{ count($matchup['seatIndices']) > 2 ? 's' : '' }} to finish writing&hellip;</p>
-                                    @endif
-                                @else
-                                    <p class="status-line">Writing in progress &mdash; {{ array_sum($matchup['submittedCounts']) }}/{{ count($matchup['seatIndices']) * $matchup['answersPerSeat'] }} answers in.</p>
-                                @endif
-                            @endif
-
-                            @if ($matchup['status'] === \App\Enums\PunchlineMatchupStatus::Voting->value)
-                                @if ($this->matchupCanVote($matchup))
-                                    @if ($this->matchupVotesAllowed($matchup) === 1)
-                                        <p class="status-line">Vote for the funnier answer:</p>
-                                        <div class="controls">
-                                            @foreach ($this->matchupVotableAnswers($matchup) as $answer)
-                                                <button type="button" wire:key="vote-{{ $answer['answerId'] }}" wire:click="castVote('{{ $matchup['id'] }}', ['{{ $answer['answerId'] }}'])">
-                                                    {{ $answer['text'] }}
-                                                </button>
-                                            @endforeach
-                                        </div>
-                                    @else
-                                        <p class="status-line">You have 3 votes &mdash; spread them across up to 3 answers, or stack them on one.</p>
-                                        <div class="flex flex-col items-stretch gap-2 w-full">
-                                            @foreach ($this->matchupVotableAnswers($matchup) as $answer)
-                                                <div wire:key="allocate-{{ $answer['answerId'] }}" class="flex items-center gap-2 bg-surface border-2 border-surface-border rounded-lg px-3 py-2">
-                                                    <span class="flex-1 text-text">{{ $answer['text'] }}</span>
-                                                    <button type="button" id="downvote-{{ $answer['answerId'] }}" wire:click="adjustVoteAllocation('{{ $answer['answerId'] }}', -1)" aria-label="Remove a vote">&minus;</button>
-                                                    <span id="allocation-{{ $answer['answerId'] }}">{{ $voteAllocation[$answer['answerId']] ?? 0 }}</span>
-                                                    <button type="button" id="upvote-{{ $answer['answerId'] }}" wire:click="adjustVoteAllocation('{{ $answer['answerId'] }}', 1)" aria-label="Add a vote">+</button>
-                                                </div>
-                                            @endforeach
-                                        </div>
-                                        <button type="button" id="cast-round-three-votes" wire:click="submitRoundThreeVotes('{{ $matchup['id'] }}')" @disabled(array_sum($voteAllocation) === 0)>
-                                            Cast Votes ({{ array_sum($voteAllocation) }}/3)
-                                        </button>
-                                    @endif
-                                @elseif ($this->matchupHasVoted($matchup))
-                                    <p class="status-line">Vote cast &mdash; waiting for the rest of the table&hellip;</p>
-                                @else
-                                    <p class="status-line">Voting in progress&hellip;</p>
-                                    <div class="flex flex-col items-stretch gap-2 w-full">
-                                        @foreach ($matchup['answers'] as $answer)
-                                            <div wire:key="view-{{ $answer['answerId'] }}" class="bg-surface border-2 border-surface-border rounded-lg px-4 py-2 text-center text-text">{{ $answer['text'] }}</div>
-                                        @endforeach
-                                    </div>
-                                @endif
-                            @endif
-
-                            @if ($matchup['status'] === \App\Enums\PunchlineMatchupStatus::Closed->value)
+                    @if ($phase === PunchlinePhase::RoundReveal)
+                        @foreach ($matchups as $matchup)
+                            <div wire:key="matchup-{{ $matchup['id'] }}" class="panel" id="matchup-{{ $matchup['id'] }}">
+                                <div class="panel-title">{{ $matchup['promptText'] }}</div>
                                 <div class="flex flex-col items-stretch gap-2 w-full" id="results-{{ $matchup['id'] }}">
                                     @foreach ($matchup['answers'] as $answer)
                                         @php
@@ -1135,9 +1132,55 @@ new class extends Component
                                         </div>
                                     @endforeach
                                 </div>
-                            @endif
+                            </div>
+                        @endforeach
+                    @elseif (count($this->myPendingWritingMatchups) > 0)
+                        @foreach ($this->myPendingWritingMatchups as $matchup)
+                            <div wire:key="matchup-{{ $matchup['id'] }}" class="panel" id="matchup-{{ $matchup['id'] }}">
+                                <div class="panel-title">{{ $matchup['promptText'] }}</div>
+                                @php $mySlot = $this->matchupMySubmittedCount($matchup); @endphp
+                                <form wire:submit="submitAnswer('{{ $matchup['id'] }}')" class="flex flex-col items-stretch gap-2 w-full">
+                                    <input type="text" wire:model="drafts.{{ $matchup['id'] }}-{{ $mySlot }}" id="answer-{{ $matchup['id'] }}-{{ $mySlot }}" maxlength="140" placeholder="Your answer&hellip;" autocomplete="off">
+                                    <button type="submit" id="submit-{{ $matchup['id'] }}-{{ $mySlot }}">Submit{{ $matchup['answersPerSeat'] > 1 ? ' ('.($mySlot + 1).'/'.$matchup['answersPerSeat'].')' : '' }}</button>
+                                </form>
+                            </div>
+                        @endforeach
+                    @elseif (count($this->myPendingVotingMatchups) > 0)
+                        @foreach ($this->myPendingVotingMatchups as $matchup)
+                            <div wire:key="matchup-{{ $matchup['id'] }}" class="panel" id="matchup-{{ $matchup['id'] }}">
+                                <div class="panel-title">{{ $matchup['promptText'] }}</div>
+                                @if ($this->matchupVotesAllowed($matchup) === 1)
+                                    <p class="status-line">Vote for the funnier answer:</p>
+                                    <div class="controls">
+                                        @foreach ($this->matchupVotableAnswers($matchup) as $answer)
+                                            <button type="button" wire:key="vote-{{ $answer['answerId'] }}" wire:click="castVote('{{ $matchup['id'] }}', ['{{ $answer['answerId'] }}'])">
+                                                {{ $answer['text'] }}
+                                            </button>
+                                        @endforeach
+                                    </div>
+                                @else
+                                    <p class="status-line">You have 3 votes &mdash; spread them across up to 3 answers, or stack them on one.</p>
+                                    <div class="flex flex-col items-stretch gap-2 w-full">
+                                        @foreach ($this->matchupVotableAnswers($matchup) as $answer)
+                                            <div wire:key="allocate-{{ $answer['answerId'] }}" class="flex items-center gap-2 bg-surface border-2 border-surface-border rounded-lg px-3 py-2">
+                                                <span class="flex-1 text-text">{{ $answer['text'] }}</span>
+                                                <button type="button" id="downvote-{{ $answer['answerId'] }}" wire:click="adjustVoteAllocation('{{ $answer['answerId'] }}', -1)" aria-label="Remove a vote">&minus;</button>
+                                                <span id="allocation-{{ $answer['answerId'] }}">{{ $voteAllocation[$answer['answerId']] ?? 0 }}</span>
+                                                <button type="button" id="upvote-{{ $answer['answerId'] }}" wire:click="adjustVoteAllocation('{{ $answer['answerId'] }}', 1)" aria-label="Add a vote">+</button>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                    <button type="button" id="cast-round-three-votes" wire:click="submitRoundThreeVotes('{{ $matchup['id'] }}')" @disabled(array_sum($voteAllocation) === 0)>
+                                        Cast Votes ({{ array_sum($voteAllocation) }}/3)
+                                    </button>
+                                @endif
+                            </div>
+                        @endforeach
+                    @else
+                        <div class="panel" id="punchline-waiting">
+                            <p class="status-line">Waiting for the rest of the table to finish {{ $phase === PunchlinePhase::Writing ? 'writing' : 'voting' }}&hellip;</p>
                         </div>
-                    @endforeach
+                    @endif
                 </div>
             @endunless
 

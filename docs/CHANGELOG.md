@@ -2,6 +2,14 @@
 
 A terse, commit-by-commit record of what changed, newest first. No rationale or decisions here — see `docs/DEVLOG.md` for the *why* behind anything listed here, organized by feature instead of by commit. See `docs/TODO.md` for what's still outstanding.
 
+## 2026-08-28
+
+- Fixed `room-new-game-notice` never showing anything until a new game's `GameSession` actually existed, forcing everyone to leave an old end-game page before a join link appeared -- it now also surfaces during the host's setup/gathering-players window, matching the room hub's own pending-game banner.
+- Added a dismiss button to `room-new-game-notice` (it previously had none), which re-hides only the currently-shown target, so a later, genuinely different notice still surfaces.
+- Restructured Punchline's round UI into 3 filtered player-centric steps: only the matchups you still need to write, then only the ones you can still vote on, then (at round reveal) every matchup's full results -- replacing the old board that showed every matchup's status at once regardless of whether you could act on it.
+- Fixed Punchline's vote-button and Hoax's vote-button text overflowing past the button's edges on long player-submitted answers.
+- Extended Hoax's uppercase display fix from just the answer to the entire prompt sentence.
+
 ## 2026-08-27
 
 - Extended Punchline's writing and voting timers to a flat 3 minutes each, every round (previously 120s/240s writing and 30s/90s voting, split by round).

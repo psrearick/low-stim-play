@@ -171,6 +171,12 @@ Decisions and bugs along the way:
 - **Real hang found and worked around while writing the browser test, not the feature itself.** The first attempt drove a real `Livewire::test('game-lobby', ...)`/`onRoomStarting()` start sequence (Farkle) from inside a `tests/Browser/*` file, the same pattern `tests/Feature/Games/FarkleRoomTest.php` already uses successfully — but combined with a real Playwright page in the same test, it reliably hung with zero output for 100s+ regardless of timeout, every time. Not root-caused further (a `RoomGameStarting::dispatch()` — `ShouldBroadcastNow` — interacting badly with this environment's amphp/revolt event loop is the leading suspect, but unconfirmed); worked around by switching the fixture to Boggle, hand-seeded directly via `GameSession::factory()->online()->create(['settings' => [...]])` with no `state` array and no event dispatch at all (Boggle never uses `GameSession.state`, unlike every other room game — see its own section below), matching the established "hand-build DB state, don't drive a real start flow, inside a Browser test" convention `tests/Browser/PunchlineRoomBrowserTest.php`/`AppleMatchRoomBrowserTest.php` already use for the same reason (two-live-things-at-once fragility in this Playwright setup).
 - Test coverage: `tests/Feature/GameCardResumeTest.php` (9 cases: guest, no rooms, active+seated, active-but-unseated for a seat-based game, Boggle's seatless resume, pending lobby, mismatched type, expired room, a room-less game type) and `tests/Browser/GameCardResumeBrowserTest.php` (3 cases: a real click-through for both the active and pending states, plus a guest seeing neither link at all) — the latter specifically covering the "new conditionally-shown element" bug class `CLAUDE.md`'s own "Automated Browser Testing" section flags a Livewire-only test can't catch.
 
+**`<livewire:room-new-game-notice>` never showed anything until the host actually finished setting up a new game, forcing a strict "everyone leave first, then host starts" sequence (`docs/concerns.md`, 2026-08-28).** Its `supersededBy` gate checked only `$room->game_session_id` — set exclusively once a real `GameSession` exists, i.e. once the host clicks Start on the new game's own lobby after gathering players. `Room::pendingGameType()` (the cache-backed "host is on {game}'s lobby, still gathering players" marker — see its own docblock above) was never consulted here at all, unlike `pages::room.show`'s own banner, which already checked both. A player still parked on an old end-game screen genuinely had no way to discover setup was underway until it finished — matching the user's own reported repro exactly.
+- **Investigated, and ruled out, a suspected Reverb/broadcast delivery failure first** — the symptom ("nothing updates until you leave and come back") is also exactly what a silently-broken real-time pipeline would look like, so this was checked before touching any UI code. A `tests/Browser` probe against Pest's in-process Playwright harness gave a false-positive-looking failure (an empty `/broadcasting/auth` response, no CSRF token sent), but direct verification against the real `docker compose` stack — `curl` against the live `nginx`/`broadcasting/auth` endpoint (returned a valid signed auth response with zero CSRF token required, since this route was never actually CSRF-protected to begin with) and a real `pusher-js` Node client subscribing to a live presence channel and receiving an actual `RoomGameSwitched` broadcast end-to-end — confirmed Reverb delivery genuinely works. The Pest harness's own in-process fake HTTP server doesn't faithfully proxy that specific request; not a real bug, just not a reliable tool for verifying raw broadcast/auth plumbing specifically. Scope stayed UI/component logic only.
+- **Fixed by adding a `pendingNotice()` branch** (mirrors `pages::room.show`'s own "host is setting up X — hasn't started yet" copy and `roomRoute()` link) checked whenever `startedNotice()` (the pre-existing real-session case) comes back null — a real session always takes precedence over a stale pending marker left over from an earlier abandoned lobby visit, same "superseded" reasoning `pendingGameType()`'s own docblock already establishes.
+- **Also added a dismiss button**, which this component never had at all (unlike `<livewire:rooms-menu>`'s own toast, which already was dismissible) — the user's own explicit requirement for "the banner/dialogue for players already in the room." Each notice carries a `signature` (`"started:{game_session_id}"` or `"pending:{type}"`); `dismiss()` records the currently-shown signature, and the notice re-hides only while the *same* signature is still current — a pending-setup dismissal doesn't suppress the later "game actually started" notice once that's a genuinely different signature, and a redundant re-broadcast of an already-dismissed target doesn't resurface it either. Reads the raw target through a private `currentTarget()` helper rather than the cached `getNoticeProperty()` magic property inside `dismiss()` itself — Livewire's classic `get{X}Property()` convention memoizes per request, so reading through the cached property would have captured the pre-dismissal value even after `$dismissedSignature` was updated in the same request.
+- Regression tests: three new cases in `tests/Feature/RoomNewGameNoticeTest.php` (the pending-lobby Join link before any session exists, a real session correctly taking precedence over a stale pending marker, and dismiss-then-a-genuinely-new-target-resurfaces).
+
 ## Boggle
 
 - `App\Services\Boggle\{BoardGenerator,Solver,Scorer}` — Livewire solo play, online multiplayer (`/boggle/room/{code}`), async challenge links (`/boggle/share/{gameSession}`).
@@ -1314,6 +1320,46 @@ of which used exactly 3 players *and* actually inspected the rendered vote optio
   voteLimit = 3`; scoring, the writing/voting UI, and the stackable-vote allocator all already
   read from `voteLimit`/`answersPerSeat` generically and needed no changes beyond that one
   field split.
+- **Round UI restructured into 3 filtered player-centric steps** (docs/concerns.md: "you should
+  only see the questions/answers you can interact with... nothing changes until you have submitted
+  both answers... show items in the first two steps that people cannot interact with is
+  confusing"). `#punchline-matchups` previously rendered every matchup at once with its own
+  per-matchup status branch (writing form / read-only "voting in progress" / vote UI / waiting),
+  regardless of whether the viewer could actually act on it. Replaced with a strict priority order:
+  `RoundReveal` still shows every matchup's results table (a genuine round-wide sync point); before
+  that, two new computed properties — `getMyPendingWritingMatchupsProperty()` (matchups this seat
+  authors, still in `Writing`, this seat's own submitted count under `answersPerSeat`) and
+  `getMyPendingVotingMatchupsProperty()` (matchups this seat is still eligible to vote on) — gate
+  everything else. Writing is checked before voting on purpose, seat-by-seat: an individual matchup
+  can reach `Voting` well before the whole round has, so "do I still owe an answer somewhere" is a
+  real per-seat question distinct from the round-level `$phase`. Once both lists are empty, a
+  single generic "Waiting for the rest of the table to finish {writing/voting}…" panel shows —
+  never a mix, and never a read-only preview of a matchup this seat can't act on (the old
+  "Voting in progress" read-only branch for a matchup's own authors was removed outright, not kept
+  as a fourth case).
+- Test fallout, entirely expected: `tests/Browser/PunchlineRoomBrowserTest.php` had 4 cases
+  asserting old behavior removed by this change (a spectator seeing every matchup's prompt
+  regardless of participation; an author's matchup showing a "Voting in progress" read-only
+  view; a "Vote cast" per-matchup confirmation text) — rewritten to assert the new filtered
+  behavior instead (a spectator with no seat sees only the waiting message; a seat with two
+  still-open writing matchups sees both its own prompts at once, never another seat's; an
+  author of a now-unvotable matchup sees no trace of it, just the waiting message once their own
+  writing is done). A new `closeEveryMatchupExceptR11()` test helper closes out every other
+  round-1 matchup so a fixture seat has no pending writing left over to interfere before
+  reaching the one matchup actually under test — necessary because the shared 4-seat fixture's
+  pairing (docs/concerns.md's own Hamiltonian-cycle P=4 pairing) gives every seat at least one
+  other open writing obligation by default.
+- **Button text overflow fixed** (docs/concerns.md: "the text must fit inside the button and it
+  must all be visible without scrolling") — same root cause and same fix as Hoax's own vote-button
+  overflow (see that section below): the shared base button rule's `white-space: nowrap` assumes a
+  button sized to its own text, which a player-submitted answer (up to 140 chars) rendered as a
+  vote button's label has nowhere to go but overflow past. `app.css`'s `white-space: normal` +
+  `line-height: 1.3` override rule already covers `#punchline-matchups button` alongside
+  `#hoax-game button` (added in the same pass as Hoax's own fix, ahead of this restructuring, so no
+  further CSS change was needed here — just the deferred regression test). New
+  `tests/Browser/PunchlineRoomBrowserTest.php` case checks the real overflow signal
+  (`scrollWidth` vs. `clientWidth`) on a narrow mobile viewport, same technique
+  `tests/Browser/HoaxRoomBrowserTest.php`'s own equivalent check uses.
 
 ## Hoax
 
@@ -1457,6 +1503,30 @@ user after playing a few rounds.** Four separate concerns, addressed together:
   copies each round's `questionId`/`questionText` as plain values at play time, so no live
   foreign key or past game's history depends on a row continuing to exist. Confirmed live: seeded
   a stray extra row by hand, re-ran the seeder, watched the count drop back to exactly 83.
+- **Uppercasing extended from just the answer to the whole prompt** (docs/concerns.md: "The
+  entire prompt should be in all caps, not just the answer portion") — `interpolatedText()`
+  previously only uppercased the interpolated answer piece (the "consistent-vs-inconsistent
+  capitalization" tell fixed above), leaving the surrounding question text in its original mixed
+  case. `mb_strtoupper()` is now applied to the question text and each candidate answer
+  separately, *before* either is HTML-escaped/wrapped — separately so the literal `____`
+  placeholder (case-sensitive `str_replace()` target) and the answer's own `<strong>` wrapper tag
+  never get swept up in the uppercasing. Existing browser test's `click()` call (see the casing
+  gotcha noted above) needed its expected text updated to the new fully-uppercase rendering, same
+  class of fix as before.
+- **Vote button text overflow fixed** (docs/concerns.md: "Answers going too far to the right off
+  of the button... must fit inside the button and it must all be visible without scrolling") —
+  same root cause as every other long-user-text-in-a-button bug this app has hit (see the
+  homepage's own `.game-card-actions button` fix and Punchline's own vote-button overflow entry
+  above): the shared base button rule's `white-space: nowrap` assumes a button sized to fit its
+  own text, which a player-submitted fake answer (up to 140 chars) rendered as a vote button's
+  label has nowhere to go but overflow past. New `app.css` rule scopes `white-space: normal` +
+  `line-height: 1.3` to `#hoax-game button` (and `#punchline-matchups button` in the same rule,
+  added ahead of that game's own later fix) rather than the shared base rule, since most buttons
+  elsewhere in the app are short enough this was never an issue for them. New
+  `tests/Browser/HoaxRoomBrowserTest.php` case checks the real overflow signal (`scrollWidth` vs.
+  `clientWidth`) on a narrow mobile viewport with a deliberately long seeded answer, the same
+  technique `tests/Browser/HomepageGameGridResponsiveTest.php` already established for the
+  homepage's own equivalent check.
 
 ## User profiles & stats
 

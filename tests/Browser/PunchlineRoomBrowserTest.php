@@ -102,17 +102,33 @@ function loginAsAndVisitPunchline(User $user, string $path): PendingAwaitablePag
     return $page;
 }
 
-test('an author sees their own prompt, submits an answer, and the matchup shows waiting until the other author finishes', function () {
+/**
+ * seat 1 (guest1) authors two matchups in the fixture (r1-1 and r1-3, docs/
+ * concerns.md's step-based Writing UI: only this seat's own still-open
+ * matchups render, never a matchup it's already filed or isn't part of).
+ * Submitting r1-1 leaves r1-3 as the only thing left to write, so it's
+ * still the only prompt on screen -- not a "waiting" message yet, since
+ * this seat itself still owes an answer elsewhere. Only once both are in
+ * does the generic waiting panel show.
+ */
+test('an author sees only their own still-open prompt, and the waiting message only once all their own writing is done', function () {
     [$room, , $users] = seededPunchlineRoom();
-    $guest1 = $users[1]; // seat 1, matchup r1-1
+    $guest1 = $users[1]; // seat 1, author of r1-1 (seats 1,2) and r1-3 (seats 0,1)
 
     $page = loginAsAndVisitPunchline($guest1, "/punchline?room={$room->code}");
 
     $page->assertSee('The worst gift you could give a toddler')
+        ->assertSee('Prompt D')
         ->fill('#answer-r1-1-0', 'A live tarantula')
         ->click('#submit-r1-1-0');
 
-    $page->assertSee('Waiting for the other player');
+    $page->assertDontSee('The worst gift you could give a toddler')
+        ->assertSee('Prompt D')
+        ->fill('#answer-r1-3-0', 'A pet snake')
+        ->click('#submit-r1-3-0');
+
+    $page->assertDontSee('Prompt D')
+        ->assertSee('Waiting for the rest of the table to finish writing');
 });
 
 /**
@@ -142,20 +158,68 @@ test('the answer input keeps a real 16px+ font-size on a narrow mobile viewport,
     expect((int) $fontSize)->toBeGreaterThanOrEqual(16);
 });
 
-test('several matchups render their own independent writing status at once on the same page', function () {
+/**
+ * docs/concerns.md's step-based redesign scopes the Writing step to "only
+ * the questions you can answer" -- a spectator with no seat is an author of
+ * nothing, so unlike the old per-matchup status board, they see none of the
+ * 4 round-1 prompts, just the generic waiting message.
+ */
+test('a spectator with no seat sees none of the round\'s writing prompts, only the waiting message', function () {
     [$room] = seededPunchlineRoom();
     $spectator = User::factory()->create(['password' => bcrypt('password')]);
 
     $page = loginAsAndVisitPunchline($spectator, "/punchline?room={$room->code}");
 
-    $page->assertSee('Prompt A')
-        ->assertSee('The worst gift you could give a toddler')
-        ->assertSee('Prompt C')
-        ->assertSee('Prompt D');
+    $page->assertDontSee('Prompt A')
+        ->assertDontSee('The worst gift you could give a toddler')
+        ->assertDontSee('Prompt C')
+        ->assertDontSee('Prompt D')
+        ->assertSee('Waiting for the rest of the table to finish writing');
 });
 
+/**
+ * The one seat with two still-open writing obligations at once (seat 1
+ * authors both r1-1 and r1-3 in the fixture) is the real "several matchups
+ * render independent status at once" case under the new step-based UI --
+ * scoped to what *this* seat itself owes, not a table-wide board.
+ */
+test('a seat with two still-open matchups sees both of its own prompts at once', function () {
+    [$room, , $users] = seededPunchlineRoom();
+    $guest1 = $users[1]; // seat 1, author of r1-1 and r1-3
+
+    $page = loginAsAndVisitPunchline($guest1, "/punchline?room={$room->code}");
+
+    $page->assertSee('The worst gift you could give a toddler')
+        ->assertSee('Prompt D')
+        ->assertDontSee('Prompt A')
+        ->assertDontSee('Prompt C');
+});
+
+/**
+ * Closes every round-1 matchup except r1-1 (results shape mirrors
+ * seededPunchlineRoomAtReveal()'s own $closedResults) so the given seat has
+ * no pending writing obligations left elsewhere -- otherwise, under the new
+ * step-based UI, a seat with any still-open writing matchup would see that
+ * form instead of ever reaching r1-1's own voting step, since writing is
+ * always checked first (see getMyPendingWritingMatchupsProperty()'s own
+ * docblock).
+ */
+function closeEveryMatchupExceptR11(GameSession $session): void
+{
+    $state = $session->state;
+    $closedResults = ['authorsByAnswerId' => [], 'pointsByAnswerId' => [], 'sweepAnswerId' => null, 'totalVotes' => 0];
+
+    $state['matchups'] = collect($state['matchups'])->map(fn (array $m) => $m['id'] === 'r1-1' ? $m : [
+        ...$m,
+        'status' => PunchlineMatchupStatus::Closed->value,
+        'results' => $closedResults,
+    ])->all();
+
+    $session->update(['state' => $state]);
+}
+
 test('an eligible voter sees anonymized answers and can cast a vote', function () {
-    [$room, , $users] = seededPunchlineRoom([
+    [$room, $session, $users] = seededPunchlineRoom([
         'status' => PunchlineMatchupStatus::Voting->value,
         'submittedCounts' => [1 => 1, 2 => 1],
         'answers' => [
@@ -163,7 +227,8 @@ test('an eligible voter sees anonymized answers and can cast a vote', function (
             ['answerId' => '2-0', 'text' => 'A drum set'],
         ],
     ]);
-    $host = $users[0]; // seat 0, eligible to vote on r1-1 (seats 1 & 2)
+    closeEveryMatchupExceptR11($session);
+    $host = $users[0]; // seat 0, eligible to vote on r1-1 (seats 1 & 2), no other writing owed
 
     $page = loginAsAndVisitPunchline($host, "/punchline?room={$room->code}");
 
@@ -172,11 +237,23 @@ test('an eligible voter sees anonymized answers and can cast a vote', function (
         ->assertSee('A drum set')
         ->click('A drum set');
 
-    $page->assertSee('Vote cast');
+    // Nothing else left for this seat to write or vote on (every other
+    // matchup was closed above), so the vote submitting drops straight to
+    // the generic waiting panel -- there's no separate per-matchup "Vote
+    // cast" confirmation under the new step-based UI.
+    $page->assertDontSee('A drum set')
+        ->assertSee('Waiting for the rest of the table to finish');
 });
 
-test('an author of a matchup that has moved on to voting sees the answers read-only, with no vote buttons of their own', function () {
-    [$room, , $users] = seededPunchlineRoom([
+/**
+ * docs/concerns.md's redesign removes the old "read-only preview of a
+ * matchup this seat can't act on" entirely -- an author of a now-Voting
+ * matchup they can't vote on sees nothing about it at all (not even its
+ * answers), only the generic waiting message, once their own writing
+ * elsewhere is also done.
+ */
+test('an author of a matchup that has moved on to voting sees no trace of it once their own writing is done', function () {
+    [$room, $session, $users] = seededPunchlineRoom([
         'status' => PunchlineMatchupStatus::Voting->value,
         'submittedCounts' => [1 => 1, 2 => 1],
         'answers' => [
@@ -184,13 +261,49 @@ test('an author of a matchup that has moved on to voting sees the answers read-o
             ['answerId' => '2-0', 'text' => 'A drum set'],
         ],
     ]);
-    $guest1 = $users[1]; // seat 1 -- an author of r1-1, not eligible to vote on it
+    closeEveryMatchupExceptR11($session);
+    $guest1 = $users[1]; // seat 1 -- an author of r1-1, not eligible to vote on it, nothing else pending
 
     $page = loginAsAndVisitPunchline($guest1, "/punchline?room={$room->code}");
 
-    $page->assertSee('Voting in progress')
-        ->assertSee('A live tarantula')
-        ->assertDontSee('Vote for the funnier answer');
+    $page->assertDontSee('A live tarantula')
+        ->assertDontSee('A drum set')
+        ->assertDontSee('Vote for the funnier answer')
+        ->assertSee('Waiting for the rest of the table to finish writing');
+});
+
+/**
+ * docs/concerns.md: "Ensure that the text fits in every button and does
+ * not extend outside the button, and should all be visible without
+ * scrolling." A long player-submitted answer (up to 140 chars) rendered as
+ * a vote button's label has nowhere to go but overflow past the button's
+ * edges under the shared base button rule's white-space: nowrap. Checks
+ * the real overflow signal (scrollWidth vs. clientWidth) on a narrow
+ * mobile viewport, same as tests/Browser/HoaxRoomBrowserTest.php's own
+ * equivalent check for that game's vote buttons.
+ */
+test('every vote button\'s text stays within its own button on a narrow viewport, never overflowing', function () {
+    [$room, $session, $users] = seededPunchlineRoom([
+        'status' => PunchlineMatchupStatus::Voting->value,
+        'submittedCounts' => [1 => 1, 2 => 1],
+        'answers' => [
+            ['answerId' => '1-0', 'text' => 'a considerably longer joke answer than the others, written specifically to test button wrapping behavior on a narrow screen'],
+            ['answerId' => '2-0', 'text' => 'A drum set'],
+        ],
+    ]);
+    closeEveryMatchupExceptR11($session);
+    $host = $users[0];
+
+    $page = loginAsAndVisitPunchline($host, "/punchline?room={$room->code}");
+    $page->resize(375, 900);
+
+    $overflowing = $page->script(
+        "Array.from(document.querySelectorAll('#punchline-matchups button'))
+            .filter(b => b.scrollWidth > b.clientWidth + 1)
+            .map(b => b.textContent.trim())"
+    );
+
+    expect($overflowing)->toBe([]);
 });
 
 test('the round status line shows the round number, pool, and a live seconds-remaining countdown', function () {

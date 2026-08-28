@@ -170,18 +170,51 @@ test('the voting list renders each answer as a full interpolated sentence, with 
         ->assertSee('The world\'s largest ball of stamps is located in Nebraska.'); // the real one
 });
 
+/**
+ * docs/concerns.md: "Answers going too far to the right off of the
+ * button." A long player-submitted answer (up to 140 chars) rendered as
+ * a button label has nowhere to go but overflow past the button's edges
+ * under the shared base button rule's white-space: nowrap. Checks the
+ * real overflow signal (scrollWidth vs. clientWidth) on a narrow mobile
+ * viewport, the same way tests/Browser/HomepageGameGridResponsiveTest.php
+ * checks it for the homepage's own game-card buttons.
+ */
+test('every vote button\'s text stays within its own button on a narrow viewport, never overflowing', function () {
+    [$room, $session, $users] = seededHoaxRoomAtVoting();
+    $host = $users[0];
+
+    $state = $session->state;
+    $state['answers'] = [
+        ['answerId' => '0-0', 'text' => 'a considerably longer fake answer than the others, written to actually test button wrapping'],
+        ['answerId' => '1-0', 'text' => 'ball of twine'],
+        ['answerId' => 'truth', 'text' => 'ball of stamps'],
+    ];
+    $session->update(['state' => $state]);
+
+    $page = loginAsAndVisitHoax($host, "/hoax?room={$room->code}");
+    $page->resize(375, 900);
+
+    $overflowing = $page->script(
+        "Array.from(document.querySelectorAll('#hoax-game button'))
+            .filter(b => b.scrollWidth > b.clientWidth + 1)
+            .map(b => b.textContent.trim())"
+    );
+
+    expect($overflowing)->toBe([]);
+});
+
 test('casting a vote records it and shows the vote-cast waiting message', function () {
     [$room, , $users] = seededHoaxRoomAtVoting();
     $host = $users[0];
 
     $page = loginAsAndVisitHoax($host, "/hoax?room={$room->code}");
 
-    // interpolatedText() uppercases the answer portion on display (see
+    // interpolatedText() uppercases the entire sentence on display (see
     // that method's own docblock for why) -- unlike assertSee(), which
     // this Pest Browser version matches case-insensitively, click($text)
     // needs the real rendered casing or it waits indefinitely for an
     // element that will never appear.
-    $page->click('The world\'s largest BALL OF TWINE is located in Nebraska.');
+    $page->click('THE WORLD\'S LARGEST BALL OF TWINE IS LOCATED IN NEBRASKA.');
 
     $page->assertSee('Vote cast');
 });

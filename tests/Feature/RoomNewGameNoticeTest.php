@@ -104,3 +104,62 @@ test('receiving the RoomGameStarting broadcast picks up a session that changed a
 
     $component->call('onRoomChanged')->assertSee('The host started a new 10,000 game.');
 });
+
+/**
+ * The gap docs/concerns.md described directly: previously nothing showed
+ * here until a real GameSession existed, forcing everyone to leave the old
+ * page before the host's already-in-progress setup became visible to them.
+ * Room::pendingGameType()'s own docblock is the cache-backed source this
+ * now also reads, same as pages::room.show's own pendingGameType banner.
+ */
+test('offers a Join link to the lobby while the host is still setting up a new game, before any session exists', function () {
+    $room = Room::factory()->create();
+    $oldSession = GameSession::factory()->create(['type' => GameType::Farkle, 'mode' => GameMode::Online]);
+    $room->update(['status' => RoomStatus::Finished, 'game_session_id' => null]);
+    $room->markPendingGame(GameType::Hoax);
+
+    Livewire::test('room-new-game-notice', [
+        'roomCode' => $room->code,
+        'currentGame' => GameType::Farkle,
+        'myGameSessionId' => $oldSession->id,
+    ])
+        ->assertSee("The host is setting up Hoax -- hasn't started yet.")
+        ->assertSee('Join')
+        ->assertSeeHtml(route('hoax.room', ['code' => $room->code]));
+});
+
+test('a real session in progress takes precedence over a stale pending marker', function () {
+    $room = Room::factory()->create();
+    $oldSession = GameSession::factory()->create(['type' => GameType::Farkle, 'mode' => GameMode::Online]);
+    $newSession = GameSession::factory()->create(['type' => GameType::Farkle, 'mode' => GameMode::Online]);
+    $room->update(['status' => RoomStatus::Active, 'game_session_id' => $newSession->id]);
+    $room->markPendingGame(GameType::Farkle);
+
+    Livewire::test('room-new-game-notice', [
+        'roomCode' => $room->code,
+        'currentGame' => GameType::Farkle,
+        'myGameSessionId' => $oldSession->id,
+    ])
+        ->assertSee('The host started a new 10,000 game.')
+        ->assertDontSee("hasn't started yet");
+});
+
+test('dismissing the notice hides it, but a genuinely new target surfaces again', function () {
+    $room = Room::factory()->create();
+    $oldSession = GameSession::factory()->create(['type' => GameType::Farkle, 'mode' => GameMode::Online]);
+    $room->update(['status' => RoomStatus::Finished, 'game_session_id' => null]);
+    $room->markPendingGame(GameType::Hoax);
+
+    $component = Livewire::test('room-new-game-notice', [
+        'roomCode' => $room->code,
+        'currentGame' => GameType::Farkle,
+        'myGameSessionId' => $oldSession->id,
+    ])->assertSee('Join');
+
+    $component->call('dismiss')->assertDontSee("hasn't started yet");
+
+    $newSession = GameSession::factory()->create(['type' => GameType::Farkle, 'mode' => GameMode::Online]);
+    $room->update(['status' => RoomStatus::Active, 'game_session_id' => $newSession->id]);
+
+    $component->call('onRoomChanged')->assertSee('The host started a new 10,000 game.');
+});

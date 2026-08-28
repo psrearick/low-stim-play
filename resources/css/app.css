@@ -3028,3 +3028,18 @@ body.scrollable.family-feud-play {
 #hoax-game input[type="text"] {
     font-size: clamp(16px, 1.9vmin, 18px);
 }
+
+/* ---- Punchline/Hoax vote buttons -- same white-space: normal override
+   as .game-card-actions button (see that rule's own docblock): the
+   shared base button rule's white-space: nowrap assumes a button sized
+   to its own text, but a player-submitted answer (up to 140 chars)
+   rendered as a button label has nowhere to go but overflow past the
+   button's edges instead of wrapping onto another line. Scoped to these
+   two games' own matchup/round containers rather than the shared base
+   rule, since most buttons elsewhere in the app are short enough that
+   this was never an issue for them. ---- */
+#punchline-matchups button,
+#hoax-game button {
+    white-space: normal;
+    line-height: 1.3;
+}

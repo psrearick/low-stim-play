@@ -400,20 +400,28 @@ new class extends Component
      * complete (often absurd) sentence per candidate answer. Returns a
      * pre-escaped HTML string; render with {!! !!}, never {{ }}.
      *
-     * $answerText is uppercased before display -- the real answer's
-     * casing always comes from the curated seed data (clean, consistent
-     * style), while a player's fake answer is typed however they happen
-     * to type it (all-lowercase from a phone keyboard, careless
-     * capitalization, etc.). Left alone, that consistent-vs-inconsistent
-     * formatting difference would itself become a tell across a whole
-     * game, letting an attentive table learn "the cleanly capitalized
-     * one is always real" independent of the actual trivia. Uppercasing
-     * every candidate the same way removes that signal without touching
-     * how anything is stored or matched.
+     * The whole sentence is uppercased before display, not just
+     * $answerText -- the real answer's casing always comes from the
+     * curated seed data (clean, consistent style), while a player's fake
+     * answer is typed however they happen to type it (all-lowercase from
+     * a phone keyboard, careless capitalization, etc.). Left uneven,
+     * that consistent-vs-inconsistent formatting difference would itself
+     * become a tell across a whole game, letting an attentive table
+     * learn "the cleanly capitalized one is always real" independent of
+     * the actual trivia -- uppercasing everything the same way removes
+     * that signal without touching how anything is stored or matched.
+     * $questionText and $answerText are uppercased separately, before
+     * either is wrapped in HTML, so the "____" placeholder (case-
+     * invariant) still matches and the <strong> tag itself never gets
+     * uppercased into invalid markup.
      */
     public function interpolatedText(string $answerText): string
     {
-        return str_replace('____', '<strong>'.e(mb_strtoupper($answerText)).'</strong>', e($this->questionText));
+        return str_replace(
+            '____',
+            '<strong>'.e(mb_strtoupper($answerText)).'</strong>',
+            e(mb_strtoupper($this->questionText)),
+        );
     }
 
     /**
