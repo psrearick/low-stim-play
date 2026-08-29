@@ -1,18 +1,34 @@
 @php
-    $links = [
+    // Game entries link to each game's own play page now, not its stats
+    // page (docs/concerns.md) -- the per-game *stats* pages moved to
+    // <x-stats-sidebar />'s dedicated right-hand panel instead (see that
+    // component), reachable from any stats page rather than from here.
+    // href is given explicitly (not GameType::playRoute(), which points
+    // Boggle at `boggle.play` -- the direct solo-play screen) since
+    // Boggle's own actual entry point is the lobby/setup screen
+    // (`boggle.lobby`), matching welcome.blade.php's own game-card "Play"
+    // button for every game.
+    $gameLinks = [
+        ['id' => 'boggle', 'label' => \App\Enums\GameType::Boggle->label(), 'href' => route('boggle.lobby'), 'routes' => ['boggle.lobby', 'boggle.play', 'boggle.group', 'boggle.room']],
+        ['id' => 'yahtzee', 'label' => \App\Enums\GameType::Yahtzee->label(), 'href' => route('yahtzee.play'), 'routes' => ['yahtzee.play', 'yahtzee.roller', 'yahtzee.room']],
+        ['id' => 'family-feud', 'label' => \App\Enums\GameType::FamilyFeud->label(), 'href' => route('family-feud.play'), 'routes' => ['family-feud.play', 'family-feud.room']],
+        ['id' => 'farkle', 'label' => \App\Enums\GameType::Farkle->label(), 'href' => route('farkle.play'), 'routes' => ['farkle.play', 'farkle.room']],
+        ['id' => 'apple-match', 'label' => \App\Enums\GameType::AppleMatch->label(), 'href' => route('apple-match.play'), 'routes' => ['apple-match.play', 'apple-match.room']],
+        ['id' => 'clear-the-deck', 'label' => \App\Enums\GameType::ClearTheDeck->label(), 'href' => route('clear-the-deck.play'), 'routes' => ['clear-the-deck.play', 'clear-the-deck.room']],
+        ['id' => 'quartiles', 'label' => \App\Enums\GameType::Quartiles->label(), 'href' => route('quartiles.play'), 'routes' => ['quartiles.play']],
+        ['id' => 'wordle', 'label' => \App\Enums\GameType::Wordle->label(), 'href' => route('wordle.play'), 'routes' => ['wordle.play']],
+        ['id' => 'spelling-bee', 'label' => \App\Enums\GameType::SpellingBee->label(), 'href' => route('spelling-bee.play'), 'routes' => ['spelling-bee.play']],
+        ['id' => 'punchline', 'label' => \App\Enums\GameType::Punchline->label(), 'href' => route('punchline.play'), 'routes' => ['punchline.play', 'punchline.room']],
+        ['id' => 'hoax', 'label' => \App\Enums\GameType::Hoax->label(), 'href' => route('hoax.play'), 'routes' => ['hoax.play', 'hoax.room']],
+    ];
+
+    // Its own section (docs/concerns.md) -- separate from the game links
+    // above (which now go straight to gameplay) so "go play a game" and
+    // "go look at stats" read as two distinct groups instead of one long
+    // mixed list.
+    $statsLinks = [
         ['id' => 'dashboard', 'label' => 'My Stats', 'routes' => ['dashboard']],
         ['id' => 'all-games', 'label' => 'All Games', 'routes' => ['profile.games']],
-        ['id' => 'boggle-stats', 'label' => \App\Enums\GameType::Boggle->label(), 'routes' => ['profile.boggle', 'profile.boggle.show']],
-        ['id' => 'yahtzee-stats', 'label' => \App\Enums\GameType::Yahtzee->label(), 'routes' => ['profile.yahtzee', 'profile.yahtzee.show']],
-        ['id' => 'family-feud-stats', 'label' => \App\Enums\GameType::FamilyFeud->label(), 'routes' => ['profile.family-feud', 'profile.family-feud.show']],
-        ['id' => 'farkle-stats', 'label' => \App\Enums\GameType::Farkle->label(), 'routes' => ['profile.farkle', 'profile.farkle.show']],
-        ['id' => 'apple-match-stats', 'label' => \App\Enums\GameType::AppleMatch->label(), 'routes' => ['profile.apple-match', 'profile.apple-match.show']],
-        ['id' => 'clear-the-deck-stats', 'label' => \App\Enums\GameType::ClearTheDeck->label(), 'routes' => ['profile.clear-the-deck', 'profile.clear-the-deck.show']],
-        ['id' => 'quartiles-stats', 'label' => \App\Enums\GameType::Quartiles->label(), 'routes' => ['profile.quartiles', 'profile.quartiles.show']],
-        ['id' => 'wordle-stats', 'label' => \App\Enums\GameType::Wordle->label(), 'routes' => ['profile.wordle', 'profile.wordle.show']],
-        ['id' => 'spelling-bee-stats', 'label' => \App\Enums\GameType::SpellingBee->label(), 'routes' => ['profile.spelling-bee', 'profile.spelling-bee.show']],
-        ['id' => 'punchline-stats', 'label' => \App\Enums\GameType::Punchline->label(), 'routes' => ['profile.punchline', 'profile.punchline.show']],
-        ['id' => 'hoax-stats', 'label' => \App\Enums\GameType::Hoax->label(), 'routes' => ['profile.hoax', 'profile.hoax.show']],
     ];
 
     $pendingFriendRequests = auth()->check()
@@ -63,7 +79,17 @@
 
     <div class="app-sidebar-divider"></div>
 
-    @foreach ($links as $link)
+    @foreach ($gameLinks as $link)
+        <a id="sidebar-link-{{ $link['id'] }}" href="{{ $link['href'] }}"
+            class="app-sidebar-link {{ request()->routeIs(...$link['routes']) ? 'active' : '' }}"
+            data-sidebar-close>
+            {{ $link['label'] }}
+        </a>
+    @endforeach
+
+    <div class="app-sidebar-divider"></div>
+
+    @foreach ($statsLinks as $link)
         <a id="sidebar-link-{{ $link['id'] }}" href="{{ route($link['routes'][0]) }}"
             class="app-sidebar-link {{ request()->routeIs(...$link['routes']) ? 'active' : '' }}"
             data-sidebar-close>

@@ -2638,6 +2638,20 @@ body.scrollable.family-feud-play {
     background: oklch(from var(--bg) calc(l - 0.2) c h / 0.6);
 }
 
+/* ---- Stats menu drawer (stats pages only) -- the per-game stats links
+   that used to live in .app-sidebar itself before docs/concerns.md moved
+   that drawer's game entries over to gameplay. Same overlay/no-animation
+   pattern as .app-sidebar above, just anchored to the right edge instead
+   of the left, so it reads as a distinct second drawer. #stats-sidebar-
+   backdrop reuses .app-sidebar-backdrop's own rules (a full-viewport dim
+   layer looks identical regardless of which drawer opened it). ---- */
+.stats-sidebar {
+    left: auto;
+    right: 0;
+    border-left: 2px solid var(--die-border);
+    border-right: none;
+}
+
 /* =====================================================================
    Clear the Deck -- playing-card visuals (hand, table columns, center
    pile). --ctd-card-w is set per instance (a fixed or clamp() length) by

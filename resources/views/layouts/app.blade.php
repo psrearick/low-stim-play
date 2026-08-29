@@ -163,6 +163,27 @@
                     @endisset
                 @endif
 
+                @isset($sidebar)
+                    {{--
+                        Stats pages only (opted in via `<x-slot:sidebar>1
+                        </x-slot:sidebar>`, the same pages App\Enums\
+                        GameType per-game stats routes cover) -- opens
+                        <x-stats-sidebar />, the "stats menu" of links to
+                        every game's own stats page (docs/concerns.md).
+                        Mirrors #sidebar-menu-toggle's own icon-button
+                        look/position but on .right instead of .left, since
+                        the site menu drawer's own hamburger already
+                        occupies that spot.
+                    --}}
+                    <button type="button" id="stats-sidebar-toggle" class="icon-btn" aria-label="Open stats menu">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M18 20V10" />
+                            <path d="M12 20V4" />
+                            <path d="M6 20v-6" />
+                        </svg>
+                    </button>
+                @endisset
+
                 {{--
                     Always the last item in .right -- rendered after every
                     other page-specific control above so the avatar's own
@@ -185,6 +206,10 @@
         @endisset
 
         <x-app-sidebar />
+
+        @isset($sidebar)
+            <x-stats-sidebar />
+        @endisset
 
         {{--
             A teleport target for <livewire:rooms-menu>'s own "Host is

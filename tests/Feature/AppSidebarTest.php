@@ -14,6 +14,13 @@ uses(RefreshDatabase::class);
  * the navbar redesign in docs/DEVLOG.md's "Site-wide design system &
  * chrome". "Edit Profile"/"Logout" stay out of it -- those live in the
  * navbar's own avatar dropdown instead (see tests/Feature/UserMenuTest.php).
+ *
+ * docs/concerns.md follow-up: the per-game entries here now link straight
+ * to gameplay rather than that game's stats page, and "My Stats"/"All
+ * Games" moved into their own section after the game links, before
+ * Friends. The per-game *stats* links that used to live in this same
+ * list moved to <x-stats-sidebar />'s own right-hand drawer instead --
+ * see tests/Feature/StatsSidebarTest.php.
  */
 function appSidebarHtml(string $content): string
 {
@@ -39,7 +46,7 @@ test('the sidebar appears for guests too', function () {
     $this->get('/')->assertSee('id="app-sidebar"', false);
 });
 
-test('the sidebar lists Home, Daily Puzzles, Rooms, every game\'s stats, About, and Privacy', function () {
+test('the sidebar lists Home, Daily Puzzles, Rooms, every game, My Stats/All Games, About, and Privacy', function () {
     $user = User::factory()->create();
 
     $response = $this->actingAs($user)->get('/');
@@ -61,6 +68,50 @@ test('the sidebar lists Home, Daily Puzzles, Rooms, every game\'s stats, About, 
         ->toContain('Privacy Policy')
         ->not->toContain('Edit Profile')
         ->not->toContain('Logout');
+});
+
+test('each game link in the sidebar points to that game\'s play page, not its stats page', function () {
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)->get('/');
+
+    $aside = appSidebarHtml($response->getContent());
+
+    expect($aside)->toContain('id="sidebar-link-boggle" href="'.route('boggle.lobby').'"')
+        ->toContain('id="sidebar-link-yahtzee" href="'.route('yahtzee.play').'"')
+        ->toContain('id="sidebar-link-family-feud" href="'.route('family-feud.play').'"')
+        ->toContain('id="sidebar-link-farkle" href="'.route('farkle.play').'"')
+        ->toContain('id="sidebar-link-apple-match" href="'.route('apple-match.play').'"')
+        ->toContain('id="sidebar-link-clear-the-deck" href="'.route('clear-the-deck.play').'"')
+        ->toContain('id="sidebar-link-quartiles" href="'.route('quartiles.play').'"')
+        ->toContain('id="sidebar-link-wordle" href="'.route('wordle.play').'"')
+        ->toContain('id="sidebar-link-spelling-bee" href="'.route('spelling-bee.play').'"')
+        ->toContain('id="sidebar-link-punchline" href="'.route('punchline.play').'"')
+        ->toContain('id="sidebar-link-hoax" href="'.route('hoax.play').'"')
+        ->not->toContain(route('profile.boggle'))
+        ->not->toContain(route('profile.yahtzee'));
+});
+
+test('My Stats and All Games form their own section, after the games and before Friends', function () {
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)->get('/');
+
+    $aside = appSidebarHtml($response->getContent());
+
+    // Games section ends, then the My Stats/All Games section, then
+    // Friends -- checked by order rather than just presence, since the
+    // whole point of docs/concerns.md's ask was the grouping/position,
+    // not just that these links exist somewhere.
+    $response->assertSeeInOrder([
+        'sidebar-link-hoax',
+        'sidebar-link-dashboard',
+        'sidebar-link-all-games',
+        'sidebar-link-friends',
+    ], false);
+
+    expect($aside)->toContain('sidebar-link-dashboard')
+        ->toContain('sidebar-link-all-games');
 });
 
 test('the Home sidebar link is marked active on the homepage', function () {

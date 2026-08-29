@@ -164,6 +164,35 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // ---- Stats menu drawer (stats pages only) -----------------------------
+    // Same shape as the site menu drawer above -- a second, independent
+    // off-canvas panel, only rendered (toggle button included) on pages
+    // that opt into `<x-slot:sidebar>1</x-slot:sidebar>` (see
+    // layouts/app.blade.php and resources/views/components/stats-sidebar.
+    // blade.php). Bound directly, not delegated, for the same reason the
+    // site menu drawer above is.
+    const statsSidebarToggle = document.getElementById('stats-sidebar-toggle');
+    const statsSidebar = document.getElementById('stats-sidebar');
+    const statsSidebarBackdrop = document.getElementById('stats-sidebar-backdrop');
+
+    if (statsSidebarToggle && statsSidebar && statsSidebarBackdrop) {
+        const closeStatsSidebar = () => {
+            statsSidebar.classList.remove('open');
+            statsSidebarBackdrop.classList.remove('open');
+        };
+
+        statsSidebarToggle.addEventListener('click', () => {
+            statsSidebar.classList.toggle('open');
+            statsSidebarBackdrop.classList.toggle('open');
+        });
+
+        statsSidebarBackdrop.addEventListener('click', closeStatsSidebar);
+
+        document.querySelectorAll('[data-stats-sidebar-close]').forEach((link) => {
+            link.addEventListener('click', closeStatsSidebar);
+        });
+    }
+
     // ---- Navbar dropdown (Account, every page) -----------------------------
     // Delegated, not bound directly like the sidebar toggle above -- the
     // Account menu (<x-user-menu>) isn't a Livewire component at all, but
