@@ -1,5 +1,13 @@
 <?php
 
+use App\Enums\GameMode;
+use App\Enums\GameType;
+use App\Models\GameSession;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+
+uses(RefreshDatabase::class);
+
 /**
  * Covers the one CSS-driven behavior in this game a Livewire::test() can't
  * see (docs/CLAUDE.md's "Automated Browser Testing" section) -- the
@@ -208,4 +216,58 @@ test('submitting a word on a mobile-width viewport does not shift the page scrol
     $after = $page->script('window.scrollY');
 
     expect($after)->toBe($before);
+});
+
+/**
+ * docs/concerns.md: the Score/Rank/Words HUD wrapped onto two rows on
+ * mobile whenever the rank ladder landed on one of its longer tier names
+ * (RankCalculator::TIERS -- "Getting Started"/"Making Progress" are wide
+ * enough at this box's text-xl/font-bold to push the row past a narrow
+ * phone's width). A resumed, DB-seeded session, not a fresh puzzle --
+ * reaching a mid-ladder rank through real play would mean submitting
+ * several real dictionary words for this specific seed, which is what
+ * this game's other tests avoid needing by seeding state directly too
+ * (see e.g. tests/Feature/Games/SpellingBeeDailyTest.php).
+ */
+test('the Score/Rank/Words boxes stay in a single row on a narrow mobile viewport even with a long rank name', function () {
+    $user = User::factory()->create(['password' => bcrypt('password')]);
+
+    GameSession::factory()->create([
+        'user_id' => $user->id,
+        'type' => GameType::SpellingBee,
+        'mode' => GameMode::Solo,
+        'is_daily' => false,
+        'settings' => ['seed' => 10],
+        'state' => [
+            'letters' => ['t', 'i', 'c', 'k', 'l', 'e', 'r'],
+            'center' => 'k',
+            'outerLetters' => ['t', 'i', 'c', 'l', 'e', 'r'],
+            'foundWords' => [],
+            // ratio 5/100 = 0.05 -- lands exactly on "Making Progress",
+            // one of the ladder's two long tier names (RankCalculator::TIERS).
+            'score' => 5,
+            'maxScore' => 100,
+            'totalWordsByLength' => [4 => 5],
+        ],
+        'started_at' => now(),
+        'ended_at' => null,
+    ]);
+
+    $page = visit('/login');
+    $page->fill('email', $user->email)->fill('password', 'password')->click('#login-submit');
+    $page->navigate('/word-hive')->resize(320, 700);
+
+    $page->assertSee('Making Progress');
+
+    $tops = $page->script(<<<'JS'
+        (() => {
+            const rank = document.getElementById('spelling-bee-rank').closest('.flex-col');
+            const row = rank.parentElement;
+            return [...row.children].map(el => el.getBoundingClientRect().top);
+        })()
+        JS);
+
+    expect(array_unique($tops))->toHaveCount(1);
+
+    $page->assertNoJavaScriptErrors();
 });

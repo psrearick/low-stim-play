@@ -630,16 +630,32 @@ new class extends Component
         </p>
     @endif
 
-    <div class="flex flex-wrap items-center justify-center gap-4 w-full max-w-md">
-        <div class="flex flex-col items-center gap-1 bg-surface border-2 border-surface-border rounded-lg px-4 py-2">
+    {{--
+        flex-nowrap, not flex-wrap (docs/concerns.md) -- the rank ladder's
+        own tier names (RankCalculator::TIERS) run up to "Getting Started"/
+        "Making Progress", wide enough at this box's text-xl/font-bold to
+        push the row past a narrow phone's width and wrap "Words" onto its
+        own second row. `min-w-0` on each box (below) is what actually
+        fixes it -- a flex item's default min-width is the length of its
+        content's longest unbroken word, which is exactly what forced the
+        *row* to wrap rather than the long rank text wrapping inside its
+        own box. Deliberately not `flex-1` (equal thirds) -- that shrinks
+        every box to the same width even when there's room not to, which
+        forced "Making Progress" onto two lines on desktop too, not just
+        the narrow phone widths that actually need it; default flex-shrink
+        already lets each box keep its natural single-line width until the
+        row genuinely runs out of room, then shrinks proportionally.
+    --}}
+    <div class="flex flex-nowrap items-stretch justify-center gap-2 w-full max-w-md">
+        <div class="flex min-w-0 flex-col items-center justify-center gap-1 bg-surface border-2 border-surface-border rounded-lg px-2 py-2">
             <span class="text-xl font-bold text-text">{{ $score }}</span>
             <span class="text-xs text-text/65">Score</span>
         </div>
-        <div class="flex flex-col items-center gap-1 bg-surface border-2 border-surface-border rounded-lg px-4 py-2">
-            <span class="text-xl font-bold text-text" id="spelling-bee-rank">{{ $this->rank }}</span>
+        <div class="flex min-w-0 flex-col items-center justify-center gap-1 bg-surface border-2 border-surface-border rounded-lg px-2 py-2">
+            <span class="text-xl font-bold text-text text-center" id="spelling-bee-rank">{{ $this->rank }}</span>
             <span class="text-xs text-text/65">Rank</span>
         </div>
-        <div class="flex flex-col items-center gap-1 bg-surface border-2 border-surface-border rounded-lg px-4 py-2">
+        <div class="flex min-w-0 flex-col items-center justify-center gap-1 bg-surface border-2 border-surface-border rounded-lg px-2 py-2">
             <span class="text-xl font-bold text-text">{{ count($foundWords) }}</span>
             <span class="text-xs text-text/65">Words</span>
         </div>
