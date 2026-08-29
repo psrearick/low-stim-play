@@ -32,6 +32,38 @@ test('the page renders for a guest, no auth required', function () {
     $this->get('/word-hive')->assertSeeLivewire('pages::spelling-bee.play');
 });
 
+/**
+ * docs/concerns.md: the status line and the real `<input>` merged into
+ * one non-editable display -- the old, now-removed status line
+ * (#spelling-bee-current-word held a <p>, not this display) and a real
+ * text `<input>` are both gone, replaced by a single div showing either a
+ * placeholder or the word itself, letter-by-letter, with the key/center
+ * letter highlighted in its own span.
+ */
+test('the current word display shows a placeholder when empty, with no real input element', function () {
+    $component = spellingBeeComponent();
+
+    expect($component->get('currentWord'))->toBe('');
+
+    $component->assertSeeHtml('id="spelling-bee-current-word" class="spelling-bee-word-display"')
+        ->assertSee('Type or tap letters')
+        ->assertDontSeeHtml('<input type="text" id="spelling-bee-input"');
+});
+
+test('the current word display shows each typed letter uppercase, with the key letter in its own span', function () {
+    $component = spellingBeeComponent()
+        ->call('pressLetter', 'c')
+        ->call('pressLetter', 'p');
+
+    // No whitespace between the two <span>s -- a real bug caught live:
+    // Blade's @foreach emits a newline between loop iterations, which a
+    // browser renders as a literal space between adjacent inline
+    // elements, breaking "CP" into "C P". Built as one concatenated
+    // string instead (see the Blade view's own docblock).
+    $component->assertSeeHtml('<span>C</span><span class="spelling-bee-key-letter">P</span>')
+        ->assertDontSee('Type or tap letters');
+});
+
 test('mount generates 7 distinct letters including the center', function () {
     $component = Livewire::test('pages::spelling-bee.play');
 

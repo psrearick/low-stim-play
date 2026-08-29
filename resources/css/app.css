@@ -360,8 +360,7 @@ body.scrollable {
     border-top: 1px solid var(--die-border);
 }
 
-.site-footer a,
-.theme-toggle {
+.site-footer a {
     color: var(--ink);
     opacity: 0.65;
     font-size: clamp(11px, 1.5vmin, 14px);
@@ -370,23 +369,8 @@ body.scrollable {
 }
 
 .site-footer a:hover,
-.site-footer a:focus-visible,
-.theme-toggle:hover,
-.theme-toggle:focus-visible {
+.site-footer a:focus-visible {
     opacity: 1;
-}
-
-.theme-toggle {
-    background: none;
-    border: none;
-    padding: 0;
-    border-radius: 0;
-    font-weight: normal;
-    cursor: pointer;
-}
-
-.theme-toggle:active {
-    background: none;
 }
 
 /* ---- Rules dialog, opened via the "Rules" button in the button-bar ---- */
@@ -2966,6 +2950,20 @@ body.scrollable.family-feud-play {
     --bee-hex-h: calc(var(--bee-hex-w) * 1.1547);
 }
 
+/* On mobile, the vmin-based clamp above bottoms out at its 48px floor
+   (docs/concerns.md: "too small on mobile") -- a 3-hex-wide middle row at
+   48px/hex renders well under half the viewport width on a typical phone.
+   `vw` scales with the one dimension that actually matters here (the
+   honeycomb's own width is 3 hexes across; unlike the desktop rule above,
+   there's no reason to also track viewport *height*), targeting the
+   requested ~85% of screen width: total width = 3 * --bee-hex-w, so
+   --bee-hex-w = 85vw / 3 (rounded to 28.3vw). */
+@media (max-width: 899px) {
+    .spelling-bee-play {
+        --bee-hex-w: clamp(48px, 28.3vw, 220px);
+    }
+}
+
 .hive {
     display: flex;
     flex-direction: column;
@@ -3024,6 +3022,65 @@ body.scrollable.family-feud-play {
    hex's blue one). */
 .hive-hex-center {
     z-index: 1;
+}
+
+/* ---- Word Hive's current-word display (docs/concerns.md) -- a plain,
+   non-editable div standing in for what used to be a status line plus a
+   real `<input>` showing the same value twice. No border/background of
+   its own (the merged field "should not look like a text field"), a
+   bigger letter size than the old status line had, and `cursor: default`
+   + `user-select: none` since there's no text to select or a native
+   caret to place -- this is a display, not an editable control, even
+   though it's focusable (tabindex in the Blade) for keyboard discovery.
+   Global `:focus-visible` (this file, up top) still applies un-overridden,
+   so a keyboard user tabbing here gets the same focus ring every other
+   focusable element does. ---- */
+.spelling-bee-word-display {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    width: 100%;
+    min-height: 2.4em;
+    padding: 0.3em 0.6em;
+    background: none;
+    border: none;
+    font-size: clamp(20px, 4.2vmin, 34px);
+    font-weight: bold;
+    letter-spacing: 0.04em;
+    color: var(--ink);
+    text-align: center;
+    cursor: default;
+    user-select: none;
+}
+
+.spelling-bee-placeholder {
+    font-weight: normal;
+    opacity: 0.55;
+    font-size: clamp(13px, 1.8vmin, 17px);
+    letter-spacing: 0.02em;
+}
+
+/* The key (center) letter, wherever it appears in the typed word -- same
+   var(--accent) the center hex itself already uses (<x-hive-hex>), and
+   the same color as .spelling-bee-cursor below, per docs/concerns.md's
+   own "show that letter as the same color as the vertical blinking bar". */
+.spelling-bee-key-letter {
+    color: var(--accent);
+}
+
+/* A static insertion marker, not an animated blink -- see this element's
+   own docblock in the Blade view for why: this app's global `* {
+   animation: none !important; }` rule rules out a literal blink, so this
+   keeps the requested distinct-colored marker without reintroducing
+   motion. */
+.spelling-bee-cursor {
+    display: inline-block;
+    width: 2px;
+    height: 0.85em;
+    margin-left: 2px;
+    background: var(--accent);
+    vertical-align: middle;
 }
 
 /* ---- Punchline answer input -- floors font-size at 16px (the shared

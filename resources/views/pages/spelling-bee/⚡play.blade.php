@@ -648,13 +648,56 @@ new class extends Component
     @unless ($ended)
         <div class="flex flex-col lg:flex-row lg:items-start justify-center gap-6 w-full lg:max-w-3xl">
             <div class="flex flex-col items-center gap-3 w-full max-w-sm mx-auto lg:mx-0">
-                <p class="status-line text-center" id="spelling-bee-current-word" style="min-height: 1.5em;">
-                    {{ strtoupper($currentWord) }}
-                </p>
-
-                <input type="text" id="spelling-bee-input" wire:model="currentWord" wire:keydown.enter="submitWord"
-                    autocomplete="off" autocapitalize="off" spellcheck="false"
-                    placeholder="Type or tap letters" class="w-full text-center">
+                {{--
+                    One merged word display, not a status line plus a real
+                    text `<input>` showing the same value twice
+                    (docs/concerns.md) -- a plain, non-editable div instead
+                    of an `<input>`, so mobile never gets a virtual
+                    keyboard/zoom from tapping it (letters can still only
+                    be entered by tapping the hive or a physical keyboard;
+                    see the @script block below for the latter) and there's
+                    no native caret to reposition by clicking earlier in
+                    the word. Desktop physical-keyboard presses are
+                    captured by a page-wide keydown listener instead of
+                    `wire:model`, so this div never needs real DOM focus to
+                    work -- nothing to "click away" from. Server-rendered
+                    from $currentWord/$center exactly like the old status
+                    line was, so every existing `assertSee('WORD')`-style
+                    test still finds the word here unchanged.
+                --}}
+                <div id="spelling-bee-current-word" class="spelling-bee-word-display" tabindex="0" role="textbox"
+                    aria-readonly="true" aria-label="Current word">
+                    @if ($currentWord === '')
+                        <span class="spelling-bee-placeholder">Type or tap letters&hellip;</span>
+                    @else
+                        {{--
+                            Built as one concatenated string, not a
+                            `@foreach` emitting one `<span>` per line --
+                            Blade preserves the whitespace/newlines between
+                            loop iterations verbatim, and since these are
+                            inline elements, a browser renders that
+                            whitespace as real spaces between letters
+                            (confirmed live: assertSee('CLICK') failed
+                            against "C L I C K"). No `e()`/htmlspecialchars
+                            needed per letter -- $char is always one of the
+                            puzzle's own a-z letters, never arbitrary input.
+                        --}}
+                        {!! collect(mb_str_split($currentWord))
+                            ->map(fn (string $char) => '<span'.($char === $center ? ' class="spelling-bee-key-letter"' : '').'>'.strtoupper($char).'</span>')
+                            ->implode('') !!}
+                        {{--
+                            A static bar, not an animated blink -- app.css's
+                            global `* { animation: none !important; }` rule
+                            ("No flashing, blinking, or motion of any kind
+                            -- the whole point of this app") rules out a
+                            literal blinking cursor, so this keeps the
+                            requested distinct-colored insertion marker
+                            without reintroducing motion this app
+                            deliberately never has anywhere else.
+                        --}}
+                        <span class="spelling-bee-cursor" aria-hidden="true"></span>
+                    @endif
+                </div>
 
                 {{--
                     A real tessellating honeycomb (docs/concerns.md #8),
@@ -773,3 +816,64 @@ new class extends Component
         </div>
     @endif
 </div>
+
+@script
+<script>
+    // Physical-keyboard capture for #spelling-bee-current-word
+    // (docs/concerns.md) -- that div is deliberately not a real `<input>`
+    // (see its own docblock in the Blade above), so there's nothing for a
+    // browser to attach native typing to. A page-wide keydown listener
+    // instead forwards single-letter/Backspace/Enter presses to the same
+    // pressLetter()/backspace()/submitWord() actions the hive's own tap
+    // buttons already call via wire:click -- keyboard entry becomes just
+    // another way to trigger the exact same server round trip a tap
+    // already does, not a second, differently-behaved input path.
+    //
+    // Not gated to desktop only: a device with an attached physical
+    // keyboard (a tablet with a keyboard case, say) should still be able
+    // to type, and there's no reliable way to detect "has a keyboard"
+    // ahead of an actual keydown anyway. What this *doesn't* do is force
+    // real DOM focus onto the div beforehand or steal it back on blur --
+    // since the listener lives on `document`, typing works regardless of
+    // which element (if any) has focus, so "you should not be able to
+    // click away from it" is true by construction rather than by fighting
+    // the browser for focus.
+    document.addEventListener('keydown', (event) => {
+        if ($wire.ended || event.altKey || event.ctrlKey || event.metaKey) {
+            return;
+        }
+
+        // Skip while a real editable field elsewhere on the page (the
+        // room-name field in the site menu drawer, the read-only share
+        // link once the game has ended, ...) is legitimately focused, so
+        // this listener doesn't steal keystrokes meant for it.
+        const activeTag = document.activeElement?.tagName;
+        if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') {
+            return;
+        }
+
+        if (event.key === 'Backspace') {
+            event.preventDefault();
+            $wire.backspace();
+            return;
+        }
+
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            $wire.submitWord();
+            return;
+        }
+
+        if (event.key.length === 1 && $wire.letters.includes(event.key.toLowerCase())) {
+            event.preventDefault();
+            $wire.pressLetter(event.key.toLowerCase());
+        }
+    });
+
+    // Best-effort only (see the docblock above for why this isn't paired
+    // with a blur handler that fights the browser for focus back) -- a
+    // plain non-editable div never opens a mobile virtual keyboard on
+    // focus, so autofocusing it is harmless on touch devices too.
+    document.getElementById('spelling-bee-current-word')?.focus({ preventScroll: true });
+</script>
+@endscript

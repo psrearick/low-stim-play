@@ -131,4 +131,16 @@
         <a id="sidebar-link-login" href="{{ route('login') }}" class="app-sidebar-link" data-sidebar-close>Sign In</a>
         <a id="sidebar-link-register" href="{{ route('register') }}" class="app-sidebar-link" data-sidebar-close>Create an Account</a>
     @endguest
+
+    <div class="app-sidebar-divider"></div>
+
+    {{--
+        Moved here from the site footer (docs/concerns.md) -- the bottom
+        of this drawer, not `data-sidebar-close`d, since toggling the
+        theme isn't a navigation action: closing the drawer on click would
+        hide the very page repaint the button just triggered. Text/
+        aria-label ("Light Theme"/"Dark Theme") are set by app.js's
+        existing `[data-theme-toggle]` handler, unchanged by this move.
+    --}}
+    <button type="button" data-theme-toggle class="app-sidebar-link" aria-label="Switch to light theme">Light Theme</button>
 </aside>
