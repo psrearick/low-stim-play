@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\GameType;
+use App\Enums\RoomStatus;
 use App\Models\GameSession;
 use App\Models\Room;
 use App\Models\User;
@@ -137,6 +138,30 @@ test('myRooms excludes expired rooms', function () {
     expect($list)->toHaveCount(0);
 });
 
+/**
+ * docs/concerns.md: "Room should not say 'finished' in sidebar" -- nothing
+ * ever resets RoomStatus::Finished back to Lobby once a game ends (every
+ * game's own endGame() only ever sets it forward), but the room is
+ * immediately reusable regardless (the host can start another game in it
+ * right away), so "Finished" read as though the room itself were over and
+ * gone rather than just idle between games.
+ */
+test('a finished room shows as "Lobby" in the room list, not "Finished"', function () {
+    $user = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $user->id, 'status' => RoomStatus::Finished]);
+
+    $html = Livewire::actingAs($user)->test('rooms-menu')->html();
+
+    expect($html)->toContain('Lobby')->not->toContain('Finished');
+});
+
+test('an active room still shows as "Active" in the room list', function () {
+    $user = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $user->id, 'status' => RoomStatus::Active]);
+
+    Livewire::actingAs($user)->test('rooms-menu')->assertSee('Active');
+});
+
 test('myRooms is empty for a logged-out visitor', function () {
     $list = Livewire::test('rooms-menu')->get('myRooms');
 
@@ -202,6 +227,35 @@ test('onGameStarting falls back to the room hub link if the room has no active g
 
     expect($notifications)->toHaveCount(1)
         ->and($notifications[0]['href'])->toBe(route('room.show', ['code' => $room->code]));
+});
+
+/**
+ * docs/concerns.md: "Don't show join button if already in room as host" --
+ * RoomGameSwitched/RoomGameStarting only ever broadcast because the room's
+ * own host took the action (openLobby()/startGame() are both gated to the
+ * host), and this component is mounted site-wide, so the host's own
+ * connection always received their own broadcast right back -- confirmed
+ * live, a host saw their own "Host is setting up X -- Join" toast pointing
+ * at the exact page they were already on.
+ */
+test('onGameSwitched does not notify the room\'s own host of their own action', function () {
+    $host = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    Livewire::actingAs($host)
+        ->test('rooms-menu')
+        ->call('onGameSwitched', ['type' => GameType::Farkle->value, 'code' => $room->code])
+        ->assertSet('notifications', []);
+});
+
+test('onGameStarting does not notify the room\'s own host of their own action', function () {
+    $host = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+
+    Livewire::actingAs($host)
+        ->test('rooms-menu')
+        ->call('onGameStarting', ['code' => $room->code])
+        ->assertSet('notifications', []);
 });
 
 test('a switch/start event for a room the user does not belong to is ignored', function () {

@@ -5,6 +5,7 @@ use App\Enums\GameType;
 use App\Enums\RoomStatus;
 use App\Models\GameSession;
 use App\Models\Room;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 
@@ -126,6 +127,29 @@ test('offers a Join link to the lobby while the host is still setting up a new g
         ->assertSee("The host is setting up Hoax -- hasn't started yet.")
         ->assertSee('Join')
         ->assertSeeHtml(route('hoax.room', ['code' => $room->code]));
+});
+
+/**
+ * docs/concerns.md: "Don't show join button if already in room as host" --
+ * a pending setup is always the host's own doing (every {game}.room's
+ * openLobby() is host-gated), so this component should never tell the host
+ * to go join their own in-progress setup.
+ */
+test('shows nothing to the room\'s own host for their own pending setup', function () {
+    $host = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+    $oldSession = GameSession::factory()->create(['type' => GameType::Farkle, 'mode' => GameMode::Online]);
+    $room->update(['status' => RoomStatus::Finished, 'game_session_id' => null]);
+    $room->markPendingGame(GameType::Hoax);
+
+    Livewire::actingAs($host)
+        ->test('room-new-game-notice', [
+            'roomCode' => $room->code,
+            'currentGame' => GameType::Farkle,
+            'myGameSessionId' => $oldSession->id,
+        ])
+        ->assertDontSee("hasn't started yet")
+        ->assertDontSee('Join');
 });
 
 test('a real session in progress takes precedence over a stale pending marker', function () {

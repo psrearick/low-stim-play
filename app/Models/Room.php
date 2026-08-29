@@ -13,6 +13,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Cache;
 
+/**
+ * @property RoomStatus $status
+ */
 #[Fillable(['code', 'game_session_id', 'host_user_id', 'status', 'max_players', 'expires_at'])]
 class Room extends Model
 {
@@ -120,14 +123,30 @@ class Room extends Model
     }
 
     /**
-     * Null once a real GameSession exists -- pages::room.show's own
-     * activeGameType always takes precedence once it's set, so a stale
-     * pending marker left over from an abandoned lobby visit is simply
-     * never consulted rather than needing to be explicitly cleared.
+     * Null once a real, currently *active* GameSession exists -- pages::
+     * room.show's own activeGameType always takes precedence once that's
+     * true, so a stale pending marker left over from an abandoned lobby
+     * visit is simply never consulted rather than needing to be explicitly
+     * cleared. Deliberately checks `status === RoomStatus::Active`
+     * alongside `game_session_id`, not `game_session_id !== null` alone
+     * (docs/concerns.md, 2026-08-29) -- every game's own endGame() sets
+     * `status` to `RoomStatus::Finished` once a game ends but leaves
+     * `game_session_id` pointing at that now-finished session (nothing
+     * clears it except pages::room.show's startGame(), which a host never
+     * goes through when reopening a lobby directly from a game's own
+     * "play in a room you host" shortcut -- see e.g. pages::hoax.room's
+     * openLobby()). A bare non-null check treated that stale, long-over
+     * session as still blocking, so a host reopening a finished room's
+     * lobby saw their own `<livewire:game-lobby>` immediately replaced by
+     * the "Open Lobby" button again (this method re-evaluating false right
+     * after markPendingGame() -- see onGameSwitchedElsewhere() on every
+     * {game}.room page) and every other member saw "Waiting for the host
+     * to finish setting up" instead of the real lobby, no matter how many
+     * times the host actually opened it.
      */
     public function pendingGameType(): ?GameType
     {
-        if ($this->game_session_id !== null) {
+        if ($this->status === RoomStatus::Active && $this->game_session_id !== null) {
             return null;
         }
 

@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\GameType;
+use App\Enums\RoomStatus;
 use App\Models\Room;
 use App\Models\RoomMember;
 use App\Models\User;
@@ -94,7 +95,7 @@ new class extends Component
     {
         $room = $this->findRoomByCode($event['code'] ?? null);
 
-        if ($room === null) {
+        if ($room === null || $this->isMyOwnAction($room)) {
             return;
         }
 
@@ -118,7 +119,7 @@ new class extends Component
     {
         $room = $this->findRoomByCode($event['code'] ?? null);
 
-        if ($room === null) {
+        if ($room === null || $this->isMyOwnAction($room)) {
             return;
         }
 
@@ -153,9 +154,43 @@ new class extends Component
         return $this->myRooms->first(fn (RoomMember $member) => $member->room->code === $code)?->room;
     }
 
+    /**
+     * RoomGameSwitched/RoomGameStarting only ever broadcast because the
+     * room's own host took the action (openLobby()/startGame() both
+     * abort_unless(Auth::id() === host_user_id) before dispatching) --
+     * this component is mounted site-wide, so the host's own presence-
+     * channel listener always receives their own broadcast right back
+     * (docs/concerns.md: "don't show join button if already in room as
+     * host") -- confirmed live: the host saw their own "Host is setting up
+     * Hoax -- Join" toast pointing at the exact page they were already on.
+     * Every other member should still be notified as normal.
+     */
+    private function isMyOwnAction(Room $room): bool
+    {
+        return Auth::id() === $room->host_user_id;
+    }
+
     private function pushNotification(string $message, string $href): void
     {
         $this->notifications[] = ['id' => (string) Str::uuid(), 'message' => $message, 'href' => $href];
+    }
+
+    /**
+     * "Finished" (docs/concerns.md) reads as if the room itself is over
+     * and gone, but nothing about a finished room actually stops it being
+     * reused -- the host can start another game in it immediately (see
+     * pages::room.show's own "Start a new game in this room" list), and
+     * `RoomStatus::Finished` is never reset back to `Lobby` by anything
+     * once a game ends (every game's own endGame() only ever sets it
+     * forward, never back). Displayed as "Lobby" instead -- the same real
+     * enum case, and the accurate description of what a finished room
+     * actually is: open and waiting for the host to pick something next.
+     */
+    private function roomStatusLabel(Room $room): string
+    {
+        $status = $room->status === RoomStatus::Finished ? RoomStatus::Lobby : $room->status;
+
+        return ucfirst($status->value);
     }
 
     public function joinByCode(): void
@@ -264,7 +299,7 @@ new class extends Component
                     class="app-sidebar-link flex items-center justify-between gap-2">
                     <span>{{ $member->room->code }}</span>
                     <span class="flex items-center gap-1 text-xs text-text/65">
-                        {{ ucfirst($member->room->status->value) }}
+                        {{ $this->roomStatusLabel($member->room) }}
                         <span aria-hidden="true">&rsaquo;</span>
                     </span>
                 </a>

@@ -3,6 +3,7 @@
 use App\Enums\GameType;
 use App\Enums\RoomStatus;
 use App\Models\Room;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 
 /**
@@ -150,7 +151,13 @@ new class extends Component
     {
         $type = $this->room->pendingGameType();
 
-        if ($type === null) {
+        // A pending setup is always the host's own doing (every {game}.room's
+        // openLobby() is abort_unless($isHost)-gated) -- same reasoning as
+        // <livewire:rooms-menu>'s own onGameSwitched() guard (docs/concerns.md:
+        // "Don't show join button if already in room as host"). Skipped here
+        // too in case this component is ever visible to the host themselves
+        // (e.g. a second tab still sitting on an old game's end screen).
+        if ($type === null || Auth::id() === $this->room->host_user_id) {
             return null;
         }
 

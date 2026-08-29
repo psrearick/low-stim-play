@@ -160,6 +160,25 @@ test('shows a join link for a game the host is setting up but hasn\'t started ye
         ->assertSeeHtml(route('apple-match.room', ['code' => $room->code]));
 });
 
+/**
+ * docs/concerns.md: "Don't show join button if already in room as host" --
+ * the pending setup is always the host's own doing (every {game}.room's
+ * openLobby() is host-gated), so seeing "Join" here read as though someone
+ * else was waiting on them.
+ */
+test('shows "Continue Setup", not "Join", when the current viewer is the host who\'s setting it up', function () {
+    $host = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+    $room->markPendingGame(GameType::AppleMatch);
+
+    Livewire::actingAs($host)
+        ->test('pages::room.show', ['code' => $room->code])
+        ->assertSee('Best Match')
+        ->assertSee('Continue Setup')
+        ->assertDontSee('>Join<', false)
+        ->assertSeeHtml(route('apple-match.room', ['code' => $room->code]));
+});
+
 test('the pending-game link disappears once a real game session exists', function () {
     $host = User::factory()->create();
     $room = Room::factory()->create(['host_user_id' => $host->id]);

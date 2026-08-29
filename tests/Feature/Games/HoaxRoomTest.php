@@ -132,6 +132,42 @@ test('landing on the room page does not mark the room pending until the host ope
     expect($room->fresh()->pendingGameType())->toBe(GameType::Hoax);
 });
 
+/**
+ * docs/concerns.md, 2026-08-29: a room that already played (and finished)
+ * one game still has `game_session_id` pointing at that now-ended session
+ * (nothing clears it except pages::room.show's startGame(), which a host
+ * never goes through when reopening a lobby straight from a game's own
+ * "play in a room you host" shortcut). openGameSwitchedElsewhere() re-runs
+ * the exact same $lobbyOpened computation openLobby() itself just set,
+ * triggered by openLobby()'s own RoomGameSwitched reaching this same
+ * page's own listener a moment later -- Room::pendingGameType() used to
+ * treat that stale id as if a real game were still active, so this second,
+ * broadcast-triggered call immediately flipped $lobbyOpened back to false,
+ * reverting the just-opened lobby to the "Open Lobby" button again.
+ * BROADCAST_CONNECTION is null in tests (phpunit.xml), so this has to be
+ * driven directly rather than through a real Reverb round trip -- same
+ * reasoning tests/Feature/RoomsMenuTest.php's own onGameSwitched()/
+ * onGameStarting() tests already call the listener method directly.
+ */
+test('opening the lobby in a room with a finished game stays open once the broadcast reaches this same page', function () {
+    $host = User::factory()->create();
+    $finishedSession = GameSession::factory()->create(['type' => GameType::AppleMatch]);
+    $room = Room::factory()->create([
+        'host_user_id' => $host->id,
+        'status' => RoomStatus::Finished,
+        'game_session_id' => $finishedSession->id,
+    ]);
+
+    $component = Livewire::actingAs($host)->test('pages::hoax.room', ['code' => $room->code])
+        ->call('openLobby')
+        ->assertSet('lobbyOpened', true);
+
+    // The broadcast this same request's own openLobby() just fired,
+    // reaching this same page's own listener.
+    $component->call('onGameSwitchedElsewhere')
+        ->assertSet('lobbyOpened', true);
+});
+
 test('a non-host cannot open the lobby', function () {
     $host = User::factory()->create();
     $guest = User::factory()->create();

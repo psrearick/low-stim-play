@@ -238,10 +238,25 @@ new class extends Component
         </div>
     @elseif ($this->pendingGameType !== null)
         <div class="setup w-full">
-            <p class="status-line">The host is setting up {{ $this->pendingGameType->label() }} -- hasn't started yet.</p>
-            <a href="{{ route($this->pendingGameType->roomRoute(), ['code' => $room->code]) }}">
-                <button type="button">Join</button>
-            </a>
+            {{--
+                Different copy/button for the host (docs/concerns.md:
+                "Don't show join button if already in room as host") -- the
+                pending setup here is always the host's own doing
+                (pages::{game}.room's openLobby() is abort_unless($isHost)-
+                gated), so "Join" reads as if someone else is waiting on
+                them rather than the other way around.
+            --}}
+            @if ($this->isHost)
+                <p class="status-line">You're setting up {{ $this->pendingGameType->label() }} -- hasn't started yet.</p>
+                <a href="{{ route($this->pendingGameType->roomRoute(), ['code' => $room->code]) }}">
+                    <button type="button">Continue Setup</button>
+                </a>
+            @else
+                <p class="status-line">The host is setting up {{ $this->pendingGameType->label() }} -- hasn't started yet.</p>
+                <a href="{{ route($this->pendingGameType->roomRoute(), ['code' => $room->code]) }}">
+                    <button type="button">Join</button>
+                </a>
+            @endif
         </div>
     @endif
 

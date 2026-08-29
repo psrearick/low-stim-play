@@ -3,6 +3,7 @@
 use App\Enums\GameMode;
 use App\Enums\GameType;
 use App\Enums\HoaxPhase;
+use App\Enums\RoomStatus;
 use App\Models\GameSession;
 use App\Models\Room;
 use App\Models\RoomSeat;
@@ -284,4 +285,39 @@ test('a non-host does not see the End Game button in the Game menu', function ()
 
     $page->click('#game-menu-toggle')
         ->assertDontSee('End Game');
+});
+
+/**
+ * docs/concerns.md, 2026-08-29: a room that already played (and finished)
+ * one game still has `game_session_id` pointing at that now-ended session
+ * -- nothing clears it except pages::room.show's startGame(), which a host
+ * never goes through when reopening a lobby straight from a game's own
+ * "play in a room you host" shortcut (the exact path reported: /hoax ->
+ * the hosted-room button -> hoax.room). Room::pendingGameType() used to
+ * treat that stale id as if a real game were still active, so a member
+ * loading this page fresh saw "Waiting for the host to finish setting up"
+ * instead of the real lobby, no matter how many times the host had
+ * actually opened it. (The host's own side of this bug -- a second,
+ * broadcast-triggered re-render clobbering $lobbyOpened right back to
+ * false the instant they open it -- can't be driven through a real
+ * browser here: BROADCAST_CONNECTION is null in tests (phpunit.xml), so
+ * that half is covered directly in tests/Feature/Games/HoaxRoomTest.php
+ * instead, which calls the listener method rather than waiting on a
+ * Reverb round trip that will never arrive.)
+ */
+test('a member joining a room with a finished game sees the real lobby, not "Waiting for the host"', function () {
+    $host = User::factory()->create(['password' => bcrypt('password')]);
+    $guest = User::factory()->create(['password' => bcrypt('password')]);
+    $finishedSession = GameSession::factory()->create(['type' => GameType::AppleMatch]);
+    $room = Room::factory()->create([
+        'host_user_id' => $host->id,
+        'status' => RoomStatus::Finished,
+        'game_session_id' => $finishedSession->id,
+    ]);
+    $room->markPendingGame(GameType::Hoax);
+
+    $page = loginAsAndVisitHoax($guest, "/hoax/room/{$room->code}");
+
+    $page->assertSee("I'm ready")
+        ->assertDontSee('Waiting for the host to finish setting up');
 });

@@ -94,14 +94,35 @@ test('markPendingGame for a different game overwrites the previous one, not stac
     expect($room->pendingGameType())->toBe(GameType::AppleMatch);
 });
 
-test('pendingGameType is null once a real game session exists, even with a stale marker', function () {
+test('pendingGameType is null once a real, active game session exists, even with a stale marker', function () {
     $room = Room::factory()->create();
     $room->markPendingGame(GameType::AppleMatch);
 
     $session = GameSession::factory()->create(['type' => GameType::AppleMatch]);
-    $room->update(['game_session_id' => $session->id]);
+    $room->update(['status' => RoomStatus::Active, 'game_session_id' => $session->id]);
 
     expect($room->fresh()->pendingGameType())->toBeNull();
+});
+
+/**
+ * docs/concerns.md, 2026-08-29: a room whose most recent game already
+ * ended still has `game_session_id` pointing at that finished session
+ * (every game's own endGame() only ever sets `status` to
+ * RoomStatus::Finished, never clears the id -- see Room::pendingGameType()'s
+ * own docblock) -- reopening a lobby in that same room must not have the
+ * stale id block markPendingGame() from taking effect, or the host's own
+ * <livewire:game-lobby> immediately reverts to the "Open Lobby" button and
+ * every other member sees "Waiting for the host" no matter how many times
+ * the host actually opens it.
+ */
+test('pendingGameType is NOT null when game_session_id points at an already-finished game', function () {
+    $room = Room::factory()->create();
+    $session = GameSession::factory()->create(['type' => GameType::AppleMatch]);
+    $room->update(['status' => RoomStatus::Finished, 'game_session_id' => $session->id]);
+
+    $room->markPendingGame(GameType::Hoax);
+
+    expect($room->fresh()->pendingGameType())->toBe(GameType::Hoax);
 });
 
 test('extendExpiry resets expiry to a full LIFETIME_MINUTES from now, not just adding time to whatever it already was', function () {
