@@ -23,7 +23,7 @@ test('the Game Menu divider is hidden while playing, with no action button to di
         ->click('#game-menu-toggle');
 
     expect($page->script(
-        "getComputedStyle(document.querySelector('#game-menu-dialog .app-sidebar-divider')).display"
+        "getComputedStyle(document.querySelector('#game-menu-sidebar .app-sidebar-divider')).display"
     ))->toBe('none');
 
     $page->assertNoJavaScriptErrors();
@@ -48,7 +48,7 @@ test('the Game Menu divider appears once a real action button (New Game) is pres
         ->assertSee('New Game');
 
     expect($page->script(
-        "getComputedStyle(document.querySelector('#game-menu-dialog .app-sidebar-divider')).display"
+        "getComputedStyle(document.querySelector('#game-menu-sidebar .app-sidebar-divider')).display"
     ))->toBe('block');
 
     $page->assertNoJavaScriptErrors();

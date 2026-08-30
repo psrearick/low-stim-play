@@ -2576,11 +2576,11 @@ body.scrollable.family-feud-play {
    matters here). No previous-sibling selector exists in CSS, so
    :has(+ ...) on the divider itself (not a rule on #game-actions) is
    what makes "look at the next element's own state" possible at all. */
-#game-menu-dialog .app-sidebar-divider {
+#game-menu-sidebar .app-sidebar-divider {
     display: none;
 }
 
-#game-menu-dialog .app-sidebar-divider:has(+ #game-actions button, + #game-actions a) {
+#game-menu-sidebar .app-sidebar-divider:has(+ #game-actions button, + #game-actions a) {
     display: block;
 }
 
@@ -2630,6 +2630,18 @@ body.scrollable.family-feud-play {
    backdrop reuses .app-sidebar-backdrop's own rules (a full-viewport dim
    layer looks identical regardless of which drawer opened it). ---- */
 .stats-sidebar {
+    left: auto;
+    right: 0;
+    border-left: 2px solid var(--die-border);
+    border-right: none;
+}
+
+/* Game Menu drawer (game/room pages only, docs/TODO.md's former Task 33)
+   -- same right-anchor as .stats-sidebar above; the two never render on
+   the same page (stats pages don't set $rules/$fullscreenToggle, game
+   pages don't set $sidebar), so there's no risk of both drawers occupying
+   the same edge at once. */
+.game-menu-sidebar {
     left: auto;
     right: 0;
     border-left: 2px solid var(--die-border);

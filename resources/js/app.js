@@ -193,17 +193,39 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // ---- Game Menu drawer (game/room pages only) ---------------------------
+    // Same shape as the site menu/stats menu drawers above -- a third,
+    // independent off-canvas panel, anchored right, only rendered (toggle
+    // button included) on pages that set $rules or $fullscreenToggle (see
+    // layouts/app.blade.php). Previously a real <x-dialog> modal (docs/
+    // TODO.md's former Task 33; adopted specifically to stop it
+    // overlapping the score/timer HUD -- see the navbar redesign entries
+    // in docs/DEVLOG.md) -- converted to a drawer to match the site's
+    // other two off-canvas menus instead of being the one holdout modal.
+    const gameMenuToggle = document.getElementById('game-menu-toggle');
+    const gameMenuSidebar = document.getElementById('game-menu-sidebar');
+    const gameMenuBackdrop = document.getElementById('game-menu-backdrop');
+
+    if (gameMenuToggle && gameMenuSidebar && gameMenuBackdrop) {
+        const closeGameMenu = () => {
+            gameMenuSidebar.classList.remove('open');
+            gameMenuBackdrop.classList.remove('open');
+        };
+
+        gameMenuToggle.addEventListener('click', () => {
+            gameMenuSidebar.classList.toggle('open');
+            gameMenuBackdrop.classList.toggle('open');
+        });
+
+        gameMenuBackdrop.addEventListener('click', closeGameMenu);
+    }
+
     // ---- Navbar dropdown (Account, every page) -----------------------------
-    // Delegated, not bound directly like the sidebar toggle above -- the
+    // Delegated, not bound directly like the sidebar toggles above -- the
     // Account menu (<x-user-menu>) isn't a Livewire component at all, but
     // this is still the most robust place for its open/close/position
-    // behavior regardless. (Rooms and Game Menu used to be two other
-    // consumers of this same helper -- Rooms moved into the site menu
-    // drawer itself, and Game Menu became a real modal <x-dialog> instead
-    // of a dropdown, since an absolutely-positioned panel opening below
-    // its toggle button visually overlapped page content just below the
-    // bar -- see docs/concerns.md, 2026-08-22, and layouts/app.blade.php's
-    // own comment on the Game dialog.)
+    // behavior regardless. (Rooms used to be another consumer of this same
+    // helper -- it moved into the site menu drawer itself.)
     const registerNavbarDropdown = (toggleId, panelId) => {
         document.addEventListener('click', (event) => {
             const toggle = event.target.closest(`#${toggleId}`);
@@ -286,36 +308,32 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // ---- Close the Game dialog after a real action (game pages only) -----
-    // #game-menu-dialog is a real modal (layouts/app.blade.php's own
-    // comment explains why), so unlike the dropdown it replaced, it blocks
-    // interaction with the rest of the page while open -- confirmed live
-    // as a real bug, not just a theoretical one: Word Grid's own post-game
-    // "Challenge a Friend" button renders in the page body, not inside
-    // this dialog, and with the dialog left open on top of it after End
-    // Game, Playwright's click() on "Challenge a Friend" hung waiting for
-    // an element that was present but non-interactive behind the modal's
-    // own backdrop.
+    // ---- Close the Game Menu drawer after a real action (game pages only) --
+    // Originally needed because #game-menu-dialog was a real modal that
+    // blocked interaction with the rest of the page while open -- confirmed
+    // live as a real bug, not just a theoretical one: Word Grid's own
+    // post-game "Challenge a Friend" button renders in the page body, not
+    // inside that dialog, and with it left open on top after End Game,
+    // Playwright's click() on "Challenge a Friend" hung waiting for an
+    // element that was present but non-interactive behind the modal's own
+    // backdrop. Kept the same auto-close behavior now that the Game Menu
+    // is a non-modal drawer instead (docs/TODO.md's former Task 33) --
+    // leaving it open after an action still hides page content behind its
+    // own backdrop, even though nothing blocks interaction with it anymore.
     //
     // Only closes on a click with a wire:click ancestor within
     // #game-actions -- not on *every* click there. Farkle/Family Feud's
     // own End Game/Reveal route through a <x-confirm-dialog> that's
-    // teleported *inside* #game-actions alongside its trigger (so it's
-    // nested inside #game-menu-dialog too): closing #game-menu-dialog
-    // unconditionally on the trigger's own click (data-dialog-open, no
-    // wire:click) made the nested confirm dialog invisible along with it,
-    // even though showModal() had opened it -- a closed ancestor <dialog>
-    // forces display:none on any descendant regardless of the
-    // descendant's own open state, confirmed live (the confirm dialog's
-    // "End the game?" text never appeared). A plain data-dialog-close
-    // Cancel button inside that confirm dialog has no wire:click either,
-    // so it's excluded the same way -- canceling returns to the Game
-    // dialog's own options instead of closing everything. Only the
-    // confirm button itself (wire:click + data-dialog-close together)
-    // actually takes the action, so that's what closes both dialogs.
+    // teleported *inside* #game-actions alongside its trigger, and a plain
+    // data-dialog-close Cancel button inside that confirm dialog has no
+    // wire:click -- so canceling returns to the Game Menu's own options
+    // instead of closing it. Only the confirm button itself (wire:click +
+    // data-dialog-close together) actually takes the action, so that's
+    // what closes the drawer.
     document.addEventListener('click', (event) => {
         if (event.target.closest('#game-actions') && event.target.closest('[wire\\:click]')) {
-            document.getElementById('game-menu-dialog')?.close();
+            document.getElementById('game-menu-sidebar')?.classList.remove('open');
+            document.getElementById('game-menu-backdrop')?.classList.remove('open');
         }
     });
 

@@ -70,7 +70,8 @@
             <div class="right">
                 @if (isset($rules) || isset($fullscreenToggle))
                     {{--
-                        The "Game" dialog -- the one place Rules and this
+                        Toggles the right-side Game Menu drawer below
+                        (#game-menu-sidebar) -- the one place Rules and this
                         game's own action buttons (End Game/New Game,
                         Reveal, Watch only, ...) live now, instead of each
                         being its own bar button. Gated on $rules or
@@ -79,69 +80,26 @@
                         it (Quartiles sets only $rules, no fullscreen
                         toggle; every other game-play page sets both), and
                         room-lobby pages (which need neither) set neither.
-                        #game-actions below has to exist whenever a page
-                        might @teleport into it regardless of which of the
-                        two this particular page sets -- Livewire's own
-                        teleport throws on a missing target the moment that
-                        page's component tries to render into it, not a
-                        silent no-op.
 
-                        A real modal (<x-dialog>), not an absolutely-
-                        positioned dropdown like Rooms/the avatar menu used
-                        to be -- a dropdown panel opening below its toggle
-                        button visually overlapped whatever page content
-                        sat just below the bar (docs/concerns.md, 2026-08-22:
-                        reported specifically on Word Grid, where it covered
-                        the score/time/words HUD while open). A modal makes
-                        that an obvious, deliberate full-screen takeover
-                        (same dimmed backdrop as Rules/Join a Room/every
-                        confirm dialog) instead of an ambiguous partial
-                        overlap that reads as a layout bug. Opened the same
-                        way as every other dialog in this app
-                        (data-dialog-open, the delegated handler in
-                        resources/js/app.js), not registerNavbarDropdown --
-                        it's not a dropdown anymore, so it doesn't need
-                        that helper's open/close/position machinery.
+                        Bound directly in resources/js/app.js (like
+                        #sidebar-menu-toggle/#stats-sidebar-toggle), not
+                        data-dialog-open -- this used to be a real <x-dialog>
+                        modal (see docs/DEVLOG.md's TODO Task 33 entry for
+                        why it's an off-canvas drawer instead now, mirroring
+                        the site menu/stats drawers).
                     --}}
-                    <button type="button" id="game-menu-toggle" data-dialog-open="game-menu-dialog">
+                    <button type="button" id="game-menu-toggle">
                         Game
                     </button>
-
-                    <x-dialog id="game-menu-dialog" title="Game">
-                        <div class="flex flex-col gap-1 w-full">
-                            @isset($rules)
-                                <button type="button" id="rules-btn" class="app-sidebar-link">Rules</button>
-                                <div class="app-sidebar-divider"></div>
-                            @endisset
-
-                            {{--
-                                A stable teleport target (see Livewire's
-                                @teleport directive), not a slot --
-                                game-specific action buttons (End Game/New
-                                Game, Reveal, ...) depend on Livewire state
-                                that changes after the initial page load,
-                                and a named layout slot is only ever
-                                evaluated once at that first render: it
-                                lives outside the component's own root
-                                element, so it's never touched by the AJAX
-                                diff a wire:click triggers afterwards.
-                                display: contents so teleported buttons lay
-                                out as direct flex items of this wrapper's
-                                own flex-col, picking up its gap, rather
-                                than as a nested box.
-                            --}}
-                            <div id="game-actions" style="display: contents;"></div>
-                        </div>
-                    </x-dialog>
 
                     @isset($fullscreenToggle)
                         {{--
                             Kept as its own persistent icon button,
-                            deliberately NOT inside the Game dialog above --
-                            this is the one control that has to stay
-                            reachable even after it hides everything else
-                            in the bar (see app.css's body.chrome-hidden
-                            rules), including the Game button itself.
+                            deliberately NOT inside the Game Menu drawer
+                            below -- this is the one control that has to
+                            stay reachable even after it hides everything
+                            else in the bar (see app.css's body.chrome-
+                            hidden rules), including the Game button itself.
                         --}}
                         <button type="button" id="chrome-toggle-btn" class="icon-btn fullscreen-toggle" aria-pressed="false" aria-label="Hide menu bars for fullscreen">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
@@ -210,6 +168,45 @@
         @isset($sidebar)
             <x-stats-sidebar />
         @endisset
+
+        @if (isset($rules) || isset($fullscreenToggle))
+            {{--
+                The Game Menu drawer -- an off-canvas sidebar like
+                <x-app-sidebar />/<x-stats-sidebar /> above, anchored to the
+                right (docs/TODO.md's former Task 33; previously a real
+                <x-dialog> modal, adopted specifically to stop it
+                overlapping the score/timer HUD -- see the navbar redesign
+                entries in docs/DEVLOG.md). #game-actions has to exist
+                whenever a page might @teleport into it regardless of
+                whether this particular page sets $rules or
+                $fullscreenToggle -- Livewire's own teleport throws on a
+                missing target the moment that page's component tries to
+                render into it, not a silent no-op.
+            --}}
+            <div class="app-sidebar-backdrop" id="game-menu-backdrop"></div>
+
+            <aside class="app-sidebar game-menu-sidebar" id="game-menu-sidebar" aria-label="Game menu">
+                @isset($rules)
+                    <button type="button" id="rules-btn" class="app-sidebar-link">Rules</button>
+                    <div class="app-sidebar-divider"></div>
+                @endisset
+
+                {{--
+                    A stable teleport target (see Livewire's @teleport
+                    directive), not a slot -- game-specific action buttons
+                    (End Game/New Game, Reveal, ...) depend on Livewire
+                    state that changes after the initial page load, and a
+                    named layout slot is only ever evaluated once at that
+                    first render: it lives outside the component's own root
+                    element, so it's never touched by the AJAX diff a
+                    wire:click triggers afterwards. display: contents so
+                    teleported buttons lay out as direct flex items of this
+                    aside's own flex-col, picking up its gap, rather than as
+                    a nested box.
+                --}}
+                <div id="game-actions" style="display: contents;"></div>
+            </aside>
+        @endif
 
         {{--
             A teleport target for <livewire:rooms-menu>'s own "Host is

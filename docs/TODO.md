@@ -8,10 +8,9 @@ The Order of Work list is a separate, ordinary numbered list reflecting current 
 
 ## Order of Work
 
-1. [Task 33: Convert the Game Menu to a right-side off-canvas sidebar](#33-convert-the-game-menu-to-a-right-side-off-canvas-sidebar)
-2. [Task 10: Spec and build Pips](#10-spec-and-build-pips)
-3. [Task 19: Spec and build Connections and Strands](#19-spec-and-build-connections-and-strands)
-4. [Task 23: Add "Sign in with Google"](#23-add-sign-in-with-google)
+1. [Task 10: Spec and build Pips](#10-spec-and-build-pips)
+2. [Task 19: Spec and build Connections and Strands](#19-spec-and-build-connections-and-strands)
+3. [Task 23: Add "Sign in with Google"](#23-add-sign-in-with-google)
 
 ## Tasks
 
@@ -38,10 +37,4 @@ Moved from `docs/concerns.md` (2026-08-23): "sign in with google."
 Fully greenfield — no OAuth package installed (`laravel/socialite` is not in `composer.json`), no `google` entry in `config/services.php`, and no provider/`google_id` column on `users`. Fortify (`app/Providers/FortifyServiceProvider.php`) only handles email/password, 2FA, and passkeys — it has no social-login concept, so this doesn't hook into it.
 
 Needs: `composer require laravel/socialite`; a `google` block in `config/services.php` (`client_id`, `client_secret`, `redirect`) plus an actual Google Cloud OAuth app/credentials; new redirect/callback routes and a controller (Socialite has no Fortify-style scaffolding for this); and a migration adding a nullable `google_id` (or a small `provider`/`provider_id` pair) to `users`, plus a decision for the collision case where a Google account's email already matches an existing password-based account (link vs. reject vs. auto-merge).
-
-### 33. Convert the Game Menu to a right-side off-canvas sidebar
-
-Split out from the former Task 30 (2026-08-26) once that task's actual bug (the dangling divider) was fixed directly in CSS — this is the remaining, separate part of the original report: "the game menu should just be a sidebar like the main menu, but on the right side." A real UI redesign, not a bug fix, so deliberately not bundled into the same pass.
-
-Replace the Game Menu's current modal (`<x-dialog id="game-menu-dialog">`, adopted specifically to stop it overlapping the score/timer HUD — see `docs/DEVLOG.md`'s navbar redesign entries) with an off-canvas sidebar like the main Menu drawer (`resources/views/components/app-sidebar.blade.php`, a real `<aside>` + backdrop, not a `<dialog>`), anchored to the right instead of the left. Reuses the same `#game-actions` teleport target and Rules button; adopting the main drawer's real `.app-sidebar-link`/`.app-sidebar-divider` structure (dividers there sit between always-rendered groups, never in front of a possibly-empty target) would resolve the divider-visibility concern as a side effect of the redesign too, on top of the CSS fix already in place.
 

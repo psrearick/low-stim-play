@@ -7,6 +7,7 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 - Game challenges are now persisted (new `game_challenges` table), not just emailed: the Friends-link badge in the sidebar now counts unactioned challenges alongside pending friend requests, and the Friends page gained a "Your challenges" section with Play/Dismiss actions (TODO Task 22).
 - Added an "Average % of board found" tile to the Word Grid stats page (TODO Task 26).
 - Split the Word Grid stats page's "Personal bests" tiles into separate solo and room sections instead of blending a room's exclusive score with solo's raw score into one figure (TODO Task 27).
+- Converted the Game Menu from a modal dialog into a right-side off-canvas sidebar, matching the site menu and stats menu drawers (TODO Task 33).
 
 ## 2026-08-29
 
