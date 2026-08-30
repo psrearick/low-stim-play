@@ -4,6 +4,7 @@ use App\Enums\FriendshipStatus;
 use App\Enums\GameMode;
 use App\Enums\GameType;
 use App\Models\Friendship;
+use App\Models\GameChallenge;
 use App\Models\GameParticipant;
 use App\Models\GameSession;
 use App\Models\User;
@@ -235,6 +236,56 @@ test('challengeBack notifies the friend with the link for their own game type', 
             && $notification->gameType === GameType::Boggle
             && $notification->link === route('boggle.share', ['gameSession' => $participant->game_session_id]);
     });
+});
+
+test('received challenges from another user are listed with a Play and Dismiss action', function () {
+    $user = User::factory()->create();
+    $friend = User::factory()->create();
+    $challenge = GameChallenge::factory()->create([
+        'from_user_id' => $friend->id,
+        'to_user_id' => $user->id,
+        'game_type' => GameType::Boggle,
+        'link' => 'https://example.test/boggle-challenge',
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::friends')
+        ->assertSee($friend->name)
+        ->assertSee('Word Grid')
+        ->assertSeeHtml('play-challenge-'.$challenge->id)
+        ->assertSeeHtml('dismiss-challenge-'.$challenge->id);
+});
+
+test('a challenge addressed to someone else does not appear', function () {
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+    GameChallenge::factory()->create(['to_user_id' => $other->id]);
+
+    Livewire::actingAs($user)
+        ->test('pages::friends')
+        ->assertDontSee('Your challenges');
+});
+
+test('dismissChallenge removes a challenge addressed to the current user', function () {
+    $user = User::factory()->create();
+    $challenge = GameChallenge::factory()->create(['to_user_id' => $user->id]);
+
+    Livewire::actingAs($user)
+        ->test('pages::friends')
+        ->call('dismissChallenge', $challenge->id);
+
+    expect(GameChallenge::find($challenge->id))->toBeNull();
+});
+
+test('dismissChallenge cannot be used to remove someone else\'s challenge', function () {
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+    $challenge = GameChallenge::factory()->create(['to_user_id' => $other->id]);
+
+    expect(fn () => Livewire::actingAs($user)->test('pages::friends')->call('dismissChallenge', $challenge->id))
+        ->toThrow(ModelNotFoundException::class);
+
+    expect(GameChallenge::find($challenge->id))->not->toBeNull();
 });
 
 test('the activity feed offers a Challenge back button only for a challengeable game type', function () {

@@ -8,13 +8,12 @@ The Order of Work list is a separate, ordinary numbered list reflecting current 
 
 ## Order of Work
 
-1. [Task 22: Notify players when they're challenged, and surface it in the UI](#22-notify-players-when-theyre-challenged-and-surface-it-in-the-ui)
-2. [Task 26: Add "average percent of board found" to Word Grid stats](#26-add-average-percent-of-board-found-to-word-grid-stats)
-3. [Task 27: Split solo vs. multiplayer score stats on the Word Grid stats page](#27-split-solo-vs-multiplayer-score-stats-on-the-word-grid-stats-page)
-4. [Task 33: Convert the Game Menu to a right-side off-canvas sidebar](#33-convert-the-game-menu-to-a-right-side-off-canvas-sidebar)
-5. [Task 10: Spec and build Pips](#10-spec-and-build-pips)
-6. [Task 19: Spec and build Connections and Strands](#19-spec-and-build-connections-and-strands)
-7. [Task 23: Add "Sign in with Google"](#23-add-sign-in-with-google)
+1. [Task 26: Add "average percent of board found" to Word Grid stats](#26-add-average-percent-of-board-found-to-word-grid-stats)
+2. [Task 27: Split solo vs. multiplayer score stats on the Word Grid stats page](#27-split-solo-vs-multiplayer-score-stats-on-the-word-grid-stats-page)
+3. [Task 33: Convert the Game Menu to a right-side off-canvas sidebar](#33-convert-the-game-menu-to-a-right-side-off-canvas-sidebar)
+4. [Task 10: Spec and build Pips](#10-spec-and-build-pips)
+5. [Task 19: Spec and build Connections and Strands](#19-spec-and-build-connections-and-strands)
+6. [Task 23: Add "Sign in with Google"](#23-add-sign-in-with-google)
 
 ## Tasks
 
@@ -33,16 +32,6 @@ Split out from Task 10 (2026-08-23) because both need real semantic content this
 Strands additionally needs a new word-placement/grid-tiling solver with no existing precedent in this app (Boggle's `Solver` finds words in a fixed grid; Strands needs to construct a grid that fits a predetermined word list, the reverse problem).
 
 Once built, wire each into the shared puzzle-code/daily-puzzle/Challenge-a-Friend infrastructure the same way as Task 10 (see that task's own wiring paragraph and `docs/DEVLOG.md`'s "Boggle"/"Word Blocks" sections).
-
-### 22. Notify players when they're challenged, and surface it in the UI
-
-Moved from `docs/concerns.md` (2026-08-23): "Challenging people doesn't seem to do anything. Should it email them and send them a notification in the app, and have a badge on the friends link in the menu, and a section in the friends page that shows your challenges."
-
-Currently `GameChallengeService::send()` (`app/Services/Social/GameChallengeService.php`) only emails the recipient via `GameChallengeReceived` (`app/Notifications/GameChallengeReceived.php`, mail-only channel) — no in-app notification exists anywhere in the app (no `notifications` table, no database channel usage on `User` at all).
-
-Existing precedent to build on: `resources/views/components/app-sidebar.blade.php` already has a working badge pattern next to the Friends link (`FriendService::pendingReceived($user)->count()`, rendered as a small pill, hidden when zero) — the same shape would work for "unread challenges," but there's currently nothing to count: challenges aren't persisted anywhere, only emailed, so a badge/list needs a new table (e.g. `game_challenges`: from/to user, game participant/link, read/actioned state) rather than deriving from existing data. The Friends page's current "activity feed" (`FriendService::activityFeed()`, `pages/⚡friends.blade.php`) is actually just friends' recent games with a generic "Challenge back" button — not a list of challenges received — so the new "section... that shows your challenges" is a genuinely new query/view, not a relabeling of the existing feed.
-
-Also worth confirming before shipping: `docs/DEVLOG.md` already documents that queued challenge/friend-request emails silently failed to send in production for a while because no queue worker was provisioned — check that's still resolved before layering more notification volume onto the same queue.
 
 ### 23. Add "Sign in with Google"
 

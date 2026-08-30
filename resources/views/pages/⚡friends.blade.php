@@ -2,6 +2,7 @@
 
 use App\Enums\FriendshipStatus;
 use App\Models\Friendship;
+use App\Models\GameChallenge;
 use App\Models\GameParticipant;
 use App\Models\User;
 use App\Services\Social\FriendService;
@@ -56,6 +57,11 @@ new class extends Component
     public function getPendingSentProperty()
     {
         return app(FriendService::class)->pendingSent($this->user());
+    }
+
+    public function getReceivedChallengesProperty()
+    {
+        return app(GameChallengeService::class)->receivedFor($this->user());
     }
 
     public function getActivityProperty()
@@ -122,6 +128,13 @@ new class extends Component
         $friend = User::findOrFail($userId);
 
         app(FriendService::class)->remove($this->user(), $friend);
+    }
+
+    public function dismissChallenge(int $challengeId): void
+    {
+        $challenge = GameChallenge::where('to_user_id', $this->user()->id)->findOrFail($challengeId);
+
+        app(GameChallengeService::class)->dismiss($challenge);
     }
 
     /**
@@ -224,6 +237,28 @@ new class extends Component
                             <span class="text-sm text-text">{{ $friendship->addressee->name }}</span>
                         </div>
                         <button type="button" id="cancel-request-{{ $friendship->id }}" wire:click="removeRequest({{ $friendship->id }})">Cancel</button>
+                    </li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
+    @if ($this->receivedChallenges->isNotEmpty())
+        <div class="flex flex-col gap-3 w-full bg-surface border-2 border-surface-border rounded-lg p-4">
+            <p class="text-sm text-text/80 font-bold">Your challenges</p>
+            <ul class="flex flex-col gap-1">
+                @foreach ($this->receivedChallenges as $challenge)
+                    <li wire:key="challenge-{{ $challenge->id }}" class="flex items-center justify-between gap-2 px-2 py-2 rounded">
+                        <div class="flex items-center gap-2">
+                            <x-avatar :name="$challenge->from->name" :avatar-url="$challenge->from->avatarUrl()" size="w-8 h-8 text-sm" />
+                            <span class="text-sm text-text">
+                                {{ $challenge->from->name }} challenged you to {{ $challenge->game_type->label() }}
+                            </span>
+                        </div>
+                        <div class="flex gap-2">
+                            <a href="{{ $challenge->link }}" id="play-challenge-{{ $challenge->id }}">Play</a>
+                            <button type="button" id="dismiss-challenge-{{ $challenge->id }}" wire:click="dismissChallenge({{ $challenge->id }})">Dismiss</button>
+                        </div>
                     </li>
                 @endforeach
             </ul>

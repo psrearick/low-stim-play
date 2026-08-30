@@ -31,8 +31,14 @@
         ['id' => 'all-games', 'label' => 'All Games', 'routes' => ['profile.games']],
     ];
 
+    // Combines pending friend requests with unactioned game challenges
+    // into the one badge on the Friends link (docs/concerns.md: "have a
+    // badge on the friends link in the menu") -- both are things the
+    // Friends page surfaces, so one number covers "you have something to
+    // look at on the Friends page" rather than adding a second badge.
     $pendingFriendRequests = auth()->check()
         ? app(\App\Services\Social\FriendService::class)->pendingReceived(auth()->user())->count()
+            + app(\App\Services\Social\GameChallengeService::class)->receivedFor(auth()->user())->count()
         : 0;
 @endphp
 

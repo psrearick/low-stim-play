@@ -1,6 +1,8 @@
 <?php
 
+use App\Enums\GameType;
 use App\Models\Friendship;
+use App\Models\GameChallenge;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -136,6 +138,21 @@ test('the sidebar shows Friends, with a badge, for an authenticated visitor with
         ->toContain('sidebar-friends-badge');
 
     $response->assertSeeInOrder(['sidebar-friends-badge', '1']);
+});
+
+test('the Friends badge count includes unactioned game challenges alongside pending friend requests', function () {
+    $user = User::factory()->create();
+    $requester = User::factory()->create();
+    $challenger = User::factory()->create();
+    Friendship::factory()->create(['requester_id' => $requester->id, 'addressee_id' => $user->id]);
+    GameChallenge::factory()->create(['from_user_id' => $challenger->id, 'to_user_id' => $user->id, 'game_type' => GameType::Boggle]);
+
+    $response = $this->actingAs($user)->get('/');
+
+    $aside = appSidebarHtml($response->getContent());
+
+    $response->assertSeeInOrder(['sidebar-friends-badge', '2']);
+    expect($aside)->toContain('sidebar-friends-badge');
 });
 
 test('no Friends badge is shown when there are no pending friend requests', function () {

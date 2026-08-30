@@ -2,6 +2,20 @@
 
 A terse, commit-by-commit record of what changed, newest first. No rationale or decisions here — see `docs/DEVLOG.md` for the *why* behind anything listed here, organized by feature instead of by commit. See `docs/TODO.md` for what's still outstanding.
 
+## 2026-08-30
+
+- Game challenges are now persisted (new `game_challenges` table), not just emailed: the Friends-link badge in the sidebar now counts unactioned challenges alongside pending friend requests, and the Friends page gained a "Your challenges" section with Play/Dismiss actions (TODO Task 22).
+
+## 2026-08-29
+
+- Sidebar game links now go to each game's play page instead of its stats page; My Stats/All Games split into their own section after the games and before Friends. Added a new right-hand "stats menu" drawer (toggleable from every stats page) listing links to each game's own stats page.
+- Moved the theme toggle from the site footer to the bottom of the site menu drawer; it no longer closes the drawer on click.
+- Reworked Word Hive's letter-entry UX: the redundant status line and real `<input>` merged into one non-editable display (uppercase, no border/background, placeholder text, key letter highlighted), with tap and physical-keyboard entry both routed through the same page-wide handler. The honeycomb is now sized to ~85% of viewport width on mobile.
+- Fixed a room that had ever played a game staying permanently blocked from reopening its lobby, flickering the host back to "Open Lobby" and stranding everyone else on "Waiting for the host."
+- Fixed a room's own host receiving their own "Host is setting up X -- Join" prompt; the room hub now shows "Continue Setup" instead of "Join" for the host.
+- Fixed a finished room permanently showing "Finished" in the room list instead of "Lobby," even though it's immediately reusable.
+- Fixed Word Hive's Score/Rank/Words HUD row wrapping onto two rows on mobile when a longer rank tier name (e.g. "Getting Started") didn't fit.
+
 ## 2026-08-28
 
 - Fixed `room-new-game-notice` never showing anything until a new game's `GameSession` actually existed, forcing everyone to leave an old end-game page before a join link appeared -- it now also surfaces during the host's setup/gathering-players window, matching the room hub's own pending-game banner.

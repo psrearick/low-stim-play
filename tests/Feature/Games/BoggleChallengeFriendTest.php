@@ -2,6 +2,7 @@
 
 use App\Enums\GameType;
 use App\Models\Friendship;
+use App\Models\GameChallenge;
 use App\Models\GameParticipant;
 use App\Models\GameSession;
 use App\Models\User;
@@ -46,6 +47,25 @@ test('sending a challenge notifies the selected friend with the boggle.share lin
             && $notification->gameType === GameType::Boggle
             && $notification->link === $link;
     });
+});
+
+test('sending a challenge persists a GameChallenge row for the recipient', function () {
+    $user = User::factory()->create();
+    $friend = User::factory()->create();
+    Friendship::factory()->accepted()->create(['requester_id' => $user->id, 'addressee_id' => $friend->id]);
+
+    $link = route('boggle.share', ['gameSession' => 42]);
+
+    Livewire::actingAs($user)
+        ->test('challenge-friend', ['gameType' => GameType::Boggle, 'link' => $link])
+        ->call('send', $friend->id);
+
+    $challenge = GameChallenge::sole();
+
+    expect($challenge->from_user_id)->toBe($user->id)
+        ->and($challenge->to_user_id)->toBe($friend->id)
+        ->and($challenge->game_type)->toBe(GameType::Boggle)
+        ->and($challenge->link)->toBe($link);
 });
 
 test('a guest friend is never notified', function () {

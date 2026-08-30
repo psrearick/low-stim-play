@@ -3,9 +3,11 @@
 namespace App\Services\Social;
 
 use App\Enums\GameType;
+use App\Models\GameChallenge;
 use App\Models\GameParticipant;
 use App\Models\User;
 use App\Notifications\GameChallengeReceived;
+use Illuminate\Support\Collection;
 use LogicException;
 
 class GameChallengeService
@@ -41,6 +43,11 @@ class GameChallengeService
      * No-op for a guest recipient -- same reasoning as
      * FriendService::sendRequest()'s own guard: a guest's email is an
      * unresolvable @guests.invalid placeholder (see User::createGuest()).
+     *
+     * Persists a GameChallenge row alongside the email so the challenge
+     * can also surface in-app (sidebar badge, Friends page "Your
+     * challenges" section) -- previously this only ever emailed, with
+     * nothing recorded anywhere for the app itself to show.
      */
     public function send(User $from, User $to, string $link, GameType $gameType): void
     {
@@ -48,6 +55,32 @@ class GameChallengeService
             return;
         }
 
+        GameChallenge::create([
+            'from_user_id' => $from->id,
+            'to_user_id' => $to->id,
+            'game_type' => $gameType,
+            'link' => $link,
+        ]);
+
         $to->notify(new GameChallengeReceived($from, $gameType, $link));
+    }
+
+    /**
+     * Challenges $user has received and not yet dismissed, newest first.
+     *
+     * @return Collection<int, GameChallenge>
+     */
+    public function receivedFor(User $user): Collection
+    {
+        return GameChallenge::query()
+            ->where('to_user_id', $user->id)
+            ->with('from')
+            ->latest()
+            ->get();
+    }
+
+    public function dismiss(GameChallenge $challenge): void
+    {
+        $challenge->delete();
     }
 }
