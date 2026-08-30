@@ -8,12 +8,11 @@ The Order of Work list is a separate, ordinary numbered list reflecting current 
 
 ## Order of Work
 
-1. [Task 26: Add "average percent of board found" to Word Grid stats](#26-add-average-percent-of-board-found-to-word-grid-stats)
-2. [Task 27: Split solo vs. multiplayer score stats on the Word Grid stats page](#27-split-solo-vs-multiplayer-score-stats-on-the-word-grid-stats-page)
-3. [Task 33: Convert the Game Menu to a right-side off-canvas sidebar](#33-convert-the-game-menu-to-a-right-side-off-canvas-sidebar)
-4. [Task 10: Spec and build Pips](#10-spec-and-build-pips)
-5. [Task 19: Spec and build Connections and Strands](#19-spec-and-build-connections-and-strands)
-6. [Task 23: Add "Sign in with Google"](#23-add-sign-in-with-google)
+1. [Task 27: Split solo vs. multiplayer score stats on the Word Grid stats page](#27-split-solo-vs-multiplayer-score-stats-on-the-word-grid-stats-page)
+2. [Task 33: Convert the Game Menu to a right-side off-canvas sidebar](#33-convert-the-game-menu-to-a-right-side-off-canvas-sidebar)
+3. [Task 10: Spec and build Pips](#10-spec-and-build-pips)
+4. [Task 19: Spec and build Connections and Strands](#19-spec-and-build-connections-and-strands)
+5. [Task 23: Add "Sign in with Google"](#23-add-sign-in-with-google)
 
 ## Tasks
 
@@ -40,12 +39,6 @@ Moved from `docs/concerns.md` (2026-08-23): "sign in with google."
 Fully greenfield — no OAuth package installed (`laravel/socialite` is not in `composer.json`), no `google` entry in `config/services.php`, and no provider/`google_id` column on `users`. Fortify (`app/Providers/FortifyServiceProvider.php`) only handles email/password, 2FA, and passkeys — it has no social-login concept, so this doesn't hook into it.
 
 Needs: `composer require laravel/socialite`; a `google` block in `config/services.php` (`client_id`, `client_secret`, `redirect`) plus an actual Google Cloud OAuth app/credentials; new redirect/callback routes and a controller (Socialite has no Fortify-style scaffolding for this); and a migration adding a nullable `google_id` (or a small `provider`/`provider_id` pair) to `users`, plus a decision for the collision case where a Google account's email already matches an existing password-based account (link vs. reject vs. auto-merge).
-
-### 26. Add "average percent of board found" to Word Grid stats
-
-Moved from `docs/concerns.md` (2026-08-23): "Word grid stats, add average percent of the board."
-
-`BoggleStatsService::statsFor()` (`app/Services/Stats/BoggleStatsService.php`) already computes a per-game `percentFound` (words found ÷ `total_valid_words`, itself already recorded per game from `Boggle\Solver::solve()`'s full board solution at play time) — only a **best** percent is currently surfaced, via `bestMetrics()`'s "Most of the board found" tile. There's no average across all games. Add an `averagePercentFound(User $user)`-style method (mirroring `bestMetrics()`'s existing filtering, which already skips participants with a null `total_valid_words` for older rows recorded before this metric existed) and a new tile on `resources/views/pages/profile/boggle/⚡index.blade.php`.
 
 ### 27. Split solo vs. multiplayer score stats on the Word Grid stats page
 

@@ -141,6 +141,30 @@ class BoggleStatsService
     }
 
     /**
+     * The average, across every game with a recorded `total_valid_words`,
+     * of that game's own percentFound -- an average of per-game
+     * percentages, not (total words found / total valid words) across
+     * every game, so a handful of small/short games don't get swamped by
+     * one game with a much larger board. Mirrors bestMetrics()'s own
+     * filtering, which skips participants recorded before this metric
+     * existed (no `total_valid_words` stored at all). Null, not 0, when
+     * no eligible game exists yet, so the caller can omit the tile
+     * instead of showing a misleading 0%.
+     */
+    public function averagePercentFound(User $user): ?float
+    {
+        $percentages = $this->gamesForUser($user)
+            ->map(fn (GameParticipant $participant) => $this->statsFor($participant)['percentFound'])
+            ->filter(fn (?float $percentFound) => $percentFound !== null);
+
+        if ($percentages->isEmpty()) {
+            return null;
+        }
+
+        return round($percentages->avg(), 1);
+    }
+
+    /**
      * The longest distinct words the user has ever found across every
      * Boggle game, each paired with the most recent game it was found in.
      *

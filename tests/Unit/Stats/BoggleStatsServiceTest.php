@@ -124,6 +124,29 @@ test('bestMetrics is empty for a user with no Boggle games', function () {
     expect($this->service->bestMetrics($user))->toBe([]);
 });
 
+test('averagePercentFound averages each game\'s own percentFound, ignoring games with no recorded board size', function () {
+    $user = User::factory()->create();
+
+    boggleGame($user, ['cat' => 1, 'dog' => 1], 2, totalValidWords: 4); // 50%
+    boggleGame($user, ['cat' => 1], 1, totalValidWords: 10); // 10%
+    boggleGame($user, ['cat' => 1], 1); // no total_valid_words -- excluded
+
+    expect($this->service->averagePercentFound($user))->toBe(30.0);
+});
+
+test('averagePercentFound is null when no game has a recorded board size', function () {
+    $user = User::factory()->create();
+    boggleGame($user, ['cat' => 1], 1);
+
+    expect($this->service->averagePercentFound($user))->toBeNull();
+});
+
+test('averagePercentFound is null for a user with no Boggle games', function () {
+    $user = User::factory()->create();
+
+    expect($this->service->averagePercentFound($user))->toBeNull();
+});
+
 test('topLongestWords returns distinct words sorted by length, tied lengths alphabetical', function () {
     $user = User::factory()->create();
 

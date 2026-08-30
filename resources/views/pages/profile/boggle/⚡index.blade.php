@@ -17,6 +17,11 @@ new class extends Component
         return app(BoggleStatsService::class)->bestMetrics($this->user());
     }
 
+    public function getAveragePercentFoundProperty(): ?float
+    {
+        return app(BoggleStatsService::class)->averagePercentFound($this->user());
+    }
+
     public function getTopLongestWordsProperty(): array
     {
         return app(BoggleStatsService::class)->topLongestWords($this->user());
@@ -62,6 +67,18 @@ new class extends Component
                         <span class="text-xs text-text/65 text-center">{{ $metric['label'] }}</span>
                     </a>
                 @endforeach
+
+                @if ($this->averagePercentFound !== null)
+                    {{--
+                        Not an <a> like the tiles above -- this is an average
+                        across every game, not a single best game, so there's
+                        no one participant to link to.
+                    --}}
+                    <div id="average-percent-found" class="flex flex-col items-center gap-2 bg-surface border-2 border-surface-border rounded-lg px-5 py-4 flex-1 basis-40">
+                        <span class="text-2xl font-bold text-accent">{{ $this->averagePercentFound }}%</span>
+                        <span class="text-xs text-text/65 text-center">Average % of board found</span>
+                    </div>
+                @endif
             </div>
         </div>
 

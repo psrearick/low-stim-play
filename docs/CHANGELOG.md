@@ -5,6 +5,7 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 ## 2026-08-30
 
 - Game challenges are now persisted (new `game_challenges` table), not just emailed: the Friends-link badge in the sidebar now counts unactioned challenges alongside pending friend requests, and the Friends page gained a "Your challenges" section with Play/Dismiss actions (TODO Task 22).
+- Added an "Average % of board found" tile to the Word Grid stats page (TODO Task 26).
 
 ## 2026-08-29
 

@@ -87,6 +87,26 @@ test('the boggle stats index links each personal best to the game it came from',
         ->assertSee(route('profile.boggle.show', $best), escape: false);
 });
 
+test('the boggle stats index shows the average percent of the board found across games with a recorded board size', function () {
+    $user = User::factory()->create();
+    boggleParticipantFor($user, ['cat' => 1, 'dog' => 1], 2, totalValidWords: 4); // 50%
+    boggleParticipantFor($user, ['cat' => 1], 1, totalValidWords: 10); // 10%
+
+    $this->actingAs($user)
+        ->get('/profile/word-grid')
+        ->assertSee('Average % of board found')
+        ->assertSeeInOrder(['average-percent-found', '30']);
+});
+
+test('the average-percent-found tile is omitted when no game has a recorded board size', function () {
+    $user = User::factory()->create();
+    boggleParticipantFor($user, ['cat' => 1], 1);
+
+    $this->actingAs($user)
+        ->get('/profile/word-grid')
+        ->assertDontSee('Average % of board found');
+});
+
 test('a boggle game detail page shows its stats and found words', function () {
     $user = User::factory()->create();
     $participant = boggleParticipantFor($user, ['cat' => 1, 'plate' => 2], 3, totalValidWords: 10);
