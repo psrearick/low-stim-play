@@ -8,11 +8,10 @@ The Order of Work list is a separate, ordinary numbered list reflecting current 
 
 ## Order of Work
 
-1. [Task 27: Split solo vs. multiplayer score stats on the Word Grid stats page](#27-split-solo-vs-multiplayer-score-stats-on-the-word-grid-stats-page)
-2. [Task 33: Convert the Game Menu to a right-side off-canvas sidebar](#33-convert-the-game-menu-to-a-right-side-off-canvas-sidebar)
-3. [Task 10: Spec and build Pips](#10-spec-and-build-pips)
-4. [Task 19: Spec and build Connections and Strands](#19-spec-and-build-connections-and-strands)
-5. [Task 23: Add "Sign in with Google"](#23-add-sign-in-with-google)
+1. [Task 33: Convert the Game Menu to a right-side off-canvas sidebar](#33-convert-the-game-menu-to-a-right-side-off-canvas-sidebar)
+2. [Task 10: Spec and build Pips](#10-spec-and-build-pips)
+3. [Task 19: Spec and build Connections and Strands](#19-spec-and-build-connections-and-strands)
+4. [Task 23: Add "Sign in with Google"](#23-add-sign-in-with-google)
 
 ## Tasks
 
@@ -39,14 +38,6 @@ Moved from `docs/concerns.md` (2026-08-23): "sign in with google."
 Fully greenfield — no OAuth package installed (`laravel/socialite` is not in `composer.json`), no `google` entry in `config/services.php`, and no provider/`google_id` column on `users`. Fortify (`app/Providers/FortifyServiceProvider.php`) only handles email/password, 2FA, and passkeys — it has no social-login concept, so this doesn't hook into it.
 
 Needs: `composer require laravel/socialite`; a `google` block in `config/services.php` (`client_id`, `client_secret`, `redirect`) plus an actual Google Cloud OAuth app/credentials; new redirect/callback routes and a controller (Socialite has no Fortify-style scaffolding for this); and a migration adding a nullable `google_id` (or a small `provider`/`provider_id` pair) to `users`, plus a decision for the collision case where a Google account's email already matches an existing password-based account (link vs. reject vs. auto-merge).
-
-### 27. Split solo vs. multiplayer score stats on the Word Grid stats page
-
-Moved from `docs/concerns.md` (2026-08-23): "The score in word grid should be distinct from the points you get in rooms, in that solo points [don't] deduct other peoples words. Combining the two scoring methods would cause incorrect stats. So, there should be multiplayer scores and solo scores as two separate stats. I think it is already set up this way on the backend, but it doesn't look like the frontend reflect this. Both stats should be shown on the frontend."
-
-Confirmed: the backend already distinguishes the two. `GameSession.mode` (`GameMode::Solo`/`Online`/etc.) and `PlayerStatsService::avgScoreByMode()` (`app/Services/Stats/PlayerStatsService.php`) already compute separate solo/online averages precisely because Boggle's room score is rewritten into an "exclusive" score by `SharedSessionFinalizer` (a word found by more than one player scores nothing for anyone) — a genuinely different scale from solo scoring, not just a different mode label. This split already renders on the dashboard (`resources/views/components/player-stats.blade.php`, "X avg score (solo)" / "Y avg score (rooms)").
-
-The gap is specifically the dedicated Word Grid stats page (`resources/views/pages/profile/boggle/⚡index.blade.php`): `BoggleStatsService::bestMetrics()` computes "Highest score" and friends across **all modes combined**, blending solo raw scores with room "exclusive" scores into one figure — exactly the mixed-scale problem `avgScoreByMode()`'s own docblock warns against, just not yet applied here. The "All games" table already shows a per-row Mode column, so this is about the aggregate tiles, not the raw list: split `bestMetrics()` into solo/online variants (or filter by mode before computing), mirroring `avgScoreByMode()`'s existing approach.
 
 ### 33. Convert the Game Menu to a right-side off-canvas sidebar
 

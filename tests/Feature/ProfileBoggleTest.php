@@ -107,6 +107,29 @@ test('the average-percent-found tile is omitted when no game has a recorded boar
         ->assertDontSee('Average % of board found');
 });
 
+test('the boggle stats index shows separate solo and room personal-bests sections, each linking to its own best game', function () {
+    $user = User::factory()->create();
+    $soloBest = boggleParticipantFor($user, ['cat' => 1], 50);
+    $onlineBest = boggleParticipantFor($user, ['cat' => 1], 5, mode: GameMode::Online);
+
+    $response = $this->actingAs($user)->get('/profile/word-grid');
+
+    $response->assertSee('Personal bests (solo)')
+        ->assertSee('Personal bests (rooms)')
+        ->assertSee(route('profile.boggle.show', $soloBest), escape: false)
+        ->assertSee(route('profile.boggle.show', $onlineBest), escape: false);
+});
+
+test('the boggle stats index omits the rooms personal-bests section when the user has no room games', function () {
+    $user = User::factory()->create();
+    boggleParticipantFor($user, ['cat' => 1], 5);
+
+    $this->actingAs($user)
+        ->get('/profile/word-grid')
+        ->assertSee('Personal bests (solo)')
+        ->assertDontSee('Personal bests (rooms)');
+});
+
 test('a boggle game detail page shows its stats and found words', function () {
     $user = User::factory()->create();
     $participant = boggleParticipantFor($user, ['cat' => 1, 'plate' => 2], 3, totalValidWords: 10);

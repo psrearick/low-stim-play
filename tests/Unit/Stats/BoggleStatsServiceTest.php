@@ -124,6 +124,40 @@ test('bestMetrics is empty for a user with no Boggle games', function () {
     expect($this->service->bestMetrics($user))->toBe([]);
 });
 
+test('bestMetrics filtered to a mode only considers games played in that mode', function () {
+    $user = User::factory()->create();
+
+    $soloBest = boggleGame($user, ['cat' => 1], 50);
+    $onlineBest = boggleGame($user, ['cat' => 1], 5);
+    $onlineBest->gameSession->update(['mode' => GameMode::Online]);
+
+    $soloMetrics = collect($this->service->bestMetrics($user, GameMode::Solo))->keyBy('label');
+    $onlineMetrics = collect($this->service->bestMetrics($user, GameMode::Online))->keyBy('label');
+
+    expect($soloMetrics['Highest score']['participant']->id)->toBe($soloBest->id)
+        ->and($onlineMetrics['Highest score']['participant']->id)->toBe($onlineBest->id);
+});
+
+test('bestMetrics for a mode with no games is empty rather than falling back to another mode', function () {
+    $user = User::factory()->create();
+    boggleGame($user, ['cat' => 1], 50);
+
+    expect($this->service->bestMetrics($user, GameMode::Online))->toBe([]);
+});
+
+test('bestMetricsByMode splits solo and online scores instead of blending an exclusive room score with a raw solo one', function () {
+    $user = User::factory()->create();
+
+    $soloBest = boggleGame($user, ['cat' => 1], 50);
+    $onlineBest = boggleGame($user, ['cat' => 1], 5);
+    $onlineBest->gameSession->update(['mode' => GameMode::Online]);
+
+    $byMode = $this->service->bestMetricsByMode($user);
+
+    expect(collect($byMode['solo'])->firstWhere('label', 'Highest score')['participant']->id)->toBe($soloBest->id)
+        ->and(collect($byMode['online'])->firstWhere('label', 'Highest score')['participant']->id)->toBe($onlineBest->id);
+});
+
 test('averagePercentFound averages each game\'s own percentFound, ignoring games with no recorded board size', function () {
     $user = User::factory()->create();
 

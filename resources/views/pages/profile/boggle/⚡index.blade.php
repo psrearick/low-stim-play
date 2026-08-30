@@ -12,9 +12,9 @@ new class extends Component
         return app(BoggleStatsService::class)->gamesForUser($this->user());
     }
 
-    public function getBestMetricsProperty(): array
+    public function getBestMetricsByModeProperty(): array
     {
-        return app(BoggleStatsService::class)->bestMetrics($this->user());
+        return app(BoggleStatsService::class)->bestMetricsByMode($this->user());
     }
 
     public function getAveragePercentFoundProperty(): ?float
@@ -56,31 +56,52 @@ new class extends Component
     @if ($this->games->isEmpty())
         <p class="text-sm text-text/65 text-center">No Word Grid games recorded yet.</p>
     @else
-        <div class="flex flex-col gap-2 w-full">
-            <p class="text-sm text-text/80 font-bold">Personal bests</p>
-            <div class="flex flex-wrap justify-center gap-3 w-full">
-                @foreach ($this->bestMetrics as $metric)
-                    <a wire:key="best-{{ $loop->index }}"
-                        href="{{ route('profile.boggle.show', $metric['participant']) }}"
-                        class="flex flex-col items-center gap-2 bg-surface border-2 border-surface-border rounded-lg px-5 py-4 flex-1 basis-40">
-                        <span class="text-2xl font-bold text-accent">{{ $metric['value'] }}</span>
-                        <span class="text-xs text-text/65 text-center">{{ $metric['label'] }}</span>
-                    </a>
-                @endforeach
+        {{--
+            Split solo vs. online (docs/concerns.md) -- a room game's score
+            is rewritten into an "exclusive" score by SharedSessionFinalizer
+            (a word found by more than one player scores nothing for
+            anyone), a different scale than solo's raw score, so blending
+            both modes' games into one "Highest score" tile mixed two
+            incomparable numbers. Mirrors PlayerStatsService::
+            avgScoreByMode()'s own solo/online split, and each section is
+            simply omitted (not shown empty) when the user has no games in
+            that mode yet.
+        --}}
+        @foreach (['solo' => 'Personal bests (solo)', 'online' => 'Personal bests (rooms)'] as $mode => $heading)
+            @if (! empty($this->bestMetricsByMode[$mode]))
+                <div class="flex flex-col gap-2 w-full">
+                    <p class="text-sm text-text/80 font-bold">{{ $heading }}</p>
+                    <div class="flex flex-wrap justify-center gap-3 w-full">
+                        @foreach ($this->bestMetricsByMode[$mode] as $metric)
+                            <a wire:key="best-{{ $mode }}-{{ $loop->index }}"
+                                href="{{ route('profile.boggle.show', $metric['participant']) }}"
+                                class="flex flex-col items-center gap-2 bg-surface border-2 border-surface-border rounded-lg px-5 py-4 flex-1 basis-40">
+                                <span class="text-2xl font-bold text-accent">{{ $metric['value'] }}</span>
+                                <span class="text-xs text-text/65 text-center">{{ $metric['label'] }}</span>
+                            </a>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+        @endforeach
 
-                @if ($this->averagePercentFound !== null)
+        @if ($this->averagePercentFound !== null)
+            <div class="flex flex-col gap-2 w-full">
+                <p class="text-sm text-text/80 font-bold">Averages</p>
+                <div class="flex flex-wrap justify-center gap-3 w-full">
                     {{--
-                        Not an <a> like the tiles above -- this is an average
-                        across every game, not a single best game, so there's
-                        no one participant to link to.
+                        Not split by mode like the personal-bests sections
+                        above -- percentFound is derived from found_words,
+                        which SharedSessionFinalizer never rewrites, so it
+                        isn't mode-sensitive the way score is.
                     --}}
                     <div id="average-percent-found" class="flex flex-col items-center gap-2 bg-surface border-2 border-surface-border rounded-lg px-5 py-4 flex-1 basis-40">
                         <span class="text-2xl font-bold text-accent">{{ $this->averagePercentFound }}%</span>
                         <span class="text-xs text-text/65 text-center">Average % of board found</span>
                     </div>
-                @endif
+                </div>
             </div>
-        </div>
+        @endif
 
         <div class="flex flex-col sm:flex-row gap-4 w-full">
             <div class="flex flex-col gap-2 flex-1">

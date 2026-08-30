@@ -2,6 +2,7 @@
 
 namespace App\Services\Stats;
 
+use App\Enums\GameMode;
 use App\Enums\GameType;
 use App\Models\GameParticipant;
 use App\Models\User;
@@ -77,11 +78,28 @@ class BoggleStatsService
      * eligible game (e.g. no participant has a recorded board size yet) are
      * simply omitted rather than shown as a misleading zero.
      *
+     * $mode restricts the eligible games to one `GameMode` -- deliberately
+     * required by the profile page (via `bestMetricsByMode()`) rather than
+     * left to blend every mode together, since "Highest score" mixes two
+     * different scales otherwise: a room game's score is rewritten into an
+     * "exclusive" score by `SharedSessionFinalizer` (a word found by more
+     * than one player scores nothing for anyone), the same mixed-scale
+     * problem `PlayerStatsService::avgScoreByMode()`'s own docblock warns
+     * against. Every other metric here is derived from `found_words`,
+     * which is untouched by that rewrite and so isn't actually
+     * mode-sensitive -- but splitting the whole tile row by mode (rather
+     * than just "Highest score") keeps one metric from silently mixing
+     * games the rest of the row visibly separates.
+     *
      * @return list<array{label: string, value: string, participant: GameParticipant}>
      */
-    public function bestMetrics(User $user): array
+    public function bestMetrics(User $user, ?GameMode $mode = null): array
     {
         $games = $this->gamesForUser($user);
+
+        if ($mode !== null) {
+            $games = $games->filter(fn (GameParticipant $participant) => $participant->gameSession->mode === $mode);
+        }
 
         if ($games->isEmpty()) {
             return [];
@@ -138,6 +156,23 @@ class BoggleStatsService
         }
 
         return $metrics;
+    }
+
+    /**
+     * bestMetrics(), pre-split into the two modes Boggle actually uses
+     * (Local/Async never occur for Boggle -- see `pages::boggle.play`,
+     * which only ever writes `GameMode::Solo`; room play is the only
+     * other mode, `GameMode::Online`) -- the shape the profile page
+     * renders directly, so it doesn't need to know `GameMode` exists.
+     *
+     * @return array{solo: list<array{label: string, value: string, participant: GameParticipant}>, online: list<array{label: string, value: string, participant: GameParticipant}>}
+     */
+    public function bestMetricsByMode(User $user): array
+    {
+        return [
+            'solo' => $this->bestMetrics($user, GameMode::Solo),
+            'online' => $this->bestMetrics($user, GameMode::Online),
+        ];
     }
 
     /**
