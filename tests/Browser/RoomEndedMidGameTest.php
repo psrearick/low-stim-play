@@ -20,9 +20,13 @@ uses(RefreshDatabase::class);
  * a 404 response Livewire's client had no interceptor for, so its default
  * showHtmlModal() behavior dumped the raw HTML error response into an
  * overlay right on top of the game. Fixed with a global
- * Livewire.interceptRequest() in resources/js/app.js: any failed request
- * (except 422, Livewire's own validation-error status) is redirected home
- * instead of shown.
+ * Livewire.interceptRequest() in resources/js/app.js: a 404 (the one
+ * status that means the thing the request needed is confirmably gone) is
+ * redirected home instead of shown. See
+ * LivewireGenericErrorFailsSilentlyTest.php for the narrower case this
+ * was later split from -- a plain 500 (e.g. a transient infra blip) fails
+ * silently instead of redirecting, since the resource isn't actually
+ * gone.
  *
  * Deletes the Room row directly (rather than driving pages::room.show's
  * own endRoom() through a second browser) to isolate the "an action fails

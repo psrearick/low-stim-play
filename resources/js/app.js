@@ -3,21 +3,36 @@ import Cropper from 'cropperjs';
 
 import './echo';
 
-// ---- Global Livewire error handling (docs/concerns.md) -----------------
-// Without this, any failed Livewire request (e.g. a room action that
-// outlived the room itself -- see Room::pages::room.show's endRoom(),
-// which deletes the Room row while other players may still be mid-game on
-// a page that queries it) falls through to Livewire's own default
-// showHtmlModal() behavior: it dumps the raw, unstyled HTML error response
-// into an <iframe> overlay right on top of whatever the player was
-// looking at -- exactly the "500 error briefly flashed on the screen"
-// report. preventDefault() suppresses that modal; redirecting home is the
-// same recovery pages::room.show's own onRoomEnded() already uses for the
-// one case it *does* know how to detect. Deliberately excludes 422 --
-// that's Livewire's own validation-error status (e.g. the Rooms menu's
-// join-by-code form), which must keep re-rendering inline via $errors
-// rather than bouncing the user away from a form they're actively filling
-// in.
+// ---- Global Livewire error handling -------------------------------------
+// Without this, any failed Livewire request falls through to Livewire's
+// own default showHtmlModal() behavior: it dumps the raw, unstyled HTML
+// error response into an <iframe> overlay right on top of whatever the
+// player was looking at -- the "500 error briefly flashed on the screen"
+// report. preventDefault() suppresses that modal for every failure.
+//
+// Only a 404 redirects home. That's the one status that means the thing
+// the request needed is actually, confirmably gone -- e.g. a room action
+// that outlived the room itself (Room::pages::room.show's endRoom()
+// deletes the Room row while other players may still be mid-game on a
+// page that queries it; Livewire's own ModelSynth rehydrates a bound
+// model with firstOrFail(), which throws ModelNotFoundException ->  404
+// the moment that happens). Redirecting home there is the same recovery
+// pages::room.show's own onRoomEnded() already uses for the one case it
+// *does* know how to detect directly.
+//
+// Every other failure (a plain 500 -- e.g. a transient Redis blip on the
+// rate limiter Livewire's own checksum check runs on every request, or an
+// unrelated PublicPropertyNotFoundException -- 503, a network error, ...)
+// is left alone: no redirect, no modal, nothing visible at all. These
+// don't mean anything is actually gone, just that the one request failed;
+// bouncing the player to the homepage over a transient blip has cost more
+// than it's saved (see docs/DEVLOG.md's Hoax section for a case that got
+// bitten by exactly this). The player's next action just tries again.
+//
+// Deliberately excludes 422 first -- that's Livewire's own
+// validation-error status (e.g. the Rooms menu's join-by-code form),
+// which must keep re-rendering inline via $errors rather than bouncing
+// the user away from a form they're actively filling in.
 document.addEventListener('livewire:init', () => {
     window.Livewire.interceptRequest(({ onError }) => {
         onError(({ response, preventDefault }) => {
@@ -26,7 +41,10 @@ document.addEventListener('livewire:init', () => {
             }
 
             preventDefault();
-            window.location.href = '/';
+
+            if (response.status === 404) {
+                window.location.href = '/';
+            }
         });
     });
 });
