@@ -3184,6 +3184,15 @@ body.scrollable.family-feud-play {
     border-style: dashed;
     background-color: var(--pips-region-color, var(--surface));
     border-color: oklch(from var(--pips-region-color, var(--surface-border)) calc(l - 0.15) c h);
+    /* This app's own global `button { padding: clamp(...) clamp(...) }`
+       base style (sized for text buttons) otherwise eats most of a cell's
+       own area -- confirmed live via getBoundingClientRect() that it left
+       only ~11% of the cell's width for the pip child to size against,
+       the real cause of pips looking too small, not the pip's own
+       percentage. Tray tiles avoid this via Tailwind's own `p-1` utility
+       (a higher-priority layer than that base rule); a board cell has no
+       such utility class, so it needs the same reset here directly. */
+    padding: 0;
 }
 
 .pips-play .pips-status-broken {
@@ -3218,7 +3227,12 @@ body.scrollable.family-feud-play {
     position: absolute;
     top: calc(var(--pips-badge-row) / var(--pips-rows) * 100%);
     left: calc(var(--pips-badge-col) / var(--pips-cols) * 100%);
-    width: calc(100% / var(--pips-cols) * 0.65);
+    /* 0.42, not a bigger-looking round number -- a 45deg-rotated square's
+       own visual (diagonal) footprint is ~1.41x its own side, so this reads
+       as roughly 0.6 of a cell's width on screen; confirmed live that a
+       larger box here visibly covered the pip dots of the cells it sits
+       between. */
+    width: calc(100% / var(--pips-cols) * 0.42);
     aspect-ratio: 1;
     transform: translate(-50%, -50%) rotate(45deg);
     display: flex;
@@ -3254,18 +3268,38 @@ body.scrollable.family-feud-play {
     background-color: var(--surface-border);
 }
 
+/* A vertical domino's divider needs to be a horizontal line (full width,
+   thin height) instead -- align-self: stretch above only ever stretches
+   the *cross* axis, which flips between width and height along with
+   flex-direction itself. */
+.pips-play .pips-domino-vertical .pips-domino-divider {
+    width: auto;
+    height: 2px;
+}
+
 .pips-play .pips-domino-selected {
     border-style: double;
     border-width: 4px;
     border-color: var(--accent);
 }
 
-/* Client-only rotation state (tapping an already-selected tray tile again,
-   see the play page's own script block) -- swaps which pip half renders on
-   which side, an honest visual of "this one's flipped now" rather than a
-   separate icon. */
-.pips-play .pips-domino-flipped {
+/* Client-only rotation state (tapping an already-selected tray tile again
+   cycles through a real 90deg-per-tap rotation, see the play page's own
+   script block) -- a real domino has 4 distinct visual orientations, not
+   just 2, since it's a 1x2 rectangle rather than a square: horizontal vs.
+   vertical (.pips-domino-vertical) crossed with which end each value
+   renders on (.pips-domino-flipped). Composed from two independent classes
+   rather than 4 exclusive ones. */
+.pips-play .pips-domino-vertical {
+    flex-direction: column;
+}
+
+.pips-play .pips-domino-flipped:not(.pips-domino-vertical) {
     flex-direction: row-reverse;
+}
+
+.pips-play .pips-domino-vertical.pips-domino-flipped {
+    flex-direction: column-reverse;
 }
 
 /* A placed domino mid relocate-drag -- the cell keeps its region color/
@@ -3311,8 +3345,8 @@ body.scrollable.family-feud-play {
    content-sized flex button with no intrinsic size of its own -- each
    needs its own fixed rule instead. */
 .pips-play .pips-cell .pips-pip {
-    width: 70%;
-    height: 70%;
+    width: 88%;
+    height: 88%;
 }
 
 .pips-play .pips-domino .pips-pip {

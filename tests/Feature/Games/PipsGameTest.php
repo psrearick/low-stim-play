@@ -132,6 +132,30 @@ test('placeDomino rejects a domino id not in the tray', function () {
     expect($component->get('placements'))->toBe([]);
 });
 
+test('a region never shows satisfied until it is fully filled, even if the constraint could resolve early', function () {
+    $component = Livewire::test('pages::pips.play', ['seed' => 1, 'difficulty' => 'easy']);
+
+    $component->set('board', [
+        'dimensions' => ['rows' => 1, 'cols' => 2],
+        'cells' => [0, 1],
+        'regions' => [
+            ['id' => 0, 'cells' => [0, 1], 'constraint' => ['type' => 'less', 'value' => 100], 'color' => 0, 'badge' => null],
+        ],
+    ]);
+
+    // A "less than 100" constraint on a 2-cell, maxPip=4 region is
+    // trivially true (max possible sum is 8) -- ConstraintChecker itself
+    // correctly resolves that as Satisfied even with zero cells filled,
+    // but that's not a meaningful "you got it right" signal to show a
+    // player who hasn't placed anything, so it reads as Unknown until the
+    // region is actually filled (docs/DEVLOG.md's Pips entry).
+    expect($component->get('regionStatus')[0])->toBe('Unknown');
+
+    $component->call('placeDomino', '0-1', 0, 1, false);
+
+    expect($component->get('regionStatus')[0])->toBe('Satisfied');
+});
+
 test('solving the whole board ends the game as solved with a positive score', function () {
     $component = Livewire::test('pages::pips.play', ['seed' => 1, 'difficulty' => 'easy']);
     $puzzle = app(PuzzleGenerator::class)->forSeed(1, PipsDifficulty::Easy);

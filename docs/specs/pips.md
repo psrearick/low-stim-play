@@ -122,15 +122,17 @@ two-cell piece that can be placed in either orientation.
   this isn't optional accessibility polish added after the fact (see section 5), it's
   a first-class second interaction model built at the same time as the drag gesture.
 - **Rotating and relocating a domino, added after live play surfaced both as
-  missing.** Tapping an already-selected tray domino again flips it (a third tap
-  deselects) — a purely client-side orientation choice consulted only by a
-  subsequent *drag* placement, since tap-to-place already has its own orientation
-  signal (tap order). Once placed, a domino can be tapped to rotate it in place
-  (`rotatePlacement()`, swaps its two cells' values) or dragged to relocate it
-  elsewhere on the board (`movePlacement()`, one atomic round trip) — dragging a
-  placed domino mirrors the tray's own drag gesture exactly, including the floating
-  ghost (built from the domino's own already-rendered pip nodes) and the same
-  closest-pair drop targeting.
+  missing.** Tapping an already-selected tray domino again cycles it through a real
+  90°-per-tap rotation (horizontal → vertical → horizontal-flipped →
+  vertical-flipped → deselect on the 5th tap, a full 360°) — a domino is a 1×2
+  rectangle, not a square, so a 180°-only flip wasn't enough. Purely client-side
+  state, consulted only by a subsequent *drag* placement, since tap-to-place already
+  has its own orientation signal (tap order). Once placed, a domino can be tapped to
+  rotate it in place (`rotatePlacement()`, swaps its two cells' values) or dragged
+  to relocate it elsewhere on the board (`movePlacement()`, one atomic round trip) —
+  dragging a placed domino mirrors the tray's own drag gesture exactly, including
+  the floating ghost (built from the domino's own already-rendered pip nodes) and
+  the same closest-pair drop targeting.
 - **Multiple daily puzzles: deferred with board/tray size above.** A single daily
   puzzle for v1, not NYT's three-tier easy/medium/hard set.
 - **Name/trademark check: kept as "Pips."** Covered by this doc's own opening naming
@@ -229,7 +231,13 @@ shape/icon-based on top of that fill, not color-only: satisfied overrides the re
 resting dashed border to a solid, thicker, accent-colored one (a real style change) plus
 a ✓ glyph; broken keeps the same dashed style (so it never collides with the region's
 own always-on dashed grouping border) and tints the fill toward `--warn`, with the ✕
-glyph carrying the actual signal and the tint only reinforcing it.
+glyph carrying the actual signal and the tint only reinforcing it. A "Satisfied"
+verdict is only ever shown once a region is *completely* filled, even though
+`ConstraintChecker` itself can resolve a loose greater/less constraint as satisfied
+far earlier (e.g. a region whose maximum possible total already stays under a
+threshold with zero cells filled) — true, but confusing to show as "correct" on a
+region the player hasn't touched at all, so the play page downgrades that specific
+case back to Unknown until the region is actually full.
 
 The drag-and-drop gesture's own visual feedback (a floating tile that follows the
 cursor) is pointer-driven, not autoplaying motion — it updates only in direct response

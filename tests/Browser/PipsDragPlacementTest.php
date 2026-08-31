@@ -78,9 +78,52 @@ test('drag, tap-to-place, and pick-up-by-tap all place/remove dominoes correctly
     $secondHi = max($second['valueA'], $second['valueB']);
     $secondDominoId = "{$secondLo}-{$secondHi}";
 
+    $third = $puzzle->solution['placements'][2];
+    $thirdLo = min($third['valueA'], $third['valueB']);
+    $thirdHi = max($third['valueA'], $third['valueB']);
+    $thirdDominoId = "{$thirdLo}-{$thirdHi}";
+
     $page = visit('/pips?seed=1&difficulty=easy');
 
     $page->assertPresent("#pips-tray-{$firstDominoId}");
+
+    // --- Tap-to-rotate a tray tile before placing it (docs/DEVLOG.md's
+    // Pips entry) -- a real 90deg-per-tap cycle (horizontal, vertical,
+    // horizontal-flipped, vertical-flipped), not just a 180deg flip, since
+    // a domino is a 1x2 rectangle, not a square. Uses the third domino only
+    // for this check -- never placed, so it doesn't disturb the drag/
+    // tap-to-place coverage below (its own two cells are reused later,
+    // still empty, as the relocate-drag's drop target). Only the first tap
+    // (select) and the last (deselect) are actual `$wire` round trips --
+    // the rotate steps in between are purely client-side, so only those two
+    // need waitUntilTrue()'s polling rather than a guessed fixed wait.
+    $captureRotationState = fn () => json_decode($page->script(
+        "(() => { const el = document.getElementById('pips-tray-{$thirdDominoId}'); return JSON.stringify({ selected: el.classList.contains('pips-domino-selected'), vertical: el.classList.contains('pips-domino-vertical'), flipped: el.classList.contains('pips-domino-flipped') }); })()"
+    ), true);
+
+    $rotationStates = [];
+
+    $page->click("#pips-tray-{$thirdDominoId}");
+    waitUntilTrue($page, "document.getElementById('pips-tray-{$thirdDominoId}').classList.contains('pips-domino-selected')");
+    $rotationStates[] = $captureRotationState();
+
+    for ($i = 0; $i < 2; $i++) {
+        $page->click("#pips-tray-{$thirdDominoId}")->wait(0.1);
+        $rotationStates[] = $captureRotationState();
+    }
+
+    $page->click("#pips-tray-{$thirdDominoId}")->wait(0.1);
+    $rotationStates[] = $captureRotationState();
+
+    $page->click("#pips-tray-{$thirdDominoId}");
+    waitUntilTrue($page, "document.getElementById('pips-tray-{$thirdDominoId}').classList.contains('pips-domino-selected') === false");
+    $rotationStates[] = $captureRotationState();
+
+    expect($rotationStates[0])->toBe(['selected' => true, 'vertical' => false, 'flipped' => false]);
+    expect($rotationStates[1])->toBe(['selected' => true, 'vertical' => true, 'flipped' => false]);
+    expect($rotationStates[2])->toBe(['selected' => true, 'vertical' => false, 'flipped' => true]);
+    expect($rotationStates[3])->toBe(['selected' => true, 'vertical' => true, 'flipped' => true]);
+    expect($rotationStates[4]['selected'])->toBeFalse();
 
     // --- Drag: dispatches real pointer events directly, rather than
     // Playwright's own drag()/dragTo() helper -- that helper simulates the
@@ -227,8 +270,8 @@ test('drag, tap-to-place, and pick-up-by-tap all place/remove dominoes correctly
     // from its own already-rendered pip nodes, so it shows real current
     // values) and drops it at a new, empty spot in one gesture, rather than
     // needing to pick it up to the tray and place it again separately.
-    $third = $puzzle->solution['placements'][2];
-
+    // $third (its own cells only, never its domino) was already declared
+    // above for the rotation check.
     $relocateScript = <<<'JS'
         (() => {
             const cellA = document.getElementById('pips-cell-__FROM_CELL__');

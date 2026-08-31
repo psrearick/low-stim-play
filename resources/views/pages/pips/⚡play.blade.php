@@ -329,6 +329,16 @@ new class extends Component
      * -- drives the board's per-region visual feedback (docs/specs/pips.md
      * section 4/5, a shape/icon change, not color-only).
      *
+     * A "Satisfied" verdict is only ever shown once a region is completely
+     * filled, even though ConstraintChecker itself can resolve a loose
+     * greater/less constraint as satisfied far earlier (e.g. a region whose
+     * maximum possible total already stays under a "less than" threshold
+     * with zero cells filled) -- true early, but confusing to show as
+     * "correct" on a region the player hasn't touched at all, so it's
+     * downgraded back to Unknown here until $remaining reaches 0. Broken
+     * still surfaces as early as ConstraintChecker itself allows -- only
+     * the "looks done" signal needed gating, not the "already broken" one.
+     *
      * @return array<int, string>
      */
     public function getRegionStatusProperty(): array
@@ -339,7 +349,11 @@ new class extends Component
 
         foreach ($this->board['regions'] ?? [] as $region) {
             [$filled, $remaining] = $this->regionFillState($region['cells']);
-            $status[$region['id']] = $checker->check($region['constraint'], $filled, $remaining, $maxPip)->name;
+            $checked = $checker->check($region['constraint'], $filled, $remaining, $maxPip);
+
+            $status[$region['id']] = ($checked === ConstraintStatus::Satisfied && $remaining > 0)
+                ? ConstraintStatus::Unknown->name
+                : $checked->name;
         }
 
         return $status;
@@ -679,9 +693,10 @@ new class extends Component
     <h3>How to Use This Page</h3>
     <ul>
         <li>Drag a domino from the tray onto the board, or tap a tray domino then tap two adjacent cells, to place it.</li>
-        <li>Tap an already-selected tray domino again to flip it before placing it; tap a third time to deselect it.</li>
+        <li>Tap an already-selected tray domino again to rotate it 90° before placing it; keep tapping to cycle through all four orientations, then deselect it.</li>
         <li>Tap a placed domino to rotate it in place; drag a placed domino to move it elsewhere on the board.</li>
         <li>Every outlined region shows a rule -- an exact total, "all equal," "all different," a greater/less-than threshold, or no rule at all -- that its own cells must satisfy once filled.</li>
+        <li>Once every cell in a region is filled, its outline turns solid with a checkmark if the rule holds, or tints with an X if it doesn't.</li>
         <li>The board is solved once every cell is covered and every region's rule holds.</li>
         <li>If you're signed in, leaving and coming back later picks up right where you left off.</li>
     </ul>
@@ -909,23 +924,40 @@ new class extends Component
     // never depends on a Livewire round trip having already resolved.
     let localSelectedDominoId = null;
 
-    // Which tray dominoes are currently flipped -- purely client state
-    // (orientation only matters at the moment of a *drag* placement, tap-
-    // to-place has its own tap-order convention instead), never synced to
-    // the server. Survives Livewire re-renders (this variable, unlike a DOM
-    // class, isn't touched by morphing); syncFlipVisuals() re-applies the
-    // matching CSS class after any such re-render since morphdom otherwise
-    // resets a client-added class back to whatever the server last rendered.
-    const flippedDominoes = new Set();
+    // Each tray domino's current rotation step (0-3, a real 90deg-per-tap
+    // cycle: 0=horizontal, 1=vertical, 2=horizontal flipped end-for-end,
+    // 3=vertical flipped) -- purely client state (orientation only matters
+    // at the moment of a *drag* placement, tap-to-place has its own
+    // tap-order convention instead), never synced to the server. A domino
+    // not in the map is step 0. Survives Livewire re-renders (this Map,
+    // unlike a DOM class, isn't touched by morphing); syncRotationVisuals()
+    // re-applies the matching CSS classes after any such re-render since
+    // morphdom otherwise resets a client-added class back to whatever the
+    // server last rendered.
+    const rotationSteps = new Map();
 
-    function syncFlipVisuals() {
+    function rotationStep(dominoId) {
+        return rotationSteps.get(dominoId) ?? 0;
+    }
+
+    // Only 2 of the 4 steps are functionally distinct for placement
+    // purposes (closestValidPair() picks the actual cell pair by geometry,
+    // not by a preset horizontal/vertical guess) -- flip is what decides
+    // which value lands on the pair's own min-index cell.
+    function isFlipped(dominoId) {
+        return rotationStep(dominoId) >= 2;
+    }
+
+    function syncRotationVisuals() {
         trayEl.querySelectorAll('.pips-domino').forEach((el) => {
-            el.classList.toggle('pips-domino-flipped', flippedDominoes.has(el.dataset.dominoId));
+            const step = rotationStep(el.dataset.dominoId);
+            el.classList.toggle('pips-domino-vertical', step === 1 || step === 3);
+            el.classList.toggle('pips-domino-flipped', step >= 2);
         });
     }
 
     if (window.Livewire) {
-        Livewire.hook('morph.updated', syncFlipVisuals);
+        Livewire.hook('morph.updated', syncRotationVisuals);
     }
 
     // --- Dragging a domino out of the tray ---
@@ -1007,21 +1039,22 @@ new class extends Component
 
         const moved = Math.hypot(e.clientX - dragStart.x, e.clientY - dragStart.y) > DRAG_THRESHOLD_PX;
         if (!moved) {
-            // A plain tap -- select it, or if it's already selected, flip
-            // it instead of deselecting (still selected either way); a
-            // *third* tap (now selected+flipped) deselects and resets the
-            // flip for next time. Derives all three states from the two
-            // existing trackers rather than a separate explicit enum.
+            // A plain tap -- select it, or if it's already selected, rotate
+            // it 90deg (still selected). A rotation step of 4 is a full
+            // 360deg turn back to how it started, which doubles as
+            // "deselect" rather than showing step 0 again as if nothing
+            // happened. Derives every state from the two existing trackers
+            // rather than a separate explicit enum.
             if (localSelectedDominoId !== dominoId) {
-                flippedDominoes.delete(dominoId);
+                rotationSteps.delete(dominoId);
                 localSelectedDominoId = dominoId;
                 anchorCell = null;
                 $wire.selectTrayDomino(dominoId);
-            } else if (!flippedDominoes.has(dominoId)) {
-                flippedDominoes.add(dominoId);
-                syncFlipVisuals();
+            } else if (rotationStep(dominoId) + 1 < 4) {
+                rotationSteps.set(dominoId, rotationStep(dominoId) + 1);
+                syncRotationVisuals();
             } else {
-                flippedDominoes.delete(dominoId);
+                rotationSteps.delete(dominoId);
                 localSelectedDominoId = null;
                 $wire.selectTrayDomino(dominoId);
             }
@@ -1034,7 +1067,7 @@ new class extends Component
         }
 
         const [minCell, maxCell] = pair;
-        $wire.placeDomino(dominoId, minCell, maxCell, flippedDominoes.has(dominoId));
+        $wire.placeDomino(dominoId, minCell, maxCell, isFlipped(dominoId));
     }
 
     function onTrayDragCancel() {
@@ -1245,8 +1278,20 @@ new class extends Component
     // Keeps the client mirror in sync with the server's own property --
     // covers the cases the optimistic update above doesn't (e.g. server
     // rejects a placement and resets selectedDominoId, or state is
-    // restored on a resumed session).
+    // restored on a resumed session). Critically, a no-op when the landing
+    // value already matches what the client applied optimistically -- a
+    // real, confirmed bug otherwise (found live, not just in a slow test):
+    // selectTrayDomino()'s own round trip can land *after* the player has
+    // already tapped the first of their two placement cells, and this
+    // watcher firing on that merely-confirming update would silently wipe
+    // out the anchor tap that was already correctly recorded, forcing the
+    // player's very next tap to be treated as a fresh first tap instead of
+    // completing the placement.
     $wire.$watch('selectedDominoId', (value) => {
+        if (value === localSelectedDominoId) {
+            return;
+        }
+
         localSelectedDominoId = value;
         anchorCell = null;
     });

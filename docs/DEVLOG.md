@@ -1354,6 +1354,75 @@ underlying gesture rework:
 it's simply no longer reachable from a board tap, only used as a lower-level building
 block relocate doesn't happen to need.
 
+### Second round of real-play fixes: 90° rotation, sizing, satisfied gating, a real race condition (2026-08-31)
+
+A second round of live-play feedback on the fixes above surfaced four more issues.
+
+**Rotation was only a 180° flip, not a full 90°-per-tap cycle.** A domino is a 1×2
+rectangle, not a square, so mirroring which end holds which value (still horizontal)
+isn't the same as actually rotating it. Replaced the single `flippedDominoes` `Set`
+with a `rotationSteps` `Map` (0-3), cycling `horizontal → vertical → horizontal-
+flipped → vertical-flipped → deselect` one 90° step per tap — visualized by composing
+two independent CSS classes (`.pips-domino-vertical`, `.pips-domino-flipped`, four
+combinations) rather than four exclusive ones. Only 2 of the 4 steps are functionally
+distinct for placement (`closestValidPair()` picks the real cell pair by geometry, not
+by a preset horizontal/vertical guess) — `flip = step >= 2` derives the value still
+needed at drop time from whichever step the tile is on.
+
+**Badges were too big (covering pips) and board pips were too small.** Two separate,
+now-resolved causes:
+
+- The badge's own diamond box was sized at 65% of a cell's width, but a 45°-rotated
+  square's *visual* (diagonal) footprint is ~1.41× its own side — its real on-screen
+  size was closer to 92% of a cell, comfortably overlapping neighboring pips. Reduced
+  to 42% (~60% diagonal).
+- Board pips looked small at any percentage tried, up to and including 88%, because of
+  a real, previously-undiscovered bug: `.pips-cell` (a `<button>`) was inheriting this
+  app's own global `button { padding: clamp(...) clamp(...) }` base style (sized for
+  text buttons), which was eating ~85% of the cell's own area before the pip ever got
+  a chance to size against what remained — confirmed live via `getBoundingClientRect()`
+  showing the pip's *containing block* was only ~11% of the cell's actual width. Tray
+  tiles never hit this because they already carry Tailwind's own `p-1` utility (a
+  higher-priority cascade layer than that base rule); a board cell had no such utility
+  class. Fixed with an explicit `padding: 0` on `.pips-cell` itself — pips immediately
+  rendered at their real, intended size once the actual available area was correct.
+
+**A region showed "Satisfied" (solid border + checkmark) before any of its cells were
+filled, including on completely empty regions, with nothing in the rules explaining
+it.** Not a bug in `ConstraintChecker` — a loose `greater`/`less` constraint really can
+be provably satisfied with zero cells filled (e.g. "less than 100" on a region whose
+maximum possible total is 8), and the checker correctly says so. The problem was
+*showing* that as "correct" to a player who hasn't placed anything. `getRegionStatusProperty()`
+now downgrades a `Satisfied` verdict back to `Unknown` whenever `remaining > 0` —
+`Broken` still surfaces as early as the checker allows (unrelated ask, spec's own
+"catch a mistake early" intent stands), only the "looks done" signal needed gating.
+Covered by a new `PipsGameTest` case using a hand-set `board` property with an
+obviously-loose `less` constraint, since triggering this via real generation isn't
+reliably reproducible from a plain seed.
+
+**A genuine race condition in tap-to-place, found while chasing what first looked like
+ordinary browser-test flakiness.** Adding the rotation-cycle browser-test coverage
+(five extra real clicks before the existing drag/tap-to-place assertions) made an
+existing test start failing consistently — first suspected as the already-documented
+"flakes under a long test run" gotcha, but it reproduced 100% of the time in total
+isolation too, which that gotcha never does. Instrumented the actual page script
+directly (a temporary `window.__pipsLog` recording every branch the tap-to-place
+handler took) rather than continuing to guess, and found the real bug: `$wire.
+$watch('selectedDominoId', ...)` unconditionally reset the client's `anchorCell` on
+*every* change to the server's property — including the merely-confirming update from
+`selectTrayDomino()`'s own round trip landing, which can arrive *after* the player has
+already tapped their first placement cell. If it lands in that window, it silently
+wipes the just-recorded anchor, so the player's next tap starts a fresh anchor instead
+of completing the placement — a real, if narrow, race a slow-enough network could
+trigger for an actual player, not just an artifact of clicking faster than a browser
+test normally would. Fixed by making the watcher a no-op whenever the incoming value
+already matches what the client applied optimistically: `if (value ===
+localSelectedDominoId) return;` before resetting anything. Confirmed by the fix alone
+turning a consistently-timing-out (~22s) browser test back into a consistently-fast
+(~2.6s) pass, five runs straight.
+
+## Punchline
+
 A Quiplash-style room game (players privately write funny answers to prompts, then vote,
 scored by vote share), ships under the display name **"Punchline"** — "Quiplash" is Jackbox
 Games' trademark. Unlike Boggle/Yahtzee/Family Feud/Word Blocks, the safe name was chosen
