@@ -109,7 +109,7 @@ class PuzzleGenerator
         $regions = [];
 
         for ($attempt = 0; $attempt < self::MAX_REGION_ATTEMPTS; $attempt++) {
-            $regionsRaw = $this->regionGrower->grow($randomizer, $rows, $cols, $activeCells, $partnerOf);
+            $regionsRaw = $this->regionGrower->grow($randomizer, $rows, $cols, $activeCells, $maxPip, $partnerOf);
             $constraints = $this->constraintDeriver->derive($regionsRaw, $solution['cellValues'], $randomizer);
             $regions = $this->assembleRegions($regionsRaw, $constraints);
 

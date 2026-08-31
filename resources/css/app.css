@@ -73,19 +73,23 @@
     --rival-3: oklch(0.50 0.12 300);
     --rival-4: oklch(0.48 0.11 190);
     /*
-     * Pips region fills (App\Services\Pips\RegionColorer) -- same "distinct
-     * hue set at a shared lightness/chroma family" pattern as --rival-1..4
-     * above, just a 6-color palette (a safety margin over the 4 the
-     * four-color theorem guarantees is always enough for a planar map of
-     * regions) spread evenly around the hue wheel for maximum mutual
-     * distinction between a board's own regions.
+     * Pips region fills (App\Services\Pips\RegionColorer) -- a 6-color
+     * palette (a safety margin over the 4 the four-color theorem guarantees
+     * is always enough for a planar map of regions) spread evenly around
+     * the hue wheel for mutual distinction between a board's own regions.
+     * Unlike --rival-1..4 above (small accent dots, where real saturation
+     * reads fine), these fill the *entire* board -- kept deliberately
+     * low-chroma and close to --die's own lightness so a region reads as a
+     * barely-tinted variant of the existing muted surface, not a distinct
+     * saturated hue (confirmed too bright/stimulating at --rival-style
+     * chroma when tried live).
      */
-    --region-1: oklch(0.55 0.12 20);
-    --region-2: oklch(0.53 0.12 80);
-    --region-3: oklch(0.52 0.12 140);
-    --region-4: oklch(0.50 0.12 200);
-    --region-5: oklch(0.52 0.12 260);
-    --region-6: oklch(0.55 0.12 320);
+    --region-1: oklch(0.84 0.03 20);
+    --region-2: oklch(0.84 0.03 80);
+    --region-3: oklch(0.84 0.03 140);
+    --region-4: oklch(0.84 0.03 200);
+    --region-5: oklch(0.84 0.03 260);
+    --region-6: oklch(0.84 0.03 320);
     /*
      * Clear the Deck's spectator/TV-cast current-player highlight only
      * (docs/TODO.md's former #16) -- deliberately its own token, not a
@@ -119,12 +123,12 @@
     --rival-3: oklch(0.72 0.13 300);
     --rival-4: oklch(0.70 0.12 190);
     /* See :root's own --region-1..6 above. */
-    --region-1: oklch(0.72 0.13 20);
-    --region-2: oklch(0.71 0.13 80);
-    --region-3: oklch(0.71 0.13 140);
-    --region-4: oklch(0.70 0.13 200);
-    --region-5: oklch(0.71 0.13 260);
-    --region-6: oklch(0.72 0.13 320);
+    --region-1: oklch(0.40 0.035 20);
+    --region-2: oklch(0.40 0.035 80);
+    --region-3: oklch(0.40 0.035 140);
+    --region-4: oklch(0.40 0.035 200);
+    --region-5: oklch(0.40 0.035 260);
+    --region-6: oklch(0.40 0.035 320);
     /* See :root's own --ctd-active above -- brighter and more saturated
        than --accent's own dark-theme value, for the same reason. */
     --ctd-active: oklch(0.80 0.17 248.57);
@@ -3256,6 +3260,22 @@ body.scrollable.family-feud-play {
     border-color: var(--accent);
 }
 
+/* Client-only rotation state (tapping an already-selected tray tile again,
+   see the play page's own script block) -- swaps which pip half renders on
+   which side, an honest visual of "this one's flipped now" rather than a
+   separate icon. */
+.pips-play .pips-domino-flipped {
+    flex-direction: row-reverse;
+}
+
+/* A placed domino mid relocate-drag -- the cell keeps its region color/
+   border (nothing server-side has changed yet), only the pip content hides,
+   matching how a dragged tray tile's own origin element stays in the DOM
+   but hidden. */
+.pips-play .pips-cell-lifted .pips-pip {
+    visibility: hidden;
+}
+
 .pips-play .pips-drag-ghost {
     position: fixed;
     left: 0;
@@ -3306,7 +3326,14 @@ body.scrollable.family-feud-play {
     width: 60%;
     aspect-ratio: 1;
     border-radius: 50%;
-    background-color: currentColor;
+    /* A fixed color, not `currentColor` -- a dot needs to read clearly
+       against any of the 6 (now intentionally low-chroma, close-together)
+       region tints a filled cell might sit on, not just whatever the
+       surrounding text color happens to be. --ink already contrasts
+       against --die/--bg site-wide; the drop-shadow is a subtle extra
+       margin, not a bold outline, matching this app's own muted aesthetic. */
+    background-color: var(--ink);
+    filter: drop-shadow(0 0 1px var(--die-shadow));
     visibility: hidden;
 }
 

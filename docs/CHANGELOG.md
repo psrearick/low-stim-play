@@ -6,6 +6,7 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 
 - Built Pips end-to-end (TODO Task 10): a domino logic puzzle with Easy/Medium/Hard difficulty tiers, daily puzzles, Challenge-a-Friend, and profile stats.
 - Reworked Pips' board/tray visuals to match the real NYT game: an irregular grown board shape instead of a filled rectangle, solid-color regions with on-board constraint badges instead of a text legend, real pip/dot domino tiles instead of plain digits, and a drag gesture that visibly follows the cursor.
+- Fixed Pips generating oversized regions with absurd constraint totals (e.g. a sum of 38+ on the Easy tier) on the new irregular board shapes; muted the region color palette and fixed pip-dot contrast against it; added domino rotation (tap an already-selected tray tile, or a placed domino) and drag-to-relocate a placed domino; fixed drag placement sometimes landing on the wrong cell.
 
 ## 2026-08-30
 

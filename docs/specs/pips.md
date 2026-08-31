@@ -110,13 +110,27 @@ two-cell piece that can be placed in either orientation.
   needed beyond the one `maxPip` parameter.
 - **Interaction model: true drag-and-drop, built together with a full tap-to-select/
   tap-to-place alternative — not a drag-first, fallback-later sequencing.** Drag a
-  domino from the tray onto the board, with drop position/direction determining
-  orientation; equivalently, tap a domino in the tray to select it, tap a starting cell,
-  then tap an adjacent cell to place and orient it. Both interaction paths update the
-  same underlying placement state through one Livewire action, so there's a single
-  source of truth regardless of which input method a given player uses — this isn't
-  optional accessibility polish added after the fact (see section 5), it's a first-class
-  second interaction model built at the same time as the drag gesture.
+  domino from the tray onto the board, dropping it at whichever empty adjacent cell
+  pair visually looks closest to the drop point (`closestValidPair()` in the play
+  page's own script block — replaced an earlier drag-*direction*-based guess after
+  live play surfaced it sometimes landing on the wrong cell, see
+  docs/DEVLOG.md's Pips entry); equivalently, tap a domino in the tray to select it,
+  tap a starting cell, then tap an adjacent cell to place and orient it (tap order,
+  not drag direction, controls orientation on that path). Both interaction paths
+  update the same underlying placement state through one Livewire action, so there's
+  a single source of truth regardless of which input method a given player uses —
+  this isn't optional accessibility polish added after the fact (see section 5), it's
+  a first-class second interaction model built at the same time as the drag gesture.
+- **Rotating and relocating a domino, added after live play surfaced both as
+  missing.** Tapping an already-selected tray domino again flips it (a third tap
+  deselects) — a purely client-side orientation choice consulted only by a
+  subsequent *drag* placement, since tap-to-place already has its own orientation
+  signal (tap order). Once placed, a domino can be tapped to rotate it in place
+  (`rotatePlacement()`, swaps its two cells' values) or dragged to relocate it
+  elsewhere on the board (`movePlacement()`, one atomic round trip) — dragging a
+  placed domino mirrors the tray's own drag gesture exactly, including the floating
+  ghost (built from the domino's own already-rendered pip nodes) and the same
+  closest-pair drop targeting.
 - **Multiple daily puzzles: deferred with board/tray size above.** A single daily
   puzzle for v1, not NYT's three-tier easy/medium/hard set.
 - **Name/trademark check: kept as "Pips."** Covered by this doc's own opening naming

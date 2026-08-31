@@ -1283,7 +1283,76 @@ which returned an always-empty string once filled cells started rendering pip do
 instead of text — fixed by adding a `data-value` attribute to filled cells rather than
 relying on visible text for anything a test needs to read.
 
-## Punchline
+### Real-play fixes: region-size bug, muted colors, rotation, relocate (2026-08-31)
+
+Real play against the visual rework above surfaced a real generation bug and several
+missing interactions the screenshots alone didn't catch.
+
+**Region-size bug: `RegionGrower`'s cap was routinely blown past on the new irregular
+shapes, confirmed live up to 25 cells and sum constraints up to 52 on the Easy tier
+(highest single pip: 4).** Root cause: an irregular, holey shape's frontiers dry up
+unevenly during growth (a region boxed into a narrow arm of the polyomino exhausts its
+own frontier long before the board is covered), and mop-up had no size limit at all —
+it dumped the entire leftover patch onto whichever single region happened to border
+it. Two changes, prototyped and validated against the real `ShapeGrower`/`BoardFiller`
+output (30 seeds/tier) before touching the real class: `grow()` now takes
+`$maxRegionSize` (passed as `$difficulty->maxPip()`, tying a tier's own region ceiling
+to its highest pip value) instead of a fixed constant; and `growOneRound()` (extracted
+from the growth loop) is re-invoked with fresh seeds spawned inside any oversized
+leftover *connected component* before mop-up ever runs, so a big leftover patch
+becomes its own properly-capped region(s) instead of overflowing an existing one.
+Mop-up's own final cleanup (genuine small scraps only, once spawning has run)
+additionally prefers the smallest under-cap candidate rather than a uniform-random
+choice. Result against the real generator: max region size 11/11/12 (was up to 25) and
+max realized sum 26/24/35 across the three tiers (was up to 52+ on Easy alone) —
+tracked as a real regression test (`RegionGrowerTest`'s own "no region ever exceeds
+its own difficulty tier maxPip cell count", `PuzzleGeneratorTest`'s "every sum
+constraint stays within its own region's max possible total").
+
+**Region colors were too bright/saturated for this app's own low-stim design.**
+`--region-1..6`'s chroma dropped from ~0.12-0.13 to ~0.03-0.035 and lightness moved
+close to `--die`'s own (0.84 light / 0.40 dark, vs. `--die`'s 0.86/0.3838) — a region
+now reads as a barely-tinted variant of the existing muted surface rather than a
+distinct saturated hue, confirmed live in both themes. Pip dots also needed an
+explicit fixed-contrast treatment (`--ink` plus a subtle `drop-shadow`) instead of
+inheriting `currentColor`, since the surrounding text color alone didn't reliably
+read against all 6 (now much closer-together) tints.
+
+**No way to rotate a domino, and a placed domino could only be picked up back to the
+tray, never relocated directly.** Resolved together, since both needed the same
+underlying gesture rework:
+
+- *Tray tile rotation*: tapping an already-selected tray tile again now flips it
+  (client-only state — orientation only matters at the moment of a *drag* placement,
+  tap-to-place keeps its own existing tap-order convention untouched) and a third tap
+  deselects, derived entirely from two existing trackers (`localSelectedDominoId` +
+  a new `flippedDominoes` client `Set`) rather than a separate explicit state enum.
+  The visual (`flex-direction: row-reverse`, swapping which pip half renders on which
+  side) needed re-applying after every Livewire morph via a `Livewire.hook('morph.
+  updated', ...)` call — a client-added class on a server-rendered element otherwise
+  gets silently reset by morphdom on the next unrelated re-render, a real gotcha
+  confirmed live, not just theoretical.
+- *Placed-domino rotate/relocate*: a plain tap on a placed domino now calls a new
+  `rotatePlacement()` (swaps its two cells' values, footprint unchanged) instead of
+  the old `removePlacement()`; dragging it past the same tap/drag threshold instead
+  picks it up (its own two source cells get a client-only "lifted" look, a ghost built
+  by cloning its own already-rendered pip nodes so it shows real values) and drops it
+  via a new `movePlacement()` — one atomic round trip, validated before anything is
+  mutated so a rejected move never loses the original placement.
+- *Placement accuracy*: both drag paths above replaced the original drag-*direction*-
+  inferred second cell (confirmed live to sometimes land on the wrong cell, especially
+  near an irregular board's own edges/holes) with `closestValidPair()`: given a drop
+  point, finds the empty-adjacent cell pair whose two centers' own midpoint is closest
+  to it, in canonical `[min, max]` index order — "which real two-cell footprint does
+  this drop point actually look like it's over," independent of how the cursor got
+  there. A relocate-drag passes the domino's own current two cells as always-available
+  targets, and preserves its current orientation across the move (whichever value was
+  on the old min-index cell stays on the new min-index cell) rather than silently
+  resetting it.
+
+`removePlacement()` itself is unchanged and still covered by its own existing test —
+it's simply no longer reachable from a board tap, only used as a lower-level building
+block relocate doesn't happen to need.
 
 A Quiplash-style room game (players privately write funny answers to prompts, then vote,
 scored by vote share), ships under the display name **"Punchline"** — "Quiplash" is Jackbox

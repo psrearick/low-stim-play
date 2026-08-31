@@ -177,6 +177,119 @@ test('removePlacement returns a placed domino to the tray', function () {
         ->and($component->get('trayRemaining'))->toContain($dominoId);
 });
 
+test('rotatePlacement swaps a placed domino\'s two values in place', function () {
+    $component = Livewire::test('pages::pips.play', ['seed' => 1, 'difficulty' => 'easy']);
+    $puzzle = app(PuzzleGenerator::class)->forSeed(1, PipsDifficulty::Easy);
+    $placement = $puzzle->solution['placements'][0];
+    $lo = min($placement['valueA'], $placement['valueB']);
+    $hi = max($placement['valueA'], $placement['valueB']);
+    $dominoId = "{$lo}-{$hi}";
+
+    $component->call('placeDomino', $dominoId, $placement['cellA'], $placement['cellB'], flip: false);
+    expect($component->get('placements')[$placement['cellA']]['value'])->toBe($lo)
+        ->and($component->get('placements')[$placement['cellB']]['value'])->toBe($hi);
+
+    $component->call('rotatePlacement', $dominoId);
+
+    expect($component->get('placements')[$placement['cellA']]['value'])->toBe($hi)
+        ->and($component->get('placements')[$placement['cellB']]['value'])->toBe($lo)
+        // Footprint is unchanged -- still the same two cells, still in the tray minus this id.
+        ->and($component->get('trayRemaining'))->not->toContain($dominoId);
+});
+
+test('rotatePlacement does nothing once the game has ended', function () {
+    $component = Livewire::test('pages::pips.play', ['seed' => 1, 'difficulty' => 'easy']);
+    $puzzle = app(PuzzleGenerator::class)->forSeed(1, PipsDifficulty::Easy);
+    $placement = $puzzle->solution['placements'][0];
+    $lo = min($placement['valueA'], $placement['valueB']);
+    $hi = max($placement['valueA'], $placement['valueB']);
+    $dominoId = "{$lo}-{$hi}";
+
+    $component->call('placeDomino', $dominoId, $placement['cellA'], $placement['cellB'], flip: false)
+        ->call('giveUp')
+        ->call('rotatePlacement', $dominoId);
+
+    expect($component->get('placements')[$placement['cellA']]['value'])->toBe($lo);
+});
+
+test('movePlacement relocates an already-placed domino to a new cell pair', function () {
+    $component = Livewire::test('pages::pips.play', ['seed' => 1, 'difficulty' => 'easy']);
+    $puzzle = app(PuzzleGenerator::class)->forSeed(1, PipsDifficulty::Easy);
+    $first = $puzzle->solution['placements'][0];
+    $second = $puzzle->solution['placements'][1];
+    $lo = min($first['valueA'], $first['valueB']);
+    $hi = max($first['valueA'], $first['valueB']);
+    $dominoId = "{$lo}-{$hi}";
+
+    $component->call('placeDomino', $dominoId, $first['cellA'], $first['cellB'], flip: false);
+
+    $component->call('movePlacement', $dominoId, $second['cellA'], $second['cellB'], false);
+
+    expect($component->get('placements'))->not->toHaveKey($first['cellA'])
+        ->and($component->get('placements'))->not->toHaveKey($first['cellB'])
+        ->and($component->get('placements')[$second['cellA']]['value'])->toBe($lo)
+        ->and($component->get('placements')[$second['cellB']]['value'])->toBe($hi)
+        ->and($component->get('trayRemaining'))->not->toContain($dominoId);
+});
+
+test('movePlacement can drop a domino back onto its own current cells', function () {
+    $component = Livewire::test('pages::pips.play', ['seed' => 1, 'difficulty' => 'easy']);
+    $puzzle = app(PuzzleGenerator::class)->forSeed(1, PipsDifficulty::Easy);
+    $placement = $puzzle->solution['placements'][0];
+    $lo = min($placement['valueA'], $placement['valueB']);
+    $hi = max($placement['valueA'], $placement['valueB']);
+    $dominoId = "{$lo}-{$hi}";
+
+    $component->call('placeDomino', $dominoId, $placement['cellA'], $placement['cellB'], flip: false);
+
+    // Same two cells, flipped orientation -- must not be rejected as
+    // "already covered" merely because the domino already occupies them.
+    $component->call('movePlacement', $dominoId, $placement['cellA'], $placement['cellB'], true);
+
+    expect($component->get('placements')[$placement['cellA']]['value'])->toBe($hi)
+        ->and($component->get('placements')[$placement['cellB']]['value'])->toBe($lo);
+});
+
+test('movePlacement rejects a target cell already covered by a different domino, without losing the original placement', function () {
+    $component = Livewire::test('pages::pips.play', ['seed' => 1, 'difficulty' => 'easy']);
+    $puzzle = app(PuzzleGenerator::class)->forSeed(1, PipsDifficulty::Easy);
+    $first = $puzzle->solution['placements'][0];
+    $second = $puzzle->solution['placements'][1];
+    $firstLo = min($first['valueA'], $first['valueB']);
+    $firstHi = max($first['valueA'], $first['valueB']);
+    $firstDominoId = "{$firstLo}-{$firstHi}";
+    $secondLo = min($second['valueA'], $second['valueB']);
+    $secondHi = max($second['valueA'], $second['valueB']);
+    $secondDominoId = "{$secondLo}-{$secondHi}";
+
+    $component->call('placeDomino', $firstDominoId, $first['cellA'], $first['cellB'], flip: false)
+        ->call('placeDomino', $secondDominoId, $second['cellA'], $second['cellB'], flip: false);
+
+    // Try to relocate the first domino onto the second domino's own cells.
+    $component->call('movePlacement', $firstDominoId, $second['cellA'], $second['cellB'], false);
+
+    expect($component->get('placements')[$first['cellA']]['value'])->toBe($firstLo)
+        ->and($component->get('placements')[$first['cellB']]['value'])->toBe($firstHi)
+        ->and($component->get('placements')[$second['cellA']]['value'])->toBe($secondLo)
+        ->and($component->get('message'))->not->toBeNull();
+});
+
+test('movePlacement rejects non-adjacent target cells, without losing the original placement', function () {
+    $component = Livewire::test('pages::pips.play', ['seed' => 1, 'difficulty' => 'easy']);
+    $puzzle = app(PuzzleGenerator::class)->forSeed(1, PipsDifficulty::Easy);
+    $placement = $puzzle->solution['placements'][0];
+    $lo = min($placement['valueA'], $placement['valueB']);
+    $hi = max($placement['valueA'], $placement['valueB']);
+    $dominoId = "{$lo}-{$hi}";
+
+    $component->call('placeDomino', $dominoId, $placement['cellA'], $placement['cellB'], flip: false);
+
+    $component->call('movePlacement', $dominoId, $placement['cellA'], $placement['cellA'] + 10, false);
+
+    expect($component->get('placements')[$placement['cellA']]['value'])->toBe($lo)
+        ->and($component->get('message'))->not->toBeNull();
+});
+
 test('a signed-in user gets an in-progress GameSession the moment a puzzle is generated', function () {
     $user = User::factory()->create();
     Livewire::actingAs($user);

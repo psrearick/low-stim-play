@@ -217,6 +217,95 @@ new class extends Component
     }
 
     /**
+     * Rotates a placed domino in place -- swaps which of its two cells
+     * holds which value, footprint unchanged (always valid, so no
+     * rejection path is needed beyond "is this actually a placed
+     * domino"). A plain tap (not a drag) on a placed domino calls this now
+     * instead of removePlacement() -- relocating happens via drag instead
+     * (movePlacement() below).
+     */
+    public function rotatePlacement(string $dominoId): void
+    {
+        if ($this->ended) {
+            return;
+        }
+
+        $cells = array_keys(array_filter(
+            $this->placements,
+            fn (array $placement) => $placement['dominoId'] === $dominoId,
+        ));
+
+        if (count($cells) !== 2) {
+            return;
+        }
+
+        [$cellA, $cellB] = $cells;
+        $valueA = $this->placements[$cellA]['value'];
+        $this->placements[$cellA]['value'] = $this->placements[$cellB]['value'];
+        $this->placements[$cellB]['value'] = $valueA;
+
+        $this->persistState();
+
+        if ($this->isBoardSolved()) {
+            $this->endGame(solved: true);
+        }
+    }
+
+    /**
+     * Relocates an already-placed domino to a new cell pair in one atomic
+     * round trip -- validated before anything is mutated, so a rejected
+     * move never loses the original placement. The two cells this domino
+     * already occupies are implicitly available targets too (a player can
+     * drop it back overlapping where it started) since $targetCells is
+     * diffed against $oldCells before the occupancy check, not blocked by
+     * the domino's own current placement.
+     */
+    public function movePlacement(string $dominoId, int $newCellA, int $newCellB, bool $flip): void
+    {
+        if ($this->ended) {
+            return;
+        }
+
+        $oldCells = array_keys(array_filter(
+            $this->placements,
+            fn (array $placement) => $placement['dominoId'] === $dominoId,
+        ));
+
+        if (count($oldCells) !== 2) {
+            return;
+        }
+
+        if (! $this->areAdjacentCells($newCellA, $newCellB)) {
+            $this->message = 'Dominoes can only be placed on adjacent cells.';
+
+            return;
+        }
+
+        foreach (array_diff([$newCellA, $newCellB], $oldCells) as $cell) {
+            if (isset($this->placements[$cell])) {
+                $this->message = 'That cell is already covered.';
+
+                return;
+            }
+        }
+
+        foreach ($oldCells as $cell) {
+            unset($this->placements[$cell]);
+        }
+
+        [$lo, $hi] = array_map('intval', explode('-', $dominoId));
+        $this->placements[$newCellA] = ['value' => $flip ? $hi : $lo, 'dominoId' => $dominoId];
+        $this->placements[$newCellB] = ['value' => $flip ? $lo : $hi, 'dominoId' => $dominoId];
+        $this->message = null;
+
+        $this->persistState();
+
+        if ($this->isBoardSolved()) {
+            $this->endGame(solved: true);
+        }
+    }
+
+    /**
      * Explicit manual end without solving -- matches Wordle's own loss
      * treatment (score 0).
      */
@@ -590,7 +679,8 @@ new class extends Component
     <h3>How to Use This Page</h3>
     <ul>
         <li>Drag a domino from the tray onto the board, or tap a tray domino then tap two adjacent cells, to place it.</li>
-        <li>Tap or drag a placed domino to pick it back up.</li>
+        <li>Tap an already-selected tray domino again to flip it before placing it; tap a third time to deselect it.</li>
+        <li>Tap a placed domino to rotate it in place; drag a placed domino to move it elsewhere on the board.</li>
         <li>Every outlined region shows a rule -- an exact total, "all equal," "all different," a greater/less-than threshold, or no rule at all -- that its own cells must satisfy once filled.</li>
         <li>The board is solved once every cell is covered and every region's rule holds.</li>
         <li>If you're signed in, leaving and coming back later picks up right where you left off.</li>
@@ -683,7 +773,6 @@ new class extends Component
                     <button type="button"
                         id="pips-tray-{{ $dominoId }}"
                         data-domino-id="{{ $dominoId }}"
-                        wire:click="selectTrayDomino('{{ $dominoId }}')"
                         class="pips-domino flex items-center border-2 rounded-md p-1 {{ $selectedDominoId === $dominoId ? 'pips-domino-selected' : '' }}"
                     >
                         <x-pips-pip :value="(int) $a" />
@@ -732,12 +821,11 @@ new class extends Component
     // client-only gesture state and exactly
     // one $wire round trip per placement, never mid-gesture (a mid-drag
     // round trip would let Livewire's DOM morph clobber the geometry this
-    // script is caching). Tap-to-select (docs/specs/pips.md section 3) is
-    // handled by the same placeDomino() call: which cell is tapped first
-    // vs. second is itself the orientation control -- the first-tapped
-    // cell always gets the domino's lower pip, so a player gets full
-    // control over which value lands where purely by choosing tap order,
-    // with no separate flip step needed.
+    // script is caching). Tap-to-place on two board cells keeps its own
+    // orientation convention (whichever cell is tapped first gets the
+    // domino's lower pip); dragging instead uses closestValidPair() below
+    // plus each domino's own client-only flip state, since a drag has no
+    // equivalent "which cell first" signal of its own.
     const boardEl = document.getElementById('pips-board');
     const trayEl = document.getElementById('pips-tray');
     const boardWrapEl = document.getElementById('pips-board-wrap');
@@ -757,55 +845,88 @@ new class extends Component
         cellHitRadius = size * 1.2;
     }
 
-    function nearestCell(x, y) {
-        let best = null;
-        let bestDist = Infinity;
-        cellCenters.forEach((c, idx) => {
-            const dist = Math.hypot(c.x - x, c.y - y);
-            if (dist < bestDist) {
-                bestDist = dist;
-                best = idx;
-            }
-        });
-        return best !== null && bestDist <= cellHitRadius ? best : null;
-    }
-
     function isCellFilled(cell) {
         return document.getElementById('pips-cell-' + cell)?.dataset.filled === '1';
     }
 
-    // Picks an empty orthogonal neighbor of $cell, preferring whichever
-    // direction the drag was actually moving in at the moment of release --
-    // approaching from the left drops the second half to the right, and so
-    // on -- falling back to any other empty neighbor if that preferred
-    // direction isn't available (off the board, or already covered).
-    function emptyNeighborInDirection(cell, dx, dy) {
+    // Finds the empty-adjacent cell pair (canonical [min, max] index order)
+    // whose two centers' own midpoint is closest to (x, y), among pairs
+    // within cellHitRadius -- replaces inferring a second cell from drag
+    // *direction*, which was confirmed to sometimes land on the wrong cell
+    // (especially near an irregular board's own edges/holes, see
+    // docs/DEVLOG.md's Pips entry). This answers "which real two-cell
+    // footprint does this drop point actually look like it's over,"
+    // regardless of exactly how the cursor got there. $ignoreCells lets a
+    // domino being relocated treat its own current two cells as available
+    // targets too (only ever the relocating domino's own cells, computed
+    // from real board state, never trusted from elsewhere).
+    function closestValidPair(x, y, ignoreCells = []) {
         const cols = Number(boardWrapEl.dataset.cols);
         const rows = Number(boardWrapEl.dataset.rows);
-        const row = Math.floor(cell / cols);
-        const col = cell % cols;
-        const preferred = Math.abs(dx) >= Math.abs(dy)
-            ? [[row, col + (dx >= 0 ? 1 : -1)], [row + (dy >= 0 ? 1 : -1), col]]
-            : [[row + (dy >= 0 ? 1 : -1), col], [row, col + (dx >= 0 ? 1 : -1)]];
-        const candidates = [...preferred, [row, col + 1], [row, col - 1], [row + 1, col], [row - 1, col]];
+        let best = null;
+        let bestDist = Infinity;
 
-        for (const [r, c] of candidates) {
-            if (r < 0 || r >= rows || c < 0 || c >= cols) {
-                continue;
+        cellCenters.forEach((center, cell) => {
+            if (!center) {
+                return;
             }
-            const idx = r * cols + c;
-            if (!isCellFilled(idx)) {
-                return idx;
+            if (isCellFilled(cell) && !ignoreCells.includes(cell)) {
+                return;
             }
-        }
 
-        return null;
+            const row = Math.floor(cell / cols);
+            const col = cell % cols;
+
+            // Only right/down -- visits every unordered adjacent pair
+            // exactly once (as opposed to also checking left/up, which
+            // would revisit the same pair from its other cell).
+            for (const [r, c] of [[row, col + 1], [row + 1, col]]) {
+                if (r < 0 || r >= rows || c < 0 || c >= cols) {
+                    continue;
+                }
+                const neighbor = r * cols + c;
+                const neighborCenter = cellCenters[neighbor];
+                if (!neighborCenter || (isCellFilled(neighbor) && !ignoreCells.includes(neighbor))) {
+                    continue;
+                }
+
+                const midX = (center.x + neighborCenter.x) / 2;
+                const midY = (center.y + neighborCenter.y) / 2;
+                const dist = Math.hypot(midX - x, midY - y);
+
+                if (dist < bestDist && dist <= cellHitRadius) {
+                    bestDist = dist;
+                    best = cell < neighbor ? [cell, neighbor] : [neighbor, cell];
+                }
+            }
+        });
+
+        return best;
     }
 
     // Client-tracked mirror of $wire.selectedDominoId, updated optimistically
-    // (see the tray pointerdown handler below) so the board's tap-to-place
-    // gate never depends on a Livewire round trip having already resolved.
+    // (see the tray tap handling below) so the board's tap-to-place gate
+    // never depends on a Livewire round trip having already resolved.
     let localSelectedDominoId = null;
+
+    // Which tray dominoes are currently flipped -- purely client state
+    // (orientation only matters at the moment of a *drag* placement, tap-
+    // to-place has its own tap-order convention instead), never synced to
+    // the server. Survives Livewire re-renders (this variable, unlike a DOM
+    // class, isn't touched by morphing); syncFlipVisuals() re-applies the
+    // matching CSS class after any such re-render since morphdom otherwise
+    // resets a client-added class back to whatever the server last rendered.
+    const flippedDominoes = new Set();
+
+    function syncFlipVisuals() {
+        trayEl.querySelectorAll('.pips-domino').forEach((el) => {
+            el.classList.toggle('pips-domino-flipped', flippedDominoes.has(el.dataset.dominoId));
+        });
+    }
+
+    if (window.Livewire) {
+        Livewire.hook('morph.updated', syncFlipVisuals);
+    }
 
     // --- Dragging a domino out of the tray ---
     // Listens on `document`, not the tray container itself, for the
@@ -820,12 +941,11 @@ new class extends Component
     let draggingDominoId = null;
     let draggingOriginEl = null;
     let dragStart = null;
-    let lastMove = null;
     let dragGhostEl = null;
 
-    // Distance a pointer has to travel before a tray press counts as a real
-    // drag rather than a tap -- both onTrayDragEnd's own tap/drag split and
-    // the ghost's own lazy creation below use this exact same threshold, so
+    // Distance a pointer has to travel before a press counts as a real drag
+    // rather than a tap -- shared by both the tray-drag and the
+    // relocate-drag below, and by each one's own ghost's lazy creation, so
     // a plain tap never flashes a ghost into existence for a single frame.
     const DRAG_THRESHOLD_PX = 10;
 
@@ -840,28 +960,14 @@ new class extends Component
         draggingDominoId = dominoEl.dataset.dominoId;
         draggingOriginEl = dominoEl;
         dragStart = { x: e.clientX, y: e.clientY };
-        lastMove = dragStart;
         cacheCellCenters();
         document.addEventListener('pointermove', onTrayDragMove);
         document.addEventListener('pointerup', onTrayDragEnd);
         document.addEventListener('pointercancel', onTrayDragCancel);
-
-        // Updated the instant the domino is pressed, not after
-        // wire:click="selectTrayDomino(...)"'s own round trip resolves
-        // (still fired below, for the visual .pips-domino-selected class)
-        // -- gating the board's own tap-to-place handler on the *server*
-        // property instead would race a fast second tap against that
-        // still-in-flight request, confirmed live as an actual flaky
-        // failure, not just a slow test: a quick tray-tap-then-cell-tap
-        // sequence could land before $wire.selectedDominoId ever updated,
-        // silently dropping the placement.
-        localSelectedDominoId = localSelectedDominoId === draggingDominoId ? null : draggingDominoId;
         anchorCell = null;
     });
 
     function onTrayDragMove(e) {
-        lastMove = { x: e.clientX, y: e.clientY };
-
         if (!draggingDominoId) {
             return;
         }
@@ -901,24 +1007,34 @@ new class extends Component
 
         const moved = Math.hypot(e.clientX - dragStart.x, e.clientY - dragStart.y) > DRAG_THRESHOLD_PX;
         if (!moved) {
-            // A plain tap, no real drag -- the tray button's own
-            // wire:click="selectTrayDomino(...)" handles it below.
+            // A plain tap -- select it, or if it's already selected, flip
+            // it instead of deselecting (still selected either way); a
+            // *third* tap (now selected+flipped) deselects and resets the
+            // flip for next time. Derives all three states from the two
+            // existing trackers rather than a separate explicit enum.
+            if (localSelectedDominoId !== dominoId) {
+                flippedDominoes.delete(dominoId);
+                localSelectedDominoId = dominoId;
+                anchorCell = null;
+                $wire.selectTrayDomino(dominoId);
+            } else if (!flippedDominoes.has(dominoId)) {
+                flippedDominoes.add(dominoId);
+                syncFlipVisuals();
+            } else {
+                flippedDominoes.delete(dominoId);
+                localSelectedDominoId = null;
+                $wire.selectTrayDomino(dominoId);
+            }
             return;
         }
 
-        const primaryCell = nearestCell(e.clientX, e.clientY);
-        if (primaryCell === null || isCellFilled(primaryCell)) {
+        const pair = closestValidPair(e.clientX, e.clientY);
+        if (pair === null) {
             return;
         }
 
-        const dx = e.clientX - lastMove.x || e.clientX - dragStart.x;
-        const dy = e.clientY - lastMove.y || e.clientY - dragStart.y;
-        const secondaryCell = emptyNeighborInDirection(primaryCell, dx, dy);
-        if (secondaryCell === null) {
-            return;
-        }
-
-        $wire.placeDomino(dominoId, primaryCell, secondaryCell, false);
+        const [minCell, maxCell] = pair;
+        $wire.placeDomino(dominoId, minCell, maxCell, flippedDominoes.has(dominoId));
     }
 
     function onTrayDragCancel() {
@@ -950,8 +1066,46 @@ new class extends Component
         }
     }
 
-    // --- Tap-to-select/tap-to-place on the board, and pick-up-by-tap ---
-    let anchorCell = null;
+    // --- Relocating (or rotating) an already-placed domino ---
+    // Mirrors the tray's own drag gesture exactly: a plain tap rotates it
+    // in place (rotatePlacement()), a real drag past the same threshold
+    // picks it up (its own two source cells visually "lifted," ghost built
+    // from its own already-rendered pip nodes so it shows real values) and
+    // drops it via the same closestValidPair() the tray uses, this time
+    // treating the domino's own current cells as available targets too.
+    let relocatingDominoId = null;
+    let relocatingCells = null;
+    let relocateDragStart = null;
+    let relocateGhostEl = null;
+
+    function findPlacementCells(dominoId) {
+        const cells = [...boardEl.querySelectorAll('.pips-cell[data-filled="1"]')]
+            .filter((el) => el.dataset.dominoId === dominoId)
+            .map((el) => Number(el.dataset.cell));
+
+        return cells.length === 2 ? cells : null;
+    }
+
+    function buildRelocateGhost(cells) {
+        const ghost = document.createElement('div');
+        ghost.className = 'pips-domino pips-drag-ghost';
+
+        const [cellA, cellB] = cells;
+        const pipA = document.getElementById('pips-cell-' + cellA)?.querySelector('.pips-pip');
+        const pipB = document.getElementById('pips-cell-' + cellB)?.querySelector('.pips-pip');
+
+        if (pipA) {
+            ghost.appendChild(pipA.cloneNode(true));
+        }
+        const divider = document.createElement('div');
+        divider.className = 'pips-domino-divider';
+        ghost.appendChild(divider);
+        if (pipB) {
+            ghost.appendChild(pipB.cloneNode(true));
+        }
+
+        return ghost;
+    }
 
     boardEl.addEventListener('pointerdown', (e) => {
         if ($wire.ended) {
@@ -961,18 +1115,110 @@ new class extends Component
         if (!cellEl || cellEl.dataset.filled !== '1') {
             return;
         }
-        // Picking a placed domino back up -- tap or drag both start here;
-        // v1 always returns it to the tray rather than relocating it
-        // mid-drag, so the player places it again via a fresh gesture.
         const dominoId = cellEl.dataset.dominoId;
-        if (dominoId) {
-            $wire.removePlacement(dominoId);
+        const cells = dominoId ? findPlacementCells(dominoId) : null;
+        if (!cells) {
+            return;
         }
+
+        relocatingDominoId = dominoId;
+        relocatingCells = cells;
+        relocateDragStart = { x: e.clientX, y: e.clientY };
+        cacheCellCenters();
+        document.addEventListener('pointermove', onRelocateDragMove);
+        document.addEventListener('pointerup', onRelocateDragEnd);
+        document.addEventListener('pointercancel', onRelocateDragCancel);
         anchorCell = null;
     });
 
+    function onRelocateDragMove(e) {
+        if (!relocatingDominoId) {
+            return;
+        }
+
+        if (!relocateGhostEl && Math.hypot(e.clientX - relocateDragStart.x, e.clientY - relocateDragStart.y) > DRAG_THRESHOLD_PX) {
+            relocateGhostEl = buildRelocateGhost(relocatingCells);
+            document.body.appendChild(relocateGhostEl);
+            relocatingCells.forEach((cell) => {
+                document.getElementById('pips-cell-' + cell)?.classList.add('pips-cell-lifted');
+            });
+        }
+
+        if (relocateGhostEl) {
+            relocateGhostEl.style.left = e.clientX + 'px';
+            relocateGhostEl.style.top = e.clientY + 'px';
+        }
+    }
+
+    function onRelocateDragEnd(e) {
+        stopRelocateDragListening();
+
+        if (!relocatingDominoId) {
+            removeRelocateGhost();
+            return;
+        }
+
+        const dominoId = relocatingDominoId;
+        const oldCells = relocatingCells;
+        const moved = Math.hypot(e.clientX - relocateDragStart.x, e.clientY - relocateDragStart.y) > DRAG_THRESHOLD_PX;
+
+        removeRelocateGhost();
+        relocatingDominoId = null;
+        relocatingCells = null;
+
+        if (!moved) {
+            $wire.rotatePlacement(dominoId);
+            return;
+        }
+
+        const pair = closestValidPair(e.clientX, e.clientY, oldCells);
+        if (pair === null) {
+            return;
+        }
+
+        const [minCell, maxCell] = pair;
+        // Preserves the domino's current orientation across the move --
+        // whichever value was on the old min-index cell stays on the new
+        // min-index cell, rather than silently resetting it.
+        const oldMin = Math.min(...oldCells);
+        const oldMinValue = Number(document.getElementById('pips-cell-' + oldMin)?.dataset.value);
+        const [lo, hi] = dominoId.split('-').map(Number);
+        const flip = oldMinValue === hi;
+
+        $wire.movePlacement(dominoId, minCell, maxCell, flip);
+    }
+
+    function onRelocateDragCancel() {
+        stopRelocateDragListening();
+        removeRelocateGhost();
+        relocatingDominoId = null;
+        relocatingCells = null;
+    }
+
+    function stopRelocateDragListening() {
+        document.removeEventListener('pointermove', onRelocateDragMove);
+        document.removeEventListener('pointerup', onRelocateDragEnd);
+        document.removeEventListener('pointercancel', onRelocateDragCancel);
+    }
+
+    function removeRelocateGhost() {
+        if (relocatingCells) {
+            relocatingCells.forEach((cell) => {
+                document.getElementById('pips-cell-' + cell)?.classList.remove('pips-cell-lifted');
+            });
+        }
+
+        if (relocateGhostEl) {
+            relocateGhostEl.remove();
+            relocateGhostEl = null;
+        }
+    }
+
+    // --- Tap-to-place on two empty board cells ---
+    let anchorCell = null;
+
     boardEl.addEventListener('pointerup', (e) => {
-        if ($wire.ended || localSelectedDominoId === null) {
+        if ($wire.ended || localSelectedDominoId === null || relocatingDominoId !== null) {
             return;
         }
         const cellEl = e.target.closest('.pips-cell');

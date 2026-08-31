@@ -17,7 +17,7 @@ function realPipsRegions(PipsDifficulty $difficulty, int $seed): array
 {
     $randomizer = new Randomizer(new Mt19937($seed));
     $shape = (new ShapeGrower)->grow($randomizer, $difficulty->rows(), $difficulty->cols(), $difficulty->cellCount());
-    $regions = (new RegionGrower)->grow($randomizer, $shape['dimensions']['rows'], $shape['dimensions']['cols'], $shape['cells']);
+    $regions = (new RegionGrower)->grow($randomizer, $shape['dimensions']['rows'], $shape['dimensions']['cols'], $shape['cells'], $difficulty->maxPip());
     $neighbors = Grid::activeNeighbors($shape['dimensions']['rows'], $shape['dimensions']['cols'], $shape['cells']);
 
     return ['regions' => $regions, 'neighbors' => $neighbors];

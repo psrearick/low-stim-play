@@ -40,13 +40,14 @@ function waitUntilTrue(PendingAwaitablePage $page, string $jsExpression, float $
  * script block docblock, at the bottom of that file) -- placement only
  * happens through the vanilla pointer-event listeners attached in real
  * page JS. tests/Feature/Games/PipsGameTest.php already proves
- * placeDomino()/selectTrayDomino()/removePlacement() are correct in
- * isolation; this proves the actual DOM wiring calls them.
+ * placeDomino()/selectTrayDomino()/rotatePlacement()/movePlacement() are
+ * correct in isolation; this proves the actual DOM wiring calls them.
  *
- * Drag, tap-to-place, and pick-up-by-tap are all exercised inside this one
- * test, on one `visit()`-ed page, rather than as separate tests each
- * opening their own page -- confirmed live that once more than one test in
- * this file opens its own real browser page, every page after the first
+ * Drag-to-place, tap-to-place, tap-to-rotate a placed domino, and
+ * drag-to-relocate a placed domino are all exercised inside this one test,
+ * on one `visit()`-ed page, rather than as separate tests each opening
+ * their own page -- confirmed live that once more than one test in this
+ * file opens its own real browser page, every page after the first
  * intermittently sees a stale DOM/state snapshot after an action, even
  * with a generous explicit wait, regardless of which specific interaction
  * or assertion runs on it (a pest-plugin-browser v5.0.0 resource-reuse
@@ -211,12 +212,68 @@ test('drag, tap-to-place, and pick-up-by-tap all place/remove dominoes correctly
         expect($class)->toContain("pips-status-{$expected}");
     }
 
-    // --- Pick-up-by-tap -- tapping a placed domino returns it to the tray.
+    // --- Tap-to-rotate a placed domino (docs/DEVLOG.md's Pips entry) -- a
+    // plain tap (no real drag) on an already-placed domino swaps its two
+    // cells' values in place; it stays placed, not returned to the tray.
+    $valueBeforeRotate = $page->script("document.getElementById('pips-cell-{$second['cellA']}').dataset.value");
     $page->click("#pips-cell-{$second['cellA']}");
+    waitUntilTrue($page, "document.getElementById('pips-cell-{$second['cellA']}').dataset.value !== '{$valueBeforeRotate}'");
 
-    waitUntilTrue($page, "document.getElementById('pips-tray-{$secondDominoId}') !== null");
+    expect($page->script("document.getElementById('pips-cell-{$second['cellA']}').dataset.value"))
+        ->not->toBe($valueBeforeRotate);
+    $page->assertMissing("#pips-tray-{$secondDominoId}");
 
-    $page->assertPresent("#pips-tray-{$secondDominoId}");
+    // --- Drag-to-relocate a placed domino -- picks it up (a ghost built
+    // from its own already-rendered pip nodes, so it shows real current
+    // values) and drops it at a new, empty spot in one gesture, rather than
+    // needing to pick it up to the tray and place it again separately.
+    $third = $puzzle->solution['placements'][2];
+
+    $relocateScript = <<<'JS'
+        (() => {
+            const cellA = document.getElementById('pips-cell-__FROM_CELL__');
+            const targetA = document.getElementById('pips-cell-__TO_CELL__');
+            const from = cellA.getBoundingClientRect();
+            const to = targetA.getBoundingClientRect();
+            const fromPoint = { x: from.left + from.width / 2, y: from.top + from.height / 2 };
+            const toPoint = { x: to.left + to.width / 2, y: to.top + to.height / 2 };
+
+            function fire(type, target, point) {
+                target.dispatchEvent(new PointerEvent(type, {
+                    bubbles: true, cancelable: true, composed: true,
+                    clientX: point.x, clientY: point.y,
+                    pointerId: 1, pointerType: 'mouse', isPrimary: true,
+                }));
+            }
+
+            fire('pointerdown', cellA, fromPoint);
+            const ghostExistedMidDrag = (() => {
+                fire('pointermove', document, {
+                    x: fromPoint.x + (toPoint.x - fromPoint.x) / 2,
+                    y: fromPoint.y + (toPoint.y - fromPoint.y) / 2,
+                });
+                return document.querySelector('.pips-drag-ghost') !== null;
+            })();
+            fire('pointermove', document, toPoint);
+            fire('pointerup', document, toPoint);
+
+            return JSON.stringify({ ghostExistedMidDrag });
+        })()
+        JS;
+
+    $relocateResult = json_decode($page->script(str_replace(
+        ['__FROM_CELL__', '__TO_CELL__'],
+        [(string) $second['cellA'], (string) $third['cellA']],
+        $relocateScript,
+    )), true);
+
+    expect($relocateResult['ghostExistedMidDrag'])->toBeTrue();
+
+    waitUntilTrue($page, "document.getElementById('pips-cell-{$second['cellA']}').dataset.filled === '0'");
+
+    expect($page->script("document.getElementById('pips-cell-{$second['cellA']}').dataset.filled"))->toBe('0');
+    expect($page->script("document.getElementById('pips-cell-{$third['cellA']}').dataset.filled"))->toBe('1');
+    expect($page->script("document.getElementById('pips-cell-{$third['cellA']}').dataset.dominoId"))->toBe($secondDominoId);
 
     // --- Region colors + on-board constraint badges (docs/DEVLOG.md's Pips
     // entry) render for real, not just in the persisted board JSON.

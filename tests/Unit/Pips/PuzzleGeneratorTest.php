@@ -49,6 +49,35 @@ test('a generated puzzle satisfies every one of its own regions, at every diffic
     }
 })->with('difficulties');
 
+/**
+ * The end-to-end regression test for the region-size bug (see
+ * RegionGrowerTest's own "no region ever exceeds..." test and
+ * docs/DEVLOG.md's Pips entry): a 'sum' constraint's own value can never
+ * exceed what its region could possibly reach (maxPip per cell), which is
+ * trivially true once RegionGrower's own cap holds -- worth asserting
+ * directly here too since this is what a player actually sees.
+ */
+test('every sum constraint stays within its own region\'s max possible total', function (PipsDifficulty $difficulty) {
+    $generator = realPipsGenerator();
+
+    foreach (range(1, 20) as $seed) {
+        $puzzle = $generator->generate($difficulty, $seed);
+
+        foreach ($puzzle['board']['regions'] as $region) {
+            if ($region['constraint']['type'] !== 'sum') {
+                continue;
+            }
+
+            $maxPossible = $difficulty->maxPip() * count($region['cells']);
+
+            expect($region['constraint']['value'])->toBeLessThanOrEqual(
+                $maxPossible,
+                "seed {$seed}: a sum constraint of {$region['constraint']['value']} on a ".count($region['cells'])."-cell region exceeds the max possible {$maxPossible}",
+            );
+        }
+    }
+})->with('difficulties');
+
 test('the same seed always produces the same puzzle', function () {
     $generator = realPipsGenerator();
 
