@@ -13,6 +13,7 @@
                 \App\Enums\GameType::Quartiles => 'profile.quartiles',
                 \App\Enums\GameType::Wordle => 'profile.wordle',
                 \App\Enums\GameType::SpellingBee => 'profile.spelling-bee',
+                \App\Enums\GameType::Pips => 'profile.pips',
                 \App\Enums\GameType::Punchline => 'profile.punchline',
                 \App\Enums\GameType::Hoax => 'profile.hoax',
             };

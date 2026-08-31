@@ -1039,6 +1039,141 @@ underneath.
 - Confirmed live at three widths via a DB-seeded resumed session (reaching "Making Progress" through real play would mean submitting several real dictionary words for this specific seed) — 320px and 375px both keep a single row with the Rank box's text wrapped internally; 1280px renders "Making Progress" on one line, matching the pre-fix layout there exactly.
 - New `tests/Browser/SpellingBeeLetterTapTest.php` case (all three boxes share the same `getBoundingClientRect().top` at a 320px viewport with the ladder forced to "Making Progress") — confirmed genuinely red against the pre-fix markup (rebuilding the CSS from the reverted Blade file first, since this fix is class-only) before trusting it.
 
+## Pips
+
+Built from `docs/specs/pips.md`'s full spec, the second and final of Task 10's two
+remaining games (Word Hive shipped first — see that spec-resolution entry above).
+Ships under its own real name, **"Pips"** — a materially weaker trademark claim than
+Wordle/Word Blocks/Word Hive's coined names, so no rename this time (the spec's own
+opening section covers the reasoning).
+
+**Difficulty tiers were added during this build, not deferred to v2 as the spec
+originally called for** — the user asked for Easy/Medium/Hard (matching the real game)
+partway through planning, superseding that section. `App\Enums\PipsDifficulty` is the
+single source of truth for each tier's board size and domino-set ceiling, sized the
+same way the spec's own single v1 size was ("exactly fit a full double-N set"): Easy is
+a double-four set (15 dominoes) on a 5×6 board, Medium a double-five set (21 dominoes)
+on 6×7, Hard the original double-six set (28 dominoes) on 7×8. Every generation-time
+service takes `rows`/`cols`/`maxPip` from the resolved tier rather than hardcoding
+Hard's numbers. Three independent daily puzzles run per day (one `pips_puzzles` row per
+tier per date, one lock per tier), and `GameChallengeService::linkFor()`'s Pips arm
+carries both `seed` and `difficulty` — a bare seed no longer identifies a puzzle once
+three tiers exist over the same integer range.
+
+**The uniqueness solver the spec called for turned out to need two real fixes and then
+a change of role, discovered only once actually built and benchmarked against real
+generated boards — not caught by design review alone.** The spec's plan was: generate
+a solution first, grow regions, derive each region's constraint from its own real
+values, then run a backtracking `SolutionSolver` that searches for a second, different
+valid placement and rejects the attempt (regrowing regions, retrying) if it finds one.
+Benchmarking this against real generated boards surfaced a fundamental problem: every
+constraint type this game has (sum/equal/different/greater/less) is a function of a
+region's *value multiset*, never of which specific cell holds which value. Two boards
+differing only by swapping which of two dominoes sits at which position — or flipping
+one domino's own orientation — are completely indistinguishable to any of these
+constraints, yet a strict cell-by-cell/domino-identity comparison flags that as "a
+second solution." Benchmarked at 0 verified-unique boards out of 40 Hard-tier attempts,
+*even when every region was manually forced to the tightest possible type ("sum")* —
+this wasn't a loose-constraint problem, it was structural.
+
+- **First fix: redefine "different" as each region's own sorted value list**, not
+  domino identity, orientation, or tiling — matching the game's own completion check
+  (already region-by-region, never a comparison against a stored answer). This alone
+  wasn't enough: two *different* dominoes both fully contained in one large region are
+  still freely interchangeable under this definition (swapping them never changes that
+  region's multiset either), and region growing had no reason to avoid that.
+- **Second fix: `RegionGrower` was taught the fill's own domino pairing** (which two
+  cells belong to the same domino) and actively steers growth away from ever placing
+  both halves of one domino in the same region — still geometry-only in spirit (it only
+  needs the pairing *structure*, never pip values). Implemented as a soft preference
+  (skip a claim that would violate it, discard and let another region/mop-up take the
+  cell) with an unrestricted fallback pass so full board coverage is never sacrificed to
+  the preference.
+- **Even both fixes together left a third, subtler symmetry**: two *different* dominoes
+  that happen to straddle the exact same pair of regions can often swap by pure numeric
+  coincidence, since only 7 pip values exist. Benchmarked with both fixes in place:
+  still 0 verified-unique Hard-tier boards out of 500 attempts, and the failed attempts
+  increasingly fell into the slow exhaustive-search fallback rather than the fast
+  swap-check, making generation itself impractically slow. Concluded (with the user)
+  that strict "provably only one board satisfies every region" uniqueness is
+  structurally out of reach for this constraint vocabulary at these board sizes — not a
+  tuning problem, a mismatch between what the spec asked the solver to prove and what
+  it can actually prove for this game.
+- **Resolution: `SolutionSolver` stays (a real, tested backtracking search — `check()` —
+  with genuine value beyond this one call site), but demoted from a hard uniqueness gate
+  to a light sanity check.** `PuzzleGenerator` now calls only `hasObviousDuplicate()`
+  (the solver's cheap local-swap pre-pass, not the expensive exhaustive fallback),
+  treats a "yes" as a reason to try regrowing regions again (bounded at 20 attempts, then
+  accepts the last one regardless), and separately rejects the one genuinely degenerate
+  case explicitly asked for: a board where literally every region came back
+  unconstrained. `ConstraintDeriver`'s own weighting was also shifted harder toward
+  "sum"/"equal" (the two types that actually resist swaps) and away from
+  "different"/"greater"/"less"/"none", which meaningfully improves the odds any given
+  attempt needs before landing on one with no obvious duplicate.
+
+Architecture: `App\Services\Pips\{BoardFiller, RegionGrower, ConstraintDeriver,
+ConstraintChecker, SolutionSolver, PuzzleGenerator, Scorer}`, plus a shared `Grid`
+helper (cell-indexing/adjacency, used by all three geometry-touching classes).
+`BoardFiller` isn't in the spec's own class list — a private extraction added during
+implementation since board-filling (a perfect-matching search) is a genuinely distinct
+algorithm from `PuzzleGenerator`'s orchestration, not a design change. `ConstraintChecker`
+reports a region's live status as `Satisfied|Broken|Unknown` from a plain
+recompute-from-scratch each call (region sizes are tiny, so this is simpler than
+incremental-sum bookkeeping and costs nothing next to the solver's real bottleneck) —
+shared by both the play page's live per-region feedback and the solver's own pruning, so
+the semantics exist in exactly one place. `Scorer::scoreFor()` is duration-based (`max(0,
+1000 - duration/2)`, reaching 0 at ~33 minutes) — this game's own new precedent, since no
+other game in this app scores on elapsed time.
+
+A new `pips_puzzles` table (`seed`+`difficulty` unique together, `board`/`solution`
+JSON) is the one deliberate zero-persistence divergence in this task — every other
+game's generator is cheap enough to regenerate per request; a real uniqueness-checking
+solver isn't. `PuzzleGenerator::forSeed()` looks up-or-generates-and-caches, catching a
+unique-constraint race (two simultaneous first requests for a new seed+difficulty) by
+re-reading rather than erroring.
+
+`pages::pips.play` mirrors Word Hive's resumable session lifecycle exactly (early
+`GameSession` for signed-in users, `state` persisted after every placement, guests get
+only a final record) rather than Boggle's write-once-at-the-end shape, since a
+28-domino board is played over real time the same way a Word Hive puzzle is. Drag-and-
+drop mirrors Boggle's own `@script` pattern (vanilla pointer events, client-tracked
+gesture state, one `$wire` round trip per placement) rather than native HTML5
+drag-and-drop, with tap-to-select/tap-to-place built as a first-class second path from
+the start, not bolted on after — which cell is tapped first vs. second is itself the
+orientation control, so no separate flip step was needed. The tray-drag listeners
+attach to `document` for the move/up half of the gesture rather than using Boggle's own
+`setPointerCapture()` — that only helps a gesture staying within one container the
+whole time, and this one necessarily crosses from the tray into the board.
+
+**Two new `pestphp/pest-plugin-browser` v5.0.0 gotchas confirmed live, added to
+CLAUDE.md's/AGENTS.md's own list** (now five): Playwright's `drag()`/`dragTo()` helper
+hangs indefinitely against a page using vanilla-pointer-event dragging (it speaks the
+native HTML5 drag-and-drop protocol — `dragstart`/`dragover`/`drop` — which such a page
+never implements), fixed by dispatching synthetic `PointerEvent`s directly via
+`script()` instead; and `assertMissing()`/`assertPresent()`/`assertVisible()` do one
+immediate, non-retrying check; unlike `assertSee()`, they don't wait for an async
+`$wire` round trip's response to land, which is a real, reproducible race, not
+occasional slowness. A related, only partly resolved discovery: three separate
+single-interaction browser tests in one file reliably passed alone but flaked when run
+together (whichever ran second or later saw a stale DOM snapshot despite a generous
+explicit wait) — consolidating them into one test on one page fixed that specific
+pattern, but the same test still occasionally flakes at the very same assertion when
+run as part of the *entire* ~1400-test suite specifically (never in isolation, never
+paired with a handful of other files, and unaffected by raising the wait to a polling
+loop with a 15-second ceiling) — concluded to be a resource-accumulation characteristic
+of a very long continuous multi-browser-test run rather than a bug in this page's own
+JS, given a direct diagnostic dump of the exact same click sequence always produced the
+correct server-side result. Documented rather than hidden: this is a known, disclosed
+residual flake, not a claim of full reliability at every possible test-suite scale.
+
+Test coverage: `Pips\{BoardFillerTest, RegionGrowerTest, ConstraintDeriverTest,
+ConstraintCheckerTest, SolutionSolverTest, PuzzleGeneratorTest, ScorerTest}` (unit,
+`BoardFillerTest`/`RegionGrowerTest` parameterized across all three difficulties),
+`Stats\PipsStatsServiceTest`; `Games\{PipsGameTest, PipsDailyTest,
+PipsChallengeFriendTest}` and `ProfilePipsTest` (feature); `PipsDragPlacementTest`
+(browser, drag + tap-to-place + pick-up-by-tap chained through one page, per the gotcha
+above).
+
 ## Punchline
 
 A Quiplash-style room game (players privately write funny answers to prompts, then vote,

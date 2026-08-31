@@ -18,6 +18,12 @@
         ['id' => 'quartiles', 'label' => \App\Enums\GameType::Quartiles->label(), 'href' => route('quartiles.play'), 'routes' => ['quartiles.play']],
         ['id' => 'wordle', 'label' => \App\Enums\GameType::Wordle->label(), 'href' => route('wordle.play'), 'routes' => ['wordle.play']],
         ['id' => 'spelling-bee', 'label' => \App\Enums\GameType::SpellingBee->label(), 'href' => route('spelling-bee.play'), 'routes' => ['spelling-bee.play']],
+        // Bare route (no difficulty param) -- resumes an in-progress game
+        // or defaults to Medium (see pages::pips.play's own mount()),
+        // same "one link per game regardless of internal modes" pattern
+        // every other sidebar entry already follows; picking a specific
+        // tier is done from the homepage card's three buttons instead.
+        ['id' => 'pips', 'label' => \App\Enums\GameType::Pips->label(), 'href' => route('pips.play'), 'routes' => ['pips.play']],
         ['id' => 'punchline', 'label' => \App\Enums\GameType::Punchline->label(), 'href' => route('punchline.play'), 'routes' => ['punchline.play', 'punchline.room']],
         ['id' => 'hoax', 'label' => \App\Enums\GameType::Hoax->label(), 'href' => route('hoax.play'), 'routes' => ['hoax.play', 'hoax.room']],
     ];

@@ -17,13 +17,14 @@ test('every room game except Boggle supports spectating', function () {
     }
 });
 
-test('Quartiles, Wordle, and SpellingBee have no room mode', function () {
+test('Quartiles, Wordle, SpellingBee, and Pips have no room mode', function () {
     expect(GameType::Quartiles->supportsRooms())->toBeFalse()
         ->and(GameType::Wordle->supportsRooms())->toBeFalse()
-        ->and(GameType::SpellingBee->supportsRooms())->toBeFalse();
+        ->and(GameType::SpellingBee->supportsRooms())->toBeFalse()
+        ->and(GameType::Pips->supportsRooms())->toBeFalse();
 
     foreach (GameType::cases() as $type) {
-        if (in_array($type, [GameType::Quartiles, GameType::Wordle, GameType::SpellingBee], true)) {
+        if (in_array($type, [GameType::Quartiles, GameType::Wordle, GameType::SpellingBee, GameType::Pips], true)) {
             continue;
         }
 
@@ -31,10 +32,11 @@ test('Quartiles, Wordle, and SpellingBee have no room mode', function () {
     }
 });
 
-test('roomRoute() throws for Quartiles, Wordle, and SpellingBee instead of returning a route that does not exist', function () {
+test('roomRoute() throws for Quartiles, Wordle, SpellingBee, and Pips instead of returning a route that does not exist', function () {
     expect(fn () => GameType::Quartiles->roomRoute())->toThrow(LogicException::class)
         ->and(fn () => GameType::Wordle->roomRoute())->toThrow(LogicException::class)
-        ->and(fn () => GameType::SpellingBee->roomRoute())->toThrow(LogicException::class);
+        ->and(fn () => GameType::SpellingBee->roomRoute())->toThrow(LogicException::class)
+        ->and(fn () => GameType::Pips->roomRoute())->toThrow(LogicException::class);
 });
 
 test('roomRoute() maps every room-capable case to its own room route name', function () {
@@ -47,17 +49,22 @@ test('roomRoute() maps every room-capable case to its own room route name', func
         ->and(GameType::Punchline->roomRoute())->toBe('punchline.room');
 });
 
-test('only Boggle, Quartiles, Wordle, and SpellingBee are challengeable today', function () {
+test('only Boggle, Quartiles, Wordle, SpellingBee, and Pips are challengeable today', function () {
     expect(GameType::Boggle->isChallengeable())->toBeTrue()
         ->and(GameType::Quartiles->isChallengeable())->toBeTrue()
         ->and(GameType::Wordle->isChallengeable())->toBeTrue()
-        ->and(GameType::SpellingBee->isChallengeable())->toBeTrue();
+        ->and(GameType::SpellingBee->isChallengeable())->toBeTrue()
+        ->and(GameType::Pips->isChallengeable())->toBeTrue();
 
     foreach (GameType::cases() as $type) {
-        if (in_array($type, [GameType::Boggle, GameType::Quartiles, GameType::Wordle, GameType::SpellingBee], true)) {
+        if (in_array($type, [GameType::Boggle, GameType::Quartiles, GameType::Wordle, GameType::SpellingBee, GameType::Pips], true)) {
             continue;
         }
 
         expect($type->isChallengeable())->toBeFalse();
     }
+});
+
+test('playRoute() maps Pips to its own play route name', function () {
+    expect(GameType::Pips->playRoute())->toBe('pips.play');
 });

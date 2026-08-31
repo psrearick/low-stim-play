@@ -138,6 +138,15 @@ Route::livewire('/profile/word-hive/{gameParticipant}', 'pages::profile.spelling
     ->name('profile.spelling-bee.show');
 
 // Same registration-order reasoning as /profile/word-grid etc. above.
+Route::livewire('/profile/pips', 'pages::profile.pips.index')
+    ->middleware(['auth', 'verified'])
+    ->name('profile.pips');
+
+Route::livewire('/profile/pips/{gameParticipant}', 'pages::profile.pips.show')
+    ->middleware(['auth', 'verified'])
+    ->name('profile.pips.show');
+
+// Same registration-order reasoning as /profile/word-grid etc. above.
 Route::livewire('/profile/games', 'pages::profile.games.index')
     ->middleware(['auth', 'verified'])
     ->name('profile.games');
@@ -305,6 +314,17 @@ Route::get('/five-letters/share/{gameSession}', function (GameSession $gameSessi
 // just reproduces the same seed independently (see GameChallengeService::
 // linkFor()'s own Quartiles/SpellingBee arms).
 Route::livewire('/word-hive', 'pages::spelling-bee.play')->name('spelling-bee.play');
+
+// Solo only, no room mode at all -- same reasoning as /word-hive above. Also
+// no hidden information (the board and every region's constraint are fully
+// visible during play, docs/specs/pips.md section 1), so -- again like
+// Word Blocks/Word Hive -- no dedicated share/challenge redirect route:
+// Challenge a Friend just reproduces the same seed+difficulty independently
+// (see GameChallengeService::linkFor()'s own Pips arm). Unlike every other
+// game here, generation is persisted rather than regenerated per request
+// (see App\Services\Pips\PuzzleGenerator::forSeed()), since a real
+// uniqueness-checking solver makes it too expensive to redo every visit.
+Route::livewire('/pips', 'pages::pips.play')->name('pips.play');
 
 // Pure date math, no DB reads -- every day's puzzle is derived on the fly
 // by DailyPuzzle::seedFor(), so there's nothing here to gate behind auth;

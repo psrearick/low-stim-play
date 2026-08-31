@@ -38,3 +38,24 @@ test('the seed is always a non-negative int', function () {
         expect($dailyPuzzle->seedFor($type, CarbonImmutable::parse('2026-08-21')))->toBeGreaterThanOrEqual(0);
     }
 });
+
+test('a different variant produces a different seed for the same game and date', function () {
+    $dailyPuzzle = new DailyPuzzle;
+    $date = CarbonImmutable::parse('2026-08-21');
+
+    $easy = $dailyPuzzle->seedFor(GameType::Boggle, $date, 'easy');
+    $hard = $dailyPuzzle->seedFor(GameType::Boggle, $date, 'hard');
+    $noVariant = $dailyPuzzle->seedFor(GameType::Boggle, $date);
+
+    expect($easy)->not->toBe($hard)
+        ->and($easy)->not->toBe($noVariant)
+        ->and($hard)->not->toBe($noVariant);
+});
+
+test('the same variant always produces the same seed', function () {
+    $dailyPuzzle = new DailyPuzzle;
+    $date = CarbonImmutable::parse('2026-08-21');
+
+    expect($dailyPuzzle->seedFor(GameType::Boggle, $date, 'medium'))
+        ->toBe($dailyPuzzle->seedFor(GameType::Boggle, $date, 'medium'));
+});

@@ -15,8 +15,22 @@ use Carbon\CarbonInterface;
  */
 class DailyPuzzle
 {
-    public function seedFor(GameType $type, CarbonInterface $date): int
+    /**
+     * $variant lets a single game/date pair resolve to more than one
+     * distinct daily seed -- added for Pips' three difficulty tiers
+     * (docs/specs/pips.md section 3), which each need their own daily
+     * puzzle sharing the same date. Defaults to null so every existing call
+     * site (`seedFor($type, $date)`) hashes exactly the same string as
+     * before, byte-for-byte.
+     */
+    public function seedFor(GameType $type, CarbonInterface $date, ?string $variant = null): int
     {
-        return crc32("{$type->value}-{$date->toDateString()}");
+        $key = "{$type->value}-{$date->toDateString()}";
+
+        if ($variant !== null) {
+            $key .= "-{$variant}";
+        }
+
+        return crc32($key);
     }
 }

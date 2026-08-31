@@ -15,6 +15,7 @@ enum GameType: string
     case SpellingBee = 'spelling_bee';
     case Punchline = 'punchline';
     case Hoax = 'hoax';
+    case Pips = 'pips';
 
     /**
      * The user-visible display name -- deliberately not the same as the
@@ -39,6 +40,7 @@ enum GameType: string
             self::SpellingBee => 'Word Hive',
             self::Punchline => 'Punchline',
             self::Hoax => 'Hoax',
+            self::Pips => 'Pips',
         };
     }
 
@@ -69,6 +71,7 @@ enum GameType: string
             self::SpellingBee => throw new \LogicException('SpellingBee has no online-room mode; check supportsRooms() before calling roomRoute().'),
             self::Punchline => 'punchline.room',
             self::Hoax => 'hoax.room',
+            self::Pips => throw new \LogicException('Pips has no online-room mode; check supportsRooms() before calling roomRoute().'),
         };
     }
 
@@ -98,6 +101,7 @@ enum GameType: string
             self::SpellingBee => 'spelling-bee.play',
             self::Punchline => 'punchline.play',
             self::Hoax => 'hoax.play',
+            self::Pips => 'pips.play',
         };
     }
 
@@ -114,7 +118,7 @@ enum GameType: string
      */
     public function supportsRooms(): bool
     {
-        return ! in_array($this, [self::Quartiles, self::Wordle, self::SpellingBee], true);
+        return ! in_array($this, [self::Quartiles, self::Wordle, self::SpellingBee, self::Pips], true);
     }
 
     /**
@@ -153,6 +157,6 @@ enum GameType: string
      */
     public function isChallengeable(): bool
     {
-        return in_array($this, [self::Boggle, self::Quartiles, self::Wordle, self::SpellingBee], true);
+        return in_array($this, [self::Boggle, self::Quartiles, self::Wordle, self::SpellingBee, self::Pips], true);
     }
 }

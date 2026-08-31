@@ -97,6 +97,15 @@
                 <a href="{{ route('spelling-bee.play') }}"><button type="button" aria-label="Word Hive &mdash; Play">Play</button></a>
             </div>
         </div>
+        <div class="game-card">
+            <div class="game-card-title">Pips</div>
+            <p class="game-card-desc">Place every domino from the tray onto the board so each outlined region's rule &mdash; a total, all equal, all different, or a greater/less-than threshold &mdash; is satisfied. Three difficulties &mdash; solo, untimed.</p>
+            <div class="game-card-actions">
+                <a href="{{ route('pips.play', ['difficulty' => 'easy']) }}"><button type="button" aria-label="Pips &mdash; Play Easy">Easy</button></a>
+                <a href="{{ route('pips.play', ['difficulty' => 'medium']) }}"><button type="button" aria-label="Pips &mdash; Play Medium">Medium</button></a>
+                <a href="{{ route('pips.play', ['difficulty' => 'hard']) }}"><button type="button" aria-label="Pips &mdash; Play Hard">Hard</button></a>
+            </div>
+        </div>
     </div>
 
 @endcomponent

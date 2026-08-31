@@ -24,7 +24,12 @@ class GameChallengeService
      * GameSession and gets the identical secret word resolved server-side.
      * Word Hive has no hidden information either (docs/specs/
      * spelling-bee.md section 1), so it follows Word Blocks' plain-seed
-     * shape, not Wordle's/Boggle's shared-session one.
+     * shape, not Wordle's/Boggle's shared-session one. Pips follows the
+     * same plain-seed shape (also no hidden information -- the board and
+     * every region's constraint are fully visible during play, see
+     * docs/specs/pips.md section 1), but needs a second query param:
+     * `difficulty`, since a bare seed no longer fully identifies a puzzle
+     * once three difficulty tiers exist (docs/specs/pips.md section 4).
      */
     public function linkFor(GameParticipant $participant): string
     {
@@ -35,6 +40,7 @@ class GameChallengeService
             GameType::Quartiles => route('quartiles.play', ['seed' => $session->settings['seed']]),
             GameType::Wordle => route('wordle.share', ['gameSession' => $session->id]),
             GameType::SpellingBee => route('spelling-bee.play', ['seed' => $session->settings['seed']]),
+            GameType::Pips => route('pips.play', ['seed' => $session->settings['seed'], 'difficulty' => $session->settings['difficulty']]),
             default => throw new LogicException("{$session->type->value} has no challenge link."),
         };
     }

@@ -16,6 +16,7 @@
         ['id' => 'quartiles', 'label' => \App\Enums\GameType::Quartiles->label(), 'routes' => ['profile.quartiles', 'profile.quartiles.show']],
         ['id' => 'wordle', 'label' => \App\Enums\GameType::Wordle->label(), 'routes' => ['profile.wordle', 'profile.wordle.show']],
         ['id' => 'spelling-bee', 'label' => \App\Enums\GameType::SpellingBee->label(), 'routes' => ['profile.spelling-bee', 'profile.spelling-bee.show']],
+        ['id' => 'pips', 'label' => \App\Enums\GameType::Pips->label(), 'routes' => ['profile.pips', 'profile.pips.show']],
         ['id' => 'punchline', 'label' => \App\Enums\GameType::Punchline->label(), 'routes' => ['profile.punchline', 'profile.punchline.show']],
         ['id' => 'hoax', 'label' => \App\Enums\GameType::Hoax->label(), 'routes' => ['profile.hoax', 'profile.hoax.show']],
     ];

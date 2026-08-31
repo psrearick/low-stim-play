@@ -8,27 +8,18 @@ The Order of Work list is a separate, ordinary numbered list reflecting current 
 
 ## Order of Work
 
-1. [Task 10: Spec and build Pips](#10-spec-and-build-pips)
-2. [Task 19: Spec and build Connections and Strands](#19-spec-and-build-connections-and-strands)
-3. [Task 23: Add "Sign in with Google"](#23-add-sign-in-with-google)
+1. [Task 19: Spec and build Connections and Strands](#19-spec-and-build-connections-and-strands)
+2. [Task 23: Add "Sign in with Google"](#23-add-sign-in-with-google)
 
 ## Tasks
 
-### 10. Spec and build Pips
-
-Originally part of a single "spec and build NYT-style puzzle games" task covering Wordle, Pips, Spelling Bee, Strands, and Connections; split up (2026-08-23) once Wordle shipped and Connections/Strands turned out to need substantially different infrastructure (see Task 19) — Pips and Spelling Bee stayed together as this task since both were the two remaining games without an LLM-authored-content problem, even though (per their full specs) they ended up landing on different persistence models from each other.
-
-**Word Hive (Spelling Bee) is now fully built** — see `docs/DEVLOG.md`'s own "Word Hive" section for the complete build writeup (resumable/daily wiring, the exclusion-filter reuse, the rank ladder, a real button-sizing bug caught by a geometry check). Remaining: **Pips**. Full spec: [`docs/specs/pips.md`](specs/pips.md) (ships as "Pips," no rename) — fully resolved and ready to build from, not just a skeleton. Unlike Spelling Bee/Wordle, Pips does **not** fit the zero-persistence `DailyPuzzle::seedFor()` model — resolving its "verify solution uniqueness?" open question in favor of building a real constraint solver made per-request generation too expensive to redo on every visit, so it needs its own new persisted `pips_puzzles` table instead (see that spec's section 4).
-
-Once built, wire it into the shared puzzle-code/daily-puzzle/Challenge-a-Friend infrastructure Task 11 built for Boggle and Word Blocks (see `docs/DEVLOG.md`'s "Boggle" and "Word Blocks" sections), adapted for Pips' own persisted-puzzle model per its spec: add the game to `GameType::isChallengeable()`, generate its seed via `DailyPuzzle::seedFor()` (used to look up/generate-and-cache the matching `pips_puzzles` row), and add its own link column to the `/daily-puzzles` archive page. `docs/DEVLOG.md`'s "Word Hive" section is a complete worked example of the *zero-persistence* half of this task's shape end-to-end — Pips' own persisted-puzzle wiring needs its own care rather than assuming an identical copy-paste.
-
 ### 19. Spec and build Connections and Strands
 
-Split out from Task 10 (2026-08-23) because both need real semantic content this app has no precedent for generating — its only existing LLM-backed service, `FamilyFeud\JudgeService`, judges a guess against a fixed answer list rather than authoring content — and likely need a persisted puzzle-content table rather than the on-the-fly seed derivation every other puzzle game (including Pips/Spelling Bee, Task 10) uses. That's a shared open design question worth resolving once rather than per-game (see either spec's section 1) before writing full build specs. Skeletons exist: [`docs/specs/connections.md`](specs/connections.md), [`docs/specs/strands.md`](specs/strands.md).
+Split out from former Task 10 (2026-08-23, since completed and removed — see `docs/DEVLOG.md`'s "Word Hive" and "Pips" sections) because both need real semantic content this app has no precedent for generating — its only existing LLM-backed service, `FamilyFeud\JudgeService`, judges a guess against a fixed answer list rather than authoring content — and likely need a persisted puzzle-content table rather than the on-the-fly seed derivation every other puzzle game (including Pips/Word Hive) uses. That's a shared open design question worth resolving once rather than per-game (see either spec's section 1) before writing full build specs. Skeletons exist: [`docs/specs/connections.md`](specs/connections.md), [`docs/specs/strands.md`](specs/strands.md).
 
 Strands additionally needs a new word-placement/grid-tiling solver with no existing precedent in this app (Boggle's `Solver` finds words in a fixed grid; Strands needs to construct a grid that fits a predetermined word list, the reverse problem).
 
-Once built, wire each into the shared puzzle-code/daily-puzzle/Challenge-a-Friend infrastructure the same way as Task 10 (see that task's own wiring paragraph and `docs/DEVLOG.md`'s "Boggle"/"Word Blocks" sections).
+Once built, wire each into the shared puzzle-code/daily-puzzle/Challenge-a-Friend infrastructure the same way Pips and Word Hive did (see `docs/DEVLOG.md`'s "Boggle"/"Word Blocks"/"Word Hive"/"Pips" sections) — Pips' own section is the worked example for a persisted-puzzle model specifically, closer to what Connections/Strands will likely need than Word Hive's zero-persistence shape.
 
 ### 23. Add "Sign in with Google"
 

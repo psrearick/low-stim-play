@@ -27,13 +27,13 @@ new class extends Component
 ?>
 
 <x-slot:title>Daily Puzzles — Low Stim Play</x-slot>
-<x-slot:description>Play today's Word Grid, Quads, Five Letters, and Word Hive daily puzzle, or catch up on a past day from the archive.</x-slot:description>
+<x-slot:description>Play today's Word Grid, Quads, Five Letters, Word Hive, and Pips daily puzzle, or catch up on a past day from the archive.</x-slot:description>
 
 <div class="flex flex-col items-center w-full gap-6" style="max-width: 640px;">
     <div class="heading">Daily Puzzles</div>
 
     <p class="text-sm text-text/65 text-center">
-        A new puzzle every day for Word Grid, Quads, Five Letters, and Word Hive — everyone gets the same board. Signed in, each day can only be played once; browse back through the archive any time.
+        A new puzzle every day for Word Grid, Quads, Five Letters, Word Hive, and Pips — everyone gets the same board. Signed in, each day can only be played once (Pips locks each difficulty separately); browse back through the archive any time.
     </p>
 
     {{--
@@ -58,13 +58,29 @@ new class extends Component
             <a href="{{ route('spelling-bee.play', ['dailyDate' => now()->toDateString()]) }}" id="daily-spelling-bee-today">
                 <button type="button">Play Today's Word Hive</button>
             </a>
+            <a href="{{ route('pips.play', ['dailyDate' => now()->toDateString(), 'difficulty' => 'easy']) }}" id="daily-pips-easy-today">
+                <button type="button">Play Today's Pips (Easy)</button>
+            </a>
+            <a href="{{ route('pips.play', ['dailyDate' => now()->toDateString(), 'difficulty' => 'medium']) }}" id="daily-pips-medium-today">
+                <button type="button">Play Today's Pips (Medium)</button>
+            </a>
+            <a href="{{ route('pips.play', ['dailyDate' => now()->toDateString(), 'difficulty' => 'hard']) }}" id="daily-pips-hard-today">
+                <button type="button">Play Today's Pips (Hard)</button>
+            </a>
         </div>
     </div>
 
     <div class="flex flex-col gap-2 w-full">
         <p class="text-sm text-text/80 font-bold">Archive</p>
+        {{--
+            Pips gets one column (not three) -- three difficulty tiers
+            each getting their own inline link inside it, rather than
+            three separate table columns -- keeps this already-wide
+            scrolling table from growing to 7 columns (docs/specs/pips.md
+            section 4's daily wiring).
+        --}}
         <div class="w-full overflow-x-auto bg-surface border-2 border-surface-border rounded-lg">
-            <div class="grid min-w-[700px]" style="grid-template-columns: 1fr 1fr 1fr 1fr 1fr;">
+            <div class="grid min-w-[820px]" style="grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1.4fr;">
                 @foreach ($this->days->skip(1) as $date)
                     <div wire:key="day-{{ $date->toDateString() }}" class="contents">
                         <span class="pl-6 pr-3 py-3 {{ $loop->first ? '' : 'border-t border-surface-border' }} text-sm text-text">
@@ -79,8 +95,13 @@ new class extends Component
                         <span class="px-3 py-3 {{ $loop->first ? '' : 'border-t border-surface-border' }} text-sm">
                             <a href="{{ route('wordle.play', ['dailyDate' => $date->toDateString()]) }}" id="daily-wordle-{{ $date->toDateString() }}">Five Letters</a>
                         </span>
-                        <span class="pl-3 pr-6 py-3 {{ $loop->first ? '' : 'border-t border-surface-border' }} text-sm">
+                        <span class="px-3 py-3 {{ $loop->first ? '' : 'border-t border-surface-border' }} text-sm">
                             <a href="{{ route('spelling-bee.play', ['dailyDate' => $date->toDateString()]) }}" id="daily-spelling-bee-{{ $date->toDateString() }}">Word Hive</a>
+                        </span>
+                        <span class="pl-3 pr-6 py-3 {{ $loop->first ? '' : 'border-t border-surface-border' }} text-sm flex flex-wrap gap-x-2">
+                            <a href="{{ route('pips.play', ['dailyDate' => $date->toDateString(), 'difficulty' => 'easy']) }}" id="daily-pips-easy-{{ $date->toDateString() }}">Easy</a>
+                            <a href="{{ route('pips.play', ['dailyDate' => $date->toDateString(), 'difficulty' => 'medium']) }}" id="daily-pips-medium-{{ $date->toDateString() }}">Medium</a>
+                            <a href="{{ route('pips.play', ['dailyDate' => $date->toDateString(), 'difficulty' => 'hard']) }}" id="daily-pips-hard-{{ $date->toDateString() }}">Hard</a>
                         </span>
                     </div>
                 @endforeach

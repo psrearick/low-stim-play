@@ -71,16 +71,30 @@ two-cell piece that can be placed in either orientation.
   still always produces the same eventual puzzle — matching
   `Quartiles\PuzzleGenerator::attemptUniqueFragments()`'s own retry precedent) up to a
   capped number of attempts before a `RuntimeException`.
-- **Board/tray size: one fixed size for v1, difficulty tiers deferred.** NYT ships three
-  difficulty tiers a day with different board/tray sizes; v1 here ships a single fixed
-  size and a single daily puzzle, mirroring how Word Blocks itself shipped v1 without
-  resumable saves and added them afterward (`docs/specs/quartiles.md` section 4a) —
-  variable sizes/multiple daily difficulties are a v2 addendum, not a v1 requirement.
-  Combined with the domino-set decision below, the fixed size is **8 columns × 7 rows
-  (56 cells)**, sized to exactly fit a full standard set.
-- **Domino tray composition: a full standard double-six set.** All 28 dominoes, every
-  pip pair 0-0 through 6-6 — matches the physical game exactly and, combined with the
-  board-size decision above, requires no separate "which subset" logic for v1.
+- **Board/tray size: three difficulty tiers, shipped in v1.** Superseding an earlier
+  draft of this section that deferred tiers to a v2 addendum — revisited before build
+  and decided in favor of matching NYT's own Easy/Medium/Hard split from the start,
+  rather than bolting it on afterward. Each tier gets its own domino-set ceiling and a
+  board sized to exactly fit that set (the same "sized to exactly fit a full set" logic
+  the deferred draft already used for its one size):
+
+  | Tier   | Domino set  | Dominoes | Board (rows × cols) | Cells |
+  |--------|-------------|----------|----------------------|-------|
+  | Easy   | double-four | 15       | 5 × 6                | 30    |
+  | Medium | double-five | 21       | 6 × 7                | 42    |
+  | Hard   | double-six  | 28       | 7 × 8                | 56    |
+
+  `App\Enums\PipsDifficulty` (`Easy|Medium|Hard`) is the single source of truth for a
+  tier's `rows()`/`cols()`/`maxPip()` — every generation-time service takes these as
+  parameters rather than hardcoding the Hard tier's numbers. Applies to both free play
+  (three separate entry points/buttons, no in-page picker) and the daily puzzle (three
+  independent daily puzzles a day, one persisted row and one one-play-per-day lock per
+  tier — see section 4).
+- **Domino tray composition: a full double-N set per tier**, where N is that tier's
+  `maxPip` (4/5/6 above) — every pip pair `0-0` through `N-N`. Hard's set (all 28,
+  0-0 through 6-6) matches the physical game's full double-six set exactly; Easy/Medium
+  are graduated subsets, not curated selections, so no separate "which subset" logic is
+  needed beyond the one `maxPip` parameter.
 - **Interaction model: true drag-and-drop, built together with a full tap-to-select/
   tap-to-place alternative — not a drag-first, fallback-later sequencing.** Drag a
   domino from the tray onto the board, with drop position/direction determining
@@ -106,16 +120,20 @@ two-cell piece that can be placed in either orientation.
   section 3's uniqueness solver makes generation expensive enough (potentially several
   retried attempts, each involving a full board fill plus a second-solution search) that
   redoing it on every request for the same seed isn't viable the way Wordle's plain
-  dictionary pick is. Columns: `seed` (unique), `board` (JSON: dimensions, region
-  layout, each region's constraint type/value), `solution` (JSON: one valid domino
-  placement satisfying every region — used only during generation's uniqueness check
-  and as a future "reveal solution" hook, never sent to the client during play, though
-  for a different reason than Wordle's answer: nothing here is a secret a player is
-  trying to *guess*, so there's no play-time correctness reason to withhold it, only a
-  spoiler reason). Generation runs once per seed, on first request for that seed, and is
-  cached in this table from then on — the daily puzzle, and any archived past date, is
-  computed once and reused by every subsequent visitor, not regenerated per visitor the
-  way Wordle/Word Blocks/Spelling Bee's cheaper generators are.
+  dictionary pick is. Columns: `seed`, `difficulty` (`PipsDifficulty` value — a puzzle is
+  keyed by **seed + difficulty together**, `unique(['seed', 'difficulty'])`, since the
+  same seed integer can legitimately be requested at any of the three tiers and each
+  produces a genuinely different puzzle), `board` (JSON: dimensions, region layout, each
+  region's constraint type/value), `solution` (JSON: one valid domino placement
+  satisfying every region — used only during generation's uniqueness check and as a
+  future "reveal solution" hook, never sent to the client during play, though for a
+  different reason than Wordle's answer: nothing here is a secret a player is trying to
+  *guess*, so there's no play-time correctness reason to withhold it, only a spoiler
+  reason). Generation runs once per seed+difficulty pair, on first request for that
+  pair, and is cached in this table from then on — each tier's daily puzzle, and any
+  archived past date, is computed once and reused by every subsequent visitor, not
+  regenerated per visitor the way Wordle/Word Blocks/Spelling Bee's cheaper generators
+  are.
 - `App\Services\Pips\{PuzzleGenerator, RegionGrower, ConstraintDeriver, SolutionSolver}`
   — `PuzzleGenerator` orchestrates the generate-fill → grow-regions → derive-constraints
   → verify-uniqueness loop from section 3 (persisting the result to `pips_puzzles`);
@@ -136,9 +154,10 @@ two-cell piece that can be placed in either orientation.
 - `pages::pips.play` (route `pips.play`, path `/pips`): `board` (regions/constraints,
   loaded from the puzzle row), `placements` (cell → `{value, dominoId, orientation}`,
   only for cells actually covered so far), `trayRemaining` (domino ids not yet placed),
-  `selectedDominoId` (tap-to-select state, section 3), a live per-region status derived
-  from `ConstraintChecker`, and `ended`/`solved` once the board is fully and validly
-  filled.
+  `selectedDominoId` (tap-to-select state, section 3), `difficulty` (`PipsDifficulty`,
+  resolved from an explicit `#[Url]` query param or defaulted to Medium/resumed from an
+  in-progress session — section 3's tiers), a live per-region status derived from
+  `ConstraintChecker`, and `ended`/`solved` once the board is fully and validly filled.
 - **Scoring**: like Wordle, this game has no natural point total (`GameParticipant.
   score` needs an integer) — resolved as a duration-based score, rewarding a faster
   solve the way Wordle's rewards fewer guesses: elapsed time is measured from the first
@@ -149,9 +168,10 @@ two-cell piece that can be placed in either orientation.
   matching Wordle's own loss treatment.
 - `App\Services\Stats\PipsStatsService`, following the existing `statsFor()`/
   `gamesForUser()`/`bestMetrics()` shape: fastest solve, win rate (solved vs. abandoned),
-  and — once section 3's v2 difficulty tiers exist — a per-difficulty breakdown; v1
-  itself only has one difficulty, so that breakdown is future work, not part of this
-  service's v1 shape.
+  and a per-difficulty breakdown (`bestMetricsByDifficulty()`) — part of the v1 shape
+  from the start now that section 3 ships three tiers in v1, mirroring the solo/room
+  split `BoggleStatsService::bestMetricsByMode()` already established, extended from two
+  categories to three.
 
 ## 5. Accessibility
 
@@ -168,19 +188,26 @@ implemented.
 
 ## 6. Deliverables for v1
 
-- `GameType::Pips` (`label()` "Pips") + new `pips_puzzles` table (migration).
+- `GameType::Pips` (`label()` "Pips") + `App\Enums\PipsDifficulty` (Easy/Medium/Hard,
+  section 3) + new `pips_puzzles` table (migration, keyed by seed+difficulty).
 - `App\Services\Pips\{PuzzleGenerator, RegionGrower, ConstraintDeriver, SolutionSolver,
-  ConstraintChecker}`.
-- `pages::pips.play` — 8×7 board of outlined regions, a 28-domino tray, drag-and-drop
-  placement with a full tap-to-select/tap-to-place alternative (section 3), live
-  per-region satisfied/broken feedback, duration-based scoring, End Game. Route `/pips`,
-  name `pips.play`.
+  ConstraintChecker}`, every generation-time class parameterized by a tier's
+  rows/cols/maxPip rather than hardcoding the Hard tier's numbers.
+- `pages::pips.play` — a board of outlined regions sized per the resolved difficulty
+  tier, a full double-N domino tray for that tier, drag-and-drop placement with a full
+  tap-to-select/tap-to-place alternative (section 3), live per-region satisfied/broken
+  feedback, duration-based scoring, End Game. Route `/pips`, name `pips.play`, tier
+  chosen via an explicit `#[Url] $difficulty` query param (three separate entry points —
+  homepage buttons, daily-puzzle links — rather than an in-page picker).
 - Daily-puzzle wiring matching Task 11's existing shape for Boggle/Word Blocks/Wordle,
-  adapted for this game's persisted-puzzle model (section 4): `GameType::
-  isChallengeable()` gains a `Pips` case, `#[Url] $dailyDate` resolves to a seed via
-  `DailyPuzzle::seedFor()` which looks up (generating and caching on first request) the
-  matching `pips_puzzles` row, one-play-per-day lock for signed-in users on today's
-  date, and a new "Pips" link column on `pages::daily-puzzles`.
+  adapted for this game's persisted-puzzle *and* three-tier model (section 4):
+  `GameType::isChallengeable()` gains a `Pips` case, `#[Url] $dailyDate` +
+  `#[Url] $difficulty` together resolve a seed via `DailyPuzzle::seedFor(GameType::Pips,
+  $date, $difficulty->value)` (that method's optional third `$variant` parameter, added
+  for this) which looks up (generating and caching on first request) the matching
+  `pips_puzzles` row, an independent one-play-per-day lock per tier for signed-in users
+  on today's date, and a new "Pips" link column (containing all three tiers' links) on
+  `pages::daily-puzzles`.
 - `pages::profile.pips.index`/`.show` + `App\Services\Stats\PipsStatsService`, following
   the existing per-game profile pattern.
 - Homepage card, sidebar link ("Pips"), `<x-player-stats>` wiring — same as every prior
