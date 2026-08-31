@@ -89,6 +89,12 @@ test('drag, tap-to-place, and pick-up-by-tap all place/remove dominoes correctly
     // pages::boggle.play uses, not native draggable="" elements) --
     // confirmed live that drag()/dragTo() hangs indefinitely against this
     // page for exactly that reason.
+    // Also captures the floating drag-ghost's own position at each step and
+    // whether the original tray tile is hidden mid-drag (docs/DEVLOG.md's
+    // Pips entry -- a real regression test for "the tile visibly follows
+    // the cursor while dragging," not just an eyeballed screenshot) --
+    // returned as JSON rather than asserted inline, since a single browser
+    // round trip per drag step is what actually makes this test fast.
     $dragScript = <<<'JS'
         (() => {
             const tray = document.getElementById('pips-tray-__DOMINO_ID__');
@@ -107,6 +113,7 @@ test('drag, tap-to-place, and pick-up-by-tap all place/remove dominoes correctly
             }
 
             fire('pointerdown', tray, fromPoint);
+            const ghostPositions = [];
             const steps = 5;
             for (let i = 1; i <= steps; i++) {
                 const point = {
@@ -114,30 +121,45 @@ test('drag, tap-to-place, and pick-up-by-tap all place/remove dominoes correctly
                     y: fromPoint.y + (toPoint.y - fromPoint.y) * (i / steps),
                 };
                 fire('pointermove', document, point);
+
+                const ghost = document.querySelector('.pips-drag-ghost');
+                ghostPositions.push(ghost ? { left: ghost.style.left, top: ghost.style.top } : null);
             }
+
+            const trayHiddenDuringDrag = tray.style.visibility === 'hidden';
             fire('pointerup', document, toPoint);
+            const ghostRemovedAfterDrop = document.querySelector('.pips-drag-ghost') === null;
+
+            return JSON.stringify({ ghostPositions, trayHiddenDuringDrag, ghostRemovedAfterDrop });
         })()
         JS;
 
-    $page->script(str_replace(
+    $dragResult = json_decode($page->script(str_replace(
         ['__DOMINO_ID__', '__CELL_A__'],
         [$firstDominoId, (string) $first['cellA']],
         $dragScript,
-    ));
+    )), true);
+
+    $ghostPositions = array_filter($dragResult['ghostPositions']);
+    expect($ghostPositions)->not->toBeEmpty();
+    expect(array_unique(array_map(fn (array $p) => $p['left'].','.$p['top'], $ghostPositions)))
+        ->toHaveCount(count($ghostPositions), 'the drag ghost should move to a new position on every pointermove step');
+    expect($dragResult['trayHiddenDuringDrag'])->toBeTrue();
+    expect($dragResult['ghostRemovedAfterDrop'])->toBeTrue();
 
     waitUntilTrue($page, "document.getElementById('pips-tray-{$firstDominoId}') === null");
 
     $page->assertMissing("#pips-tray-{$firstDominoId}");
 
     $filled = json_decode($page->script(
-        'JSON.stringify([...document.querySelectorAll(\'.pips-cell[data-filled="1"]\')].map(el => ({cell: Number(el.dataset.cell), dominoId: el.dataset.dominoId, value: el.textContent.trim()})))'
+        'JSON.stringify([...document.querySelectorAll(\'.pips-cell[data-filled="1"]\')].map(el => ({cell: Number(el.dataset.cell), dominoId: el.dataset.dominoId, value: el.dataset.value})))'
     ), true);
 
     expect($filled)->toHaveCount(2);
     expect($filled[0]['dominoId'])->toBe($firstDominoId)
         ->and($filled[1]['dominoId'])->toBe($firstDominoId);
 
-    $cols = PipsDifficulty::Easy->cols();
+    $cols = $puzzle->board['dimensions']['cols'];
     $rowA = intdiv($filled[0]['cell'], $cols);
     $colA = $filled[0]['cell'] % $cols;
     $rowB = intdiv($filled[1]['cell'], $cols);
@@ -195,6 +217,17 @@ test('drag, tap-to-place, and pick-up-by-tap all place/remove dominoes correctly
     waitUntilTrue($page, "document.getElementById('pips-tray-{$secondDominoId}') !== null");
 
     $page->assertPresent("#pips-tray-{$secondDominoId}");
+
+    // --- Region colors + on-board constraint badges (docs/DEVLOG.md's Pips
+    // entry) render for real, not just in the persisted board JSON.
+    $cellBackground = $page->script("getComputedStyle(document.getElementById('pips-cell-{$first['cellA']}')).backgroundColor");
+    expect($cellBackground)->not->toBe('rgba(0, 0, 0, 0)');
+
+    $hasConstrainedRegion = collect($puzzle->board['regions'])->contains(fn (array $region) => $region['badge'] !== null);
+    if ($hasConstrainedRegion) {
+        $badgeCount = $page->script("document.querySelectorAll('.pips-badge').length");
+        expect($badgeCount)->toBeGreaterThan(0);
+    }
 
     $page->assertNoJavaScriptErrors();
 });

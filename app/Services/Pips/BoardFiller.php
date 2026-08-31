@@ -15,12 +15,14 @@ use RuntimeException;
  * PuzzleGenerator's orchestration, mirrored in docs/DEVLOG.md's Pips entry
  * as a minor, non-design-affecting addition.
  *
- * A rectangle with an even cell count (true of every App\Enums\PipsDifficulty
- * tier) always has a domino tiling, and an 8x7-scale board has enormously
- * many of them -- MRV (most-constrained-cell-first) ordering means this
- * essentially never backtracks meaningfully in practice. The node/attempt
- * caps below exist purely to bound worst-case latency in a web request, not
- * because failure is expected.
+ * A shape with an even cell count and a balanced checkerboard split (true of
+ * every board ShapeGrower hands this class -- see its own docblock) admits a
+ * domino tiling with overwhelming probability at these board sizes, and MRV
+ * (most-constrained-cell-first) ordering means this essentially never
+ * backtracks meaningfully in practice. The node/attempt caps below exist
+ * purely to bound worst-case latency in a web request, not because failure
+ * is expected -- PuzzleGenerator regrows a fresh shape on the rare exhaustion
+ * (docs/DEVLOG.md's Pips entry).
  */
 class BoardFiller
 {
@@ -29,17 +31,17 @@ class BoardFiller
     private const MAX_FILL_ATTEMPTS = 50;
 
     /**
+     * @param  list<int>  $activeCells  the board's real, possibly-irregular playable cells (App\Services\Pips\ShapeGrower's own output) -- never assumed to be a dense 0..rows*cols-1 rectangle
      * @return array{cellValues: array<int, int>, placements: list<array{cellA: int, cellB: int, valueA: int, valueB: int}>}
      */
-    public function fill(Randomizer $randomizer, int $rows, int $cols, int $maxPip): array
+    public function fill(Randomizer $randomizer, int $rows, int $cols, array $activeCells, int $maxPip): array
     {
-        $neighbors = Grid::neighbors($rows, $cols);
-        $cellCount = $rows * $cols;
+        $neighbors = Grid::activeNeighbors($rows, $cols, $activeCells);
 
         $pairs = null;
 
         for ($attempt = 0; $attempt < self::MAX_FILL_ATTEMPTS; $attempt++) {
-            $pairs = $this->attemptMatch($randomizer, $cellCount, $neighbors);
+            $pairs = $this->attemptMatch($randomizer, $activeCells, $neighbors);
 
             if ($pairs !== null) {
                 break;
@@ -47,7 +49,7 @@ class BoardFiller
         }
 
         if ($pairs === null) {
-            throw new RuntimeException("Could not tile a {$rows}x{$cols} board with dominoes after ".self::MAX_FILL_ATTEMPTS.' attempts.');
+            throw new RuntimeException("Could not tile a {$rows}x{$cols} shape with dominoes after ".self::MAX_FILL_ATTEMPTS.' attempts.');
         }
 
         return $this->assignDominoes($randomizer, $pairs, $maxPip);
@@ -59,12 +61,13 @@ class BoardFiller
      * end or budget exhaustion, in which case the caller starts a fresh
      * attempt from an empty state.
      *
+     * @param  list<int>  $activeCells
      * @param  array<int, list<int>>  $neighbors
      * @return list<array{0: int, 1: int}>|null
      */
-    private function attemptMatch(Randomizer $randomizer, int $cellCount, array $neighbors): ?array
+    private function attemptMatch(Randomizer $randomizer, array $activeCells, array $neighbors): ?array
     {
-        $matched = array_fill(0, $cellCount, false);
+        $matched = array_fill_keys($activeCells, false);
         $remaining = array_map('count', $neighbors);
         $pairs = [];
         $nodeCount = 0;

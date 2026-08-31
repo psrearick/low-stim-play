@@ -30,7 +30,7 @@ test('a fully pinned-down board is reported unique', function () {
         ],
     ];
 
-    expect($this->solver->check($regions, 1, 4, 1, $knownSolution))->toBe(SolverStatus::Unique);
+    expect($this->solver->check($regions, 1, 4, [0, 1, 2, 3], 1, $knownSolution))->toBe(SolverStatus::Unique);
     expect($this->solver->hasObviousDuplicate($regions, 1, $knownSolution))->toBeFalse();
 });
 
@@ -51,7 +51,7 @@ test('a board with no real constraints admits a second solution', function () {
     // are fully inside the one 'none' region, so swapping them changes
     // nothing that region can observe (see this class's own docblock) and
     // correctly doesn't register as a duplicate through that cheap path.
-    expect($this->solver->check($regions, 1, 4, 1, $knownSolution))->toBe(SolverStatus::NotUnique);
+    expect($this->solver->check($regions, 1, 4, [0, 1, 2, 3], 1, $knownSolution))->toBe(SolverStatus::NotUnique);
     expect($this->solver->hasObviousDuplicate($regions, 1, $knownSolution))->toBeFalse();
 });
 

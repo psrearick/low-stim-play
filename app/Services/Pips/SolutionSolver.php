@@ -70,6 +70,9 @@ class SolutionSolver
     /** @var array<int, list<int>> */
     private array $neighbors;
 
+    /** @var list<int> the board's real, possibly-irregular playable cells */
+    private array $activeCells;
+
     private int $maxPip;
 
     private int $cellCount;
@@ -136,13 +139,15 @@ class SolutionSolver
 
     /**
      * @param  array<int, array{cells: list<int>, constraint: array{type: string, value: int|null}}>  $regions
+     * @param  list<int>  $activeCells  the board's real, possibly-irregular playable cells (App\Services\Pips\ShapeGrower's own output) -- never assumed to be a dense 0..rows*cols-1 rectangle
      * @param  array{cellValues: array<int, int>, placements: list<array{cellA: int, cellB: int, valueA: int, valueB: int}>}  $knownSolution
      */
-    public function check(array $regions, int $rows, int $cols, int $maxPip, array $knownSolution): SolverStatus
+    public function check(array $regions, int $rows, int $cols, array $activeCells, int $maxPip, array $knownSolution): SolverStatus
     {
-        $this->neighbors = Grid::neighbors($rows, $cols);
+        $this->neighbors = Grid::activeNeighbors($rows, $cols, $activeCells);
+        $this->activeCells = $activeCells;
         $this->maxPip = $maxPip;
-        $this->cellCount = $rows * $cols;
+        $this->cellCount = count($activeCells);
         $this->setUpRegions($regions);
 
         $this->knownSignature = $this->regionValueSignature($knownSolution['cellValues']);
@@ -160,7 +165,7 @@ class SolutionSolver
             return SolverStatus::NotUnique;
         }
 
-        $this->cellValue = array_fill(0, $this->cellCount, null);
+        $this->cellValue = array_fill_keys($activeCells, null);
         $this->usedDominoes = [];
         $this->unfilledNeighborCount = array_map(count(...), $this->neighbors);
         $this->placements = [];
@@ -342,7 +347,7 @@ class SolutionSolver
         $bestNeighborCount = null;
         $bestRegionRemaining = null;
 
-        for ($cell = 0; $cell < $this->cellCount; $cell++) {
+        foreach ($this->activeCells as $cell) {
             if ($this->cellValue[$cell] !== null) {
                 continue;
             }

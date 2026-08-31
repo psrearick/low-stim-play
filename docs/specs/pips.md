@@ -75,14 +75,13 @@ two-cell piece that can be placed in either orientation.
   draft of this section that deferred tiers to a v2 addendum — revisited before build
   and decided in favor of matching NYT's own Easy/Medium/Hard split from the start,
   rather than bolting it on afterward. Each tier gets its own domino-set ceiling and a
-  board sized to exactly fit that set (the same "sized to exactly fit a full set" logic
-  the deferred draft already used for its one size):
+  cell count that exactly fits that set (`2 × dominoCount()`):
 
-  | Tier   | Domino set  | Dominoes | Board (rows × cols) | Cells |
-  |--------|-------------|----------|----------------------|-------|
-  | Easy   | double-four | 15       | 5 × 6                | 30    |
-  | Medium | double-five | 21       | 6 × 7                | 42    |
-  | Hard   | double-six  | 28       | 7 × 8                | 56    |
+  | Tier   | Domino set  | Dominoes | Cells | Bounding box |
+  |--------|-------------|----------|-------|--------------|
+  | Easy   | double-four | 15       | 30    | 6 × 8        |
+  | Medium | double-five | 21       | 42    | 7 × 9        |
+  | Hard   | double-six  | 28       | 56    | 8 × 10       |
 
   `App\Enums\PipsDifficulty` (`Easy|Medium|Hard`) is the single source of truth for a
   tier's `rows()`/`cols()`/`maxPip()` — every generation-time service takes these as
@@ -90,6 +89,20 @@ two-cell piece that can be placed in either orientation.
   (three separate entry points/buttons, no in-page picker) and the daily puzzle (three
   independent daily puzzles a day, one persisted row and one one-play-per-day lock per
   tier — see section 4).
+- **Board shape: an irregular, grown polyomino within a bounding box, not a filled
+  rectangle — added after an initial ship, once screenshots of the real NYT game made
+  clear how far a dense rectangle actually diverged from it.** `rows()`/`cols()` above
+  are a deliberately oversized *bounding box* (roughly 1.4-1.6× the tier's own cell
+  count in area), not the board itself: `App\Services\Pips\ShapeGrower` grows a
+  connected, checkerboard-balanced shape of exactly that tier's cell count within the
+  box (randomized frontier growth from a central seed cell, the same technique
+  `RegionGrower` already used for regions, just for one shape instead of many), then
+  `BoardFiller` tiles *that* shape rather than a dense rectangle. The grown shape's own
+  tight bounding box (re-indexed to 0-based, always ≤ the tier's own box) is what's
+  actually persisted and rendered — it can contain an enclosed interior hole (matching
+  the real game's own occasional "picture frame" layouts), which is a real, valid
+  outcome of the growth, not a bug. See `docs/DEVLOG.md`'s Pips entry for why this grows
+  shape-then-tiles rather than growing both together.
 - **Domino tray composition: a full double-N set per tier**, where N is that tier's
   `maxPip` (4/5/6 above) — every pip pair `0-0` through `N-N`. Hard's set (all 28,
   0-0 through 6-6) matches the physical game's full double-six set exactly; Easy/Medium
@@ -133,13 +146,22 @@ two-cell piece that can be placed in either orientation.
   pair, and is cached in this table from then on — each tier's daily puzzle, and any
   archived past date, is computed once and reused by every subsequent visitor, not
   regenerated per visitor the way Wordle/Word Blocks/Spelling Bee's cheaper generators
-  are.
-- `App\Services\Pips\{PuzzleGenerator, RegionGrower, ConstraintDeriver, SolutionSolver}`
-  — `PuzzleGenerator` orchestrates the generate-fill → grow-regions → derive-constraints
-  → verify-uniqueness loop from section 3 (persisting the result to `pips_puzzles`);
-  `RegionGrower` and `ConstraintDeriver` are its two extracted sub-steps; `SolutionSolver`
-  is the uniqueness-checking constraint solver, kept separate since it's a genuinely
-  distinct algorithm (search) from generation (construction).
+  are. `board`'s exact shape (section 3's grown-shape rework): `dimensions` (the grown
+  shape's own tight bounding box), `cells` (the flat indices actually part of the board
+  — not every index in `[0, rows*cols)`, since the box can contain inactive holes), and
+  `regions`, each carrying `cells`, `constraint`, `color` (a `RegionColorer`-assigned
+  palette index, 0-5) and `badge` (a nullable `{row, col}` fractional board-space anchor
+  for its on-board constraint glyph, null for a `none` constraint) — `color`/`badge` are
+  computed once at generation time and persisted, not recomputed per render, so a
+  resumed session always shows the same colors/anchors it started with.
+- `App\Services\Pips\{PuzzleGenerator, ShapeGrower, RegionGrower, RegionColorer,
+  ConstraintDeriver, SolutionSolver}` — `PuzzleGenerator` orchestrates the
+  grow-shape → fill → grow-regions → derive-constraints → assign-colors →
+  verify-uniqueness loop from section 3 (persisting the result to `pips_puzzles`);
+  `ShapeGrower`, `RegionGrower`, `RegionColorer`, and `ConstraintDeriver` are its
+  extracted sub-steps; `SolutionSolver` is the uniqueness-checking constraint solver,
+  kept separate since it's a genuinely distinct algorithm (search) from generation
+  (construction).
 - `App\Services\Pips\ConstraintChecker`: given a region's constraint and whichever of
   its cells are currently filled, reports whether it's already satisfied, already
   broken, or not yet determinable (e.g. an "all equal" region with only one cell filled
@@ -182,16 +204,33 @@ first-class second way to play, not a degraded fallback bolted on afterward — 
 can't perform a drag gesture gets the exact same placement capability, just via taps
 instead. Region constraint symbols (=, ≠, >, <, a number) are already shape/text-based
 rather than color-coded, which fits this app's "don't rely on color alone" rule for
-free; the live per-region satisfied/broken feedback from `ConstraintChecker` needs the
-same treatment (a shape/icon change, not just a background-color shift) when it's
-implemented.
+free.
+
+Region *fill color* (section 3's `RegionColorer`) is a grouping aid ("which cells belong
+together"), not a pass/fail signal — this app already treats that distinction as
+color-only-is-fine elsewhere (see `resources/css/app.css`'s own comment on the
+`--rival-1..4` participant colors), and this is the same reasoning extended from a
+border hue to a full fill. Live per-region satisfied/broken feedback stays
+shape/icon-based on top of that fill, not color-only: satisfied overrides the region's
+resting dashed border to a solid, thicker, accent-colored one (a real style change) plus
+a ✓ glyph; broken keeps the same dashed style (so it never collides with the region's
+own always-on dashed grouping border) and tints the fill toward `--warn`, with the ✕
+glyph carrying the actual signal and the tint only reinforcing it.
+
+The drag-and-drop gesture's own visual feedback (a floating tile that follows the
+cursor) is pointer-driven, not autoplaying motion — it updates only in direct response
+to the player's own `pointermove` events, never via a CSS transition/animation (this
+app's own global `transition: none !important` rule already forbids that), so it
+doesn't conflict with `prefers-reduced-motion`'s intent the way a decorative animation
+would.
 
 ## 6. Deliverables for v1
 
 - `GameType::Pips` (`label()` "Pips") + `App\Enums\PipsDifficulty` (Easy/Medium/Hard,
   section 3) + new `pips_puzzles` table (migration, keyed by seed+difficulty).
-- `App\Services\Pips\{PuzzleGenerator, RegionGrower, ConstraintDeriver, SolutionSolver,
-  ConstraintChecker}`, every generation-time class parameterized by a tier's
+- `App\Services\Pips\{PuzzleGenerator, ShapeGrower, RegionGrower, RegionColorer,
+  ConstraintDeriver, SolutionSolver, ConstraintChecker}`, every generation-time class
+  parameterized by a tier's
   rows/cols/maxPip rather than hardcoding the Hard tier's numbers.
 - `pages::pips.play` — a board of outlined regions sized per the resolved difficulty
   tier, a full double-N domino tray for that tier, drag-and-drop placement with a full

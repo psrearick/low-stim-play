@@ -58,7 +58,7 @@ new class extends Component
      * resetGame(). Never includes the puzzle's `solution` (see PipsPuzzle's
      * own docblock).
      *
-     * @var array{dimensions: array{rows: int, cols: int}, regions: list<array{id: int, cells: list<int>, constraint: array{type: string, value: int|null}}>}
+     * @var array{dimensions: array{rows: int, cols: int}, cells: list<int>, regions: list<array{id: int, cells: list<int>, constraint: array{type: string, value: int|null}, color: int, badge: ?array{row: float, col: float}}>}
      */
     public array $board = [];
 
@@ -273,6 +273,25 @@ new class extends Component
     }
 
     /**
+     * The glyph shown on a region's on-board badge -- 'none' regions never
+     * get a badge at all (see the Blade section below), so this is never
+     * called for that type.
+     *
+     * @param  array{type: string, value: int|null}  $constraint
+     */
+    private function badgeGlyphFor(array $constraint): string
+    {
+        return match ($constraint['type']) {
+            'sum' => (string) $constraint['value'],
+            'equal' => '=',
+            'different' => '≠',
+            'greater' => '>'.$constraint['value'],
+            'less' => '<'.$constraint['value'],
+            default => '',
+        };
+    }
+
+    /**
      * @param  list<int>  $cells
      * @return array{0: list<int>, 1: int}
      */
@@ -294,9 +313,7 @@ new class extends Component
 
     private function isBoardSolved(): bool
     {
-        $cellCount = $this->board['dimensions']['rows'] * $this->board['dimensions']['cols'];
-
-        if (count($this->placements) !== $cellCount) {
+        if (count($this->placements) !== count($this->board['cells'])) {
             return false;
         }
 
@@ -613,46 +630,50 @@ new class extends Component
     </p>
 
     @unless ($ended)
+        @php
+            $cols = $board['dimensions']['cols'];
+            $rows = $board['dimensions']['rows'];
+            $cellRegion = [];
+            foreach ($board['regions'] as $region) {
+                foreach ($region['cells'] as $cell) {
+                    $cellRegion[$cell] = $region;
+                }
+            }
+        @endphp
         <div class="flex flex-col items-center gap-4 w-full max-w-2xl" id="pips-board-wrap"
-            data-rows="{{ $board['dimensions']['rows'] }}" data-cols="{{ $board['dimensions']['cols'] }}">
-            <div class="grid gap-1" id="pips-board"
-                style="grid-template-columns: repeat({{ $board['dimensions']['cols'] }}, minmax(0, 1fr)); max-width: 100%;">
-                @php
-                    $cellRegion = [];
-                    foreach ($board['regions'] as $region) {
-                        foreach ($region['cells'] as $cell) {
-                            $cellRegion[$cell] = $region;
-                        }
-                    }
-                @endphp
-                @for ($row = 0; $row < $board['dimensions']['rows']; $row++)
-                    @for ($col = 0; $col < $board['dimensions']['cols']; $col++)
-                        @php
-                            $cell = $row * $board['dimensions']['cols'] + $col;
-                            $region = $cellRegion[$cell];
-                            $status = $this->regionStatus[$region['id']] ?? 'Unknown';
-                            $filled = $placements[$cell] ?? null;
-                        @endphp
-                        <button type="button"
-                            id="pips-cell-{{ $cell }}"
-                            data-cell="{{ $cell }}"
-                            data-region="{{ $region['id'] }}"
-                            data-filled="{{ $filled !== null ? '1' : '0' }}"
-                            data-domino-id="{{ $filled['dominoId'] ?? '' }}"
-                            class="pips-cell pips-status-{{ strtolower($status) }} flex items-center justify-center aspect-square border-2 rounded-md text-sm font-bold"
-                        >
-                            {{ $filled['value'] ?? '' }}
-                        </button>
-                    @endfor
-                @endfor
-            </div>
+            data-rows="{{ $rows }}" data-cols="{{ $cols }}">
+            <div class="pips-board" id="pips-board" style="--pips-rows: {{ $rows }}; --pips-cols: {{ $cols }};">
+                @foreach ($board['cells'] as $cell)
+                    @php
+                        $region = $cellRegion[$cell];
+                        $status = $this->regionStatus[$region['id']] ?? 'Unknown';
+                        $filled = $placements[$cell] ?? null;
+                        $cellRow = intdiv($cell, $cols);
+                        $cellCol = $cell % $cols;
+                    @endphp
+                    <button type="button"
+                        id="pips-cell-{{ $cell }}"
+                        data-cell="{{ $cell }}"
+                        data-region="{{ $region['id'] }}"
+                        data-filled="{{ $filled !== null ? '1' : '0' }}"
+                        data-domino-id="{{ $filled['dominoId'] ?? '' }}"
+                        data-value="{{ $filled['value'] ?? '' }}"
+                        class="pips-cell pips-status-{{ strtolower($status) }} flex items-center justify-center border-2 rounded-md"
+                        style="grid-column: {{ $cellCol + 1 }}; grid-row: {{ $cellRow + 1 }}; --pips-region-color: var(--region-{{ $region['color'] + 1 }});"
+                    >
+                        @if ($filled !== null)
+                            <x-pips-pip :value="$filled['value']" />
+                        @endif
+                    </button>
+                @endforeach
 
-            <div class="flex flex-col gap-1 w-full max-w-md" id="pips-region-legend">
                 @foreach ($board['regions'] as $region)
-                    <p class="text-xs text-text/65" id="pips-region-{{ $region['id'] }}-constraint">
-                        Region {{ $region['id'] }}: {{ $region['constraint']['type'] }}@if ($region['constraint']['value'] !== null) ({{ $region['constraint']['value'] }})@endif
-                        — {{ $this->regionStatus[$region['id']] ?? 'Unknown' }}
-                    </p>
+                    @continue ($region['badge'] === null)
+                    <div class="pips-badge"
+                        style="--pips-badge-row: {{ $region['badge']['row'] }}; --pips-badge-col: {{ $region['badge']['col'] }}; --pips-region-color: var(--region-{{ $region['color'] + 1 }});"
+                    >
+                        <span>{{ $this->badgeGlyphFor($region['constraint']) }}</span>
+                    </div>
                 @endforeach
             </div>
 
@@ -663,9 +684,11 @@ new class extends Component
                         id="pips-tray-{{ $dominoId }}"
                         data-domino-id="{{ $dominoId }}"
                         wire:click="selectTrayDomino('{{ $dominoId }}')"
-                        class="pips-domino flex items-center gap-1 border-2 rounded-md px-2 py-1 {{ $selectedDominoId === $dominoId ? 'pips-domino-selected' : '' }}"
+                        class="pips-domino flex items-center border-2 rounded-md p-1 {{ $selectedDominoId === $dominoId ? 'pips-domino-selected' : '' }}"
                     >
-                        <span>{{ $a }}</span><span>|</span><span>{{ $b }}</span>
+                        <x-pips-pip :value="(int) $a" />
+                        <div class="pips-domino-divider"></div>
+                        <x-pips-pip :value="(int) $b" />
                     </button>
                 @endforeach
             </div>
@@ -795,8 +818,16 @@ new class extends Component
     // would be the tail wagging the dog, so this instead attaches/detaches
     // document-level listeners for the lifetime of one drag.
     let draggingDominoId = null;
+    let draggingOriginEl = null;
     let dragStart = null;
     let lastMove = null;
+    let dragGhostEl = null;
+
+    // Distance a pointer has to travel before a tray press counts as a real
+    // drag rather than a tap -- both onTrayDragEnd's own tap/drag split and
+    // the ghost's own lazy creation below use this exact same threshold, so
+    // a plain tap never flashes a ghost into existence for a single frame.
+    const DRAG_THRESHOLD_PX = 10;
 
     trayEl.addEventListener('pointerdown', (e) => {
         if ($wire.ended) {
@@ -807,6 +838,7 @@ new class extends Component
             return;
         }
         draggingDominoId = dominoEl.dataset.dominoId;
+        draggingOriginEl = dominoEl;
         dragStart = { x: e.clientX, y: e.clientY };
         lastMove = dragStart;
         cacheCellCenters();
@@ -829,10 +861,37 @@ new class extends Component
 
     function onTrayDragMove(e) {
         lastMove = { x: e.clientX, y: e.clientY };
+
+        if (!draggingDominoId) {
+            return;
+        }
+
+        if (!dragGhostEl && Math.hypot(e.clientX - dragStart.x, e.clientY - dragStart.y) > DRAG_THRESHOLD_PX) {
+            // Created lazily on the first real move past the tap threshold,
+            // not at pointerdown -- a plain tap never gets far enough to
+            // reach here, so it never flashes a ghost into existence. The
+            // original tray tile stays in the DOM the whole time (just
+            // hidden), so a cancelled/rejected drop "snaps back" for free.
+            dragGhostEl = draggingOriginEl.cloneNode(true);
+            dragGhostEl.removeAttribute('id');
+            dragGhostEl.classList.add('pips-drag-ghost');
+            document.body.appendChild(dragGhostEl);
+            draggingOriginEl.style.visibility = 'hidden';
+        }
+
+        if (dragGhostEl) {
+            // Direct property writes, not a CSS transition -- this app's
+            // own global `transition: none !important` rule (resources/css/
+            // app.css) already forbids animating this, which is the right
+            // behavior here anyway: 1:1 cursor tracking, no easing lag.
+            dragGhostEl.style.left = e.clientX + 'px';
+            dragGhostEl.style.top = e.clientY + 'px';
+        }
     }
 
     function onTrayDragEnd(e) {
         stopTrayDragListening();
+        removeDragGhost();
 
         if (!draggingDominoId) {
             return;
@@ -840,7 +899,7 @@ new class extends Component
         const dominoId = draggingDominoId;
         draggingDominoId = null;
 
-        const moved = Math.hypot(e.clientX - dragStart.x, e.clientY - dragStart.y) > 10;
+        const moved = Math.hypot(e.clientX - dragStart.x, e.clientY - dragStart.y) > DRAG_THRESHOLD_PX;
         if (!moved) {
             // A plain tap, no real drag -- the tray button's own
             // wire:click="selectTrayDomino(...)" handles it below.
@@ -864,6 +923,7 @@ new class extends Component
 
     function onTrayDragCancel() {
         stopTrayDragListening();
+        removeDragGhost();
         draggingDominoId = null;
     }
 
@@ -871,6 +931,23 @@ new class extends Component
         document.removeEventListener('pointermove', onTrayDragMove);
         document.removeEventListener('pointerup', onTrayDragEnd);
         document.removeEventListener('pointercancel', onTrayDragCancel);
+    }
+
+    // Removes the floating clone (if a real drag ever created one) and
+    // restores the original tray tile's visibility -- called on every drag
+    // end/cancel regardless of whether the drop itself succeeded, so a
+    // rejected placement just leaves the original tile sitting back in the
+    // tray exactly where it started.
+    function removeDragGhost() {
+        if (draggingOriginEl) {
+            draggingOriginEl.style.visibility = '';
+            draggingOriginEl = null;
+        }
+
+        if (dragGhostEl) {
+            dragGhostEl.remove();
+            dragGhostEl = null;
+        }
     }
 
     // --- Tap-to-select/tap-to-place on the board, and pick-up-by-tap ---

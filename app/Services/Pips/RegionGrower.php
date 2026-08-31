@@ -7,7 +7,11 @@ use Random\Randomizer;
 /**
  * Partitions a board's cells into contiguous regions covering the whole
  * board with no gaps/overlaps -- the "randomized flood-fill/region-growing
- * pass" docs/specs/pips.md section 3 calls for.
+ * pass" docs/specs/pips.md section 3 calls for. Operates over the board's
+ * real, possibly-irregular active cell set (App\Services\Pips\ShapeGrower's
+ * own output, via Grid::activeNeighbors()) rather than a dense rectangle --
+ * an inactive cell (outside the grown shape, or an enclosed hole inside it)
+ * is never a valid neighbor and so never gets claimed by any region.
  *
  * Takes the fill's own domino pairing (`$partnerOf`, cell => its domino
  * partner cell) as a second input alongside pure geometry -- added during
@@ -40,24 +44,25 @@ class RegionGrower
     private const MAX_REGION_SIZE = 6;
 
     /**
+     * @param  list<int>  $activeCells  the board's real, possibly-irregular playable cells (App\Services\Pips\ShapeGrower's own output) -- never assumed to be a dense 0..rows*cols-1 rectangle
      * @param  array<int, int>  $partnerOf  cell => its domino partner cell; omit for a purely geometric grow (e.g. tests with no domino structure)
      * @return array<int, list<int>>
      */
-    public function grow(Randomizer $randomizer, int $rows, int $cols, array $partnerOf = []): array
+    public function grow(Randomizer $randomizer, int $rows, int $cols, array $activeCells, array $partnerOf = []): array
     {
-        $neighbors = Grid::neighbors($rows, $cols);
-        $cellCount = $rows * $cols;
+        $neighbors = Grid::activeNeighbors($rows, $cols, $activeCells);
+        $cellCount = count($activeCells);
 
         [$minRegions, $maxRegions] = $this->regionCountBounds($cellCount);
         $regionCount = $randomizer->getInt($minRegions, $maxRegions);
 
         // array_map('intval', ...) re-asserts the int typing Randomizer::shuffleArray()'s
         // own stub erases (it returns a plain, non-generic `array`) -- values are already
-        // guaranteed int coming from range(), this only restores that to static analysis.
-        $seeds = array_slice(array_map('intval', $randomizer->shuffleArray(range(0, $cellCount - 1))), 0, $regionCount);
+        // guaranteed int coming from $activeCells, this only restores that to static analysis.
+        $seeds = array_slice(array_map('intval', $randomizer->shuffleArray($activeCells)), 0, $regionCount);
 
         /** @var array<int, int|null> $owner */
-        $owner = array_fill(0, $cellCount, null);
+        $owner = array_fill_keys($activeCells, null);
         $regions = [];
         $frontiers = [];
         $caps = [];

@@ -1174,6 +1174,115 @@ PipsChallengeFriendTest}` and `ProfilePipsTest` (feature); `PipsDragPlacementTes
 (browser, drag + tap-to-place + pick-up-by-tap chained through one page, per the gotcha
 above).
 
+### Visual rework to match the real NYT game (2026-08-31)
+
+The build above shipped a fully working, spec-correct Pips — but the user compared it
+directly against real NYT Pips screenshots (`docs/images/*.png`) and found it looked
+nothing like the actual game: a filled rectangular grid instead of an irregular board
+shape, a plain text legend below the board instead of on-board region colors/badges,
+plain-text domino tiles instead of pip/dot faces, and a drag gesture with no visible
+tile movement. This entry covers the rework that closed those gaps — a shape-generation
+and rendering change, not a rules change; `ConstraintChecker`/`ConstraintDeriver`/
+`SolutionSolver`/scoring/session lifecycle are all untouched.
+
+**Board shape: grow a shape, then reuse the existing tiling matcher, rather than
+growing shape and tiling together in one pass.** The first design considered placing
+dominoes one at a time, extending the board's own shape as it went — rejected before
+implementation (via a design-review sub-agent) since that needs a claimed frontier cell
+*and* one of its unclaimed neighbors simultaneously, which dead-ends far more often than
+growing one cell at a time, and a whole-attempt restart on dead-end throws away all
+prior progress. Shipped instead: new `App\Services\Pips\ShapeGrower` grows a plain
+connected shape to an exact target cell count via the same single-source randomized
+frontier-queue technique `RegionGrower` already used internally (just one region instead
+of many, no domino-partner concern since no tiling exists yet), checks the result is
+checkerboard-balanced (`count(even) === count(odd)` over `row+col` parity — a
+*necessary* condition for domino-tileability, cheap to check before ever attempting the
+expensive part), then hands the shape's own active cells to the **existing, unmodified**
+`BoardFiller` MRV backtracker. `PipsDifficulty::rows()`/`cols()` changed meaning from
+"the exact board size" to a deliberately oversized *bounding box* (~1.4-1.6× a tier's
+own cell-count area) shape growth has room to wander within; `cellCount()` changed from
+`rows()*cols()` to `2 * dominoCount()` (the real, active cell count). Benchmarked live
+across all three tiers and 20 seeds each: the shape-then-fill combination converges in
+1-4 shape-regrow attempts every time, never hitting the outer retry budget.
+
+`BoardFiller` itself needed only a surgical change, not a rewrite, once handed an
+explicit active-cell list instead of assuming a dense rectangle: swap `Grid::neighbors()`
+for a new `Grid::activeNeighbors(rows, cols, activeCells)` (same geometric adjacency,
+filtered to cells actually in the shape), and swap `array_fill(0, $cellCount, false)`
+for `array_fill_keys($activeCells, false)` so its internal `$matched` state is keyed by
+the shape's real, possibly-sparse cell indices rather than an assumed dense
+`0..cellCount-1` range — every other internal method already iterated over whatever keys
+its input arrays had, so nothing else needed to change. `RegionGrower` and
+`SolutionSolver::check()` (not on the generation critical path — only
+`hasObviousDuplicate()` is, which touches no grid state at all) got the identical
+treatment. The grown shape's *tight* bounding box can contain an enclosed interior hole
+(inactive cells amid active ones) — a real, valid outcome matching the real game's own
+occasional "picture frame" boards, not a bug to guard against.
+
+**Region colors, on-board badges, and pip/dot dominoes.** New
+`App\Services\Pips\RegionColorer`: greedy graph coloring over the region-adjacency graph
+(orthogonal/edge touches only — a diagonal-only touch isn't a visual conflict), regions
+ordered degree-descending (Welsh-Powell-style) before greedy-assigning, against a new
+6-color palette (`--region-1..6` in `resources/css/app.css`, following the exact
+`--rival-1..4` oklch pattern already established for Boggle room participant colors) — a
+safety margin over the 4 the four-color theorem guarantees is always enough for a planar
+map of regions, since the greedy heuristic isn't the theorem's own optimal algorithm.
+Confirmed live across 30 Hard-tier seeds (up to 18 regions each): zero same-color
+adjacent-region conflicts. Each region's on-board badge anchor (the shared-edge midpoint
+between two of its own cells for size ≥ 2, algebraically just the average of their pixel
+centers regardless of orientation; a fixed corner of its one cell for a singleton region,
+since a singleton can be fully surrounded by other regions rather than board void, so
+there's no reliable void-facing edge to prefer) is computed once at generation time and
+persisted (`region.badge`), never recomputed client-side. Domino pip/dot rendering (a
+new `<x-pips-pip>` Blade component, a 3×3 grid of dot positions matching a standard
+die/domino face) replaced plain digit/text everywhere a pip value is shown.
+
+**A real Tailwind v4 cascade-layer gotcha, confirmed live**: giving `<x-pips-pip>` a
+`w-8 h-8` Tailwind utility class to size it inside the tray silently did nothing — the
+component rendered at a fraction of a pixel. Root cause: Tailwind v4's own utilities
+live inside a lower-priority `@layer utilities` block, so they can never beat a plain,
+unlayered `.pips-pip { width: 100%; height: 100% }` rule regardless of source order or
+specificity math, and `width: 100%` of a flex button with no intrinsic size of its own
+collapses toward zero. Fixed by sizing `.pips-pip` per context instead of via a utility
+class on the component itself: `.pips-cell .pips-pip { width: 70%; height: 70% }` (a
+board cell is a definite-size CSS grid square) and `.pips-domino .pips-pip { width:
+1.75rem; height: 1.75rem }` (a tray tile is a content-sized flex button).
+
+Also fixed along the way: the CSS grid's own per-region dashed border (added for the
+new solid-fill look) collided with the *existing* broken-state styling, which also used
+a dashed border — resolved by making the region-colored dashed border the permanent
+resting/neutral look regardless of status, keeping satisfied's solid+thicker+accent
+border as the one real style-based status change, and switching broken's own signal to
+a `color-mix()` background tint toward `--warn` alongside its existing ✕ glyph (the
+glyph carries the real signal; the tint is secondary) so the two never fight over the
+same CSS property.
+
+**Drag-and-drop now shows real movement**: on tray `pointerdown`, the existing gesture
+tracked only cursor coordinates for hit-testing, with no visual feedback at all. Now, on
+the first `pointermove` past the same 10px tap/drag threshold the gesture already used
+to distinguish a tap from a drag, a `position: fixed` clone of the pressed tile is
+created (lazily, so a plain tap never flashes one into existence), appended to
+`<body>`, and has its `left`/`top` set directly to the cursor position on every
+subsequent move — no CSS transition, since this app's own global `transition: none
+!important` rule already forbids animating it, which is the correct behavior here
+anyway (direct 1:1 tracking, no easing lag). The original tray tile is hidden (not
+removed) for the duration, so a cancelled or server-rejected drop just "snaps back" for
+free. Confirmed live via a synthetic multi-step `pointermove` sequence asserting the
+ghost's own position actually changes between steps, not just that an element exists.
+
+**Test rework**: every test asserting "covers `range(0, cellCount-1)`" or "dimensions
+equals the tier's own `rows()`×`cols()`" needed a real rewrite, not a find/replace,
+since the invariant itself changed from dense-rectangle coverage to
+grown-active-cell-set coverage — `BoardFillerTest`/`RegionGrowerTest`/
+`PuzzleGeneratorTest` now grow a real shape first via `ShapeGrower`, mirroring
+`PuzzleGenerator`'s own orchestration, plus new `ShapeGrowerTest` (connectivity, exact
+cell count, checkerboard balance, determinism) and `RegionColorerTest` (no
+adjacent-region color collisions, determinism). `PipsDragPlacementTest` had one latent
+bug the rework surfaced: it read a filled cell's pip value via `el.textContent.trim()`,
+which returned an always-empty string once filled cells started rendering pip dots
+instead of text — fixed by adding a `data-value` attribute to filled cells rather than
+relying on visible text for anything a test needs to read.
+
 ## Punchline
 
 A Quiplash-style room game (players privately write funny answers to prompts, then vote,

@@ -39,17 +39,28 @@ test('the page renders for a guest, no auth required', function () {
 
 test('mount defaults to Medium difficulty when none is given', function () {
     $component = Livewire::test('pages::pips.play');
+    $board = $component->get('board');
 
-    expect($component->get('resolvedDifficulty'))->toBe('medium')
-        ->and($component->get('board')['dimensions'])->toBe(['rows' => 6, 'cols' => 7]);
+    // dimensions is the grown shape's own *tight* bounding box (App\Enums\
+    // PipsDifficulty's own rows()/cols() docblock), never larger than the
+    // tier's oversized bounding box those growth attempts had room to
+    // wander within -- cells (the real, active board size) is the exact
+    // invariant to check instead.
+    expect($component->get('resolvedDifficulty'))->toBe('medium');
+    expect($board['dimensions']['rows'])->toBeLessThanOrEqual(PipsDifficulty::Medium->rows());
+    expect($board['dimensions']['cols'])->toBeLessThanOrEqual(PipsDifficulty::Medium->cols());
+    expect($board['cells'])->toHaveCount(PipsDifficulty::Medium->cellCount());
 });
 
 test('an explicit difficulty resolves to that tier\'s board size', function () {
     $component = Livewire::test('pages::pips.play', ['difficulty' => 'hard']);
+    $board = $component->get('board');
 
-    expect($component->get('resolvedDifficulty'))->toBe('hard')
-        ->and($component->get('board')['dimensions'])->toBe(['rows' => 7, 'cols' => 8])
-        ->and($component->get('trayRemaining'))->toHaveCount(28);
+    expect($component->get('resolvedDifficulty'))->toBe('hard');
+    expect($board['dimensions']['rows'])->toBeLessThanOrEqual(PipsDifficulty::Hard->rows());
+    expect($board['dimensions']['cols'])->toBeLessThanOrEqual(PipsDifficulty::Hard->cols());
+    expect($board['cells'])->toHaveCount(PipsDifficulty::Hard->cellCount());
+    expect($component->get('trayRemaining'))->toHaveCount(28);
 });
 
 test('the same seed and difficulty always produce the same puzzle', function () {

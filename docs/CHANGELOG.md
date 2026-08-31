@@ -2,8 +2,14 @@
 
 A terse, commit-by-commit record of what changed, newest first. No rationale or decisions here — see `docs/DEVLOG.md` for the *why* behind anything listed here, organized by feature instead of by commit. See `docs/TODO.md` for what's still outstanding.
 
+## 2026-08-31
+
+- Built Pips end-to-end (TODO Task 10): a domino logic puzzle with Easy/Medium/Hard difficulty tiers, daily puzzles, Challenge-a-Friend, and profile stats.
+- Reworked Pips' board/tray visuals to match the real NYT game: an irregular grown board shape instead of a filled rectangle, solid-color regions with on-board constraint badges instead of a text legend, real pip/dot domino tiles instead of plain digits, and a drag gesture that visibly follows the cursor.
+
 ## 2026-08-30
 
+- Fixed a transient Redis blip on Livewire's checksum rate-limiter bouncing players out of an in-progress room game -- only a real 404 now triggers the "this is gone" redirect.
 - Game challenges are now persisted (new `game_challenges` table), not just emailed: the Friends-link badge in the sidebar now counts unactioned challenges alongside pending friend requests, and the Friends page gained a "Your challenges" section with Play/Dismiss actions (TODO Task 22).
 - Added an "Average % of board found" tile to the Word Grid stats page (TODO Task 26).
 - Split the Word Grid stats page's "Personal bests" tiles into separate solo and room sections instead of blending a room's exclusive score with solo's raw score into one figure (TODO Task 27).

@@ -5,13 +5,18 @@ namespace App\Enums;
 /**
  * The three board/domino-set tiers Pips ships in v1 -- matching the real
  * game's own Easy/Medium/Hard split rather than the single fixed size an
- * earlier draft of docs/specs/pips.md section 3 considered. Each tier's
- * board is sized to exactly fit its own full double-N domino set (N =
- * maxPip()), the same "sized to exactly fit a full set" logic the deferred
- * single-size draft already used for what is now the Hard tier. Every
+ * earlier draft of docs/specs/pips.md section 3 considered. Every
  * generation-time Pips service (BoardFiller, RegionGrower, ConstraintDeriver,
  * SolutionSolver, PuzzleGenerator) takes rows()/cols()/maxPip() from here
  * rather than hardcoding any one tier's numbers.
+ *
+ * rows()/cols() are a *bounding box*, not the exact board size: the real
+ * board is an irregular, connected shape grown to exactly cellCount() cells
+ * within that box (App\Services\Pips\ShapeGrower), matching the actual NYT
+ * game's own non-rectangular layouts (docs/DEVLOG.md's Pips entry) rather
+ * than a filled rectangle -- the box is deliberately oversized relative to
+ * cellCount() (roughly 1.4-1.6x its area) so growth has room to be organic
+ * instead of being forced back into a rectangle by tight bounds.
  */
 enum PipsDifficulty: string
 {
@@ -41,21 +46,29 @@ enum PipsDifficulty: string
         };
     }
 
+    /**
+     * Bounding-box row count a board is grown within -- see this enum's own
+     * docblock. Deliberately larger than a tight rows-that-exactly-fit
+     * cellCount() rectangle would need.
+     */
     public function rows(): int
-    {
-        return match ($this) {
-            self::Easy => 5,
-            self::Medium => 6,
-            self::Hard => 7,
-        };
-    }
-
-    public function cols(): int
     {
         return match ($this) {
             self::Easy => 6,
             self::Medium => 7,
             self::Hard => 8,
+        };
+    }
+
+    /**
+     * Bounding-box column count -- see rows()'s own docblock.
+     */
+    public function cols(): int
+    {
+        return match ($this) {
+            self::Easy => 8,
+            self::Medium => 9,
+            self::Hard => 10,
         };
     }
 
@@ -69,8 +82,13 @@ enum PipsDifficulty: string
         return intdiv($n * ($n + 1), 2);
     }
 
+    /**
+     * The board's real, active cell count -- every domino covers exactly two
+     * cells, so this is always twice dominoCount(), regardless of how much
+     * larger the rows()/cols() bounding box is.
+     */
     public function cellCount(): int
     {
-        return $this->rows() * $this->cols();
+        return 2 * $this->dominoCount();
     }
 }

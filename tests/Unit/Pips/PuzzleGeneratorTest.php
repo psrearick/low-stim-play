@@ -6,21 +6,36 @@ use App\Services\Pips\ConstraintChecker;
 use App\Services\Pips\ConstraintDeriver;
 use App\Services\Pips\ConstraintStatus;
 use App\Services\Pips\PuzzleGenerator;
+use App\Services\Pips\RegionColorer;
 use App\Services\Pips\RegionGrower;
+use App\Services\Pips\ShapeGrower;
 use App\Services\Pips\SolutionSolver;
 
 dataset('difficulties', fn () => PipsDifficulty::cases());
 
 function realPipsGenerator(): PuzzleGenerator
 {
-    return new PuzzleGenerator(new BoardFiller, new RegionGrower, new ConstraintDeriver, new SolutionSolver(new ConstraintChecker));
+    return new PuzzleGenerator(
+        new ShapeGrower,
+        new BoardFiller,
+        new RegionGrower,
+        new ConstraintDeriver,
+        new RegionColorer,
+        new SolutionSolver(new ConstraintChecker),
+    );
 }
 
 test('a generated puzzle satisfies every one of its own regions, at every difficulty', function (PipsDifficulty $difficulty) {
     $checker = new ConstraintChecker;
     $puzzle = realPipsGenerator()->generate($difficulty, seed: 123);
 
-    expect($puzzle['board']['dimensions'])->toBe(['rows' => $difficulty->rows(), 'cols' => $difficulty->cols()]);
+    // dimensions is the grown shape's own *tight* bounding box, not the
+    // tier's own oversized bounding box those growth attempts had room to
+    // wander within (App\Enums\PipsDifficulty's own rows()/cols() docblock)
+    // -- it can only ever be smaller or equal, never larger.
+    expect($puzzle['board']['dimensions']['rows'])->toBeLessThanOrEqual($difficulty->rows());
+    expect($puzzle['board']['dimensions']['cols'])->toBeLessThanOrEqual($difficulty->cols());
+    expect($puzzle['board']['cells'])->toHaveCount($difficulty->cellCount());
 
     $cellValues = $puzzle['solution']['cellValues'];
 
@@ -29,6 +44,8 @@ test('a generated puzzle satisfies every one of its own regions, at every diffic
         $status = $checker->check($region['constraint'], $values, 0, $difficulty->maxPip());
 
         expect($status)->toBe(ConstraintStatus::Satisfied);
+        expect($region['color'])->toBeGreaterThanOrEqual(0)->toBeLessThanOrEqual(RegionColorer::PALETTE_SIZE - 1);
+        expect($region['badge'] === null)->toBe($region['constraint']['type'] === 'none');
     }
 })->with('difficulties');
 
@@ -45,7 +62,7 @@ test('a rejected region layout is retried until one is accepted', function () {
     $solver = Mockery::mock(SolutionSolver::class);
     $solver->shouldReceive('hasObviousDuplicate')->andReturn(true, true, false);
 
-    $generator = new PuzzleGenerator(new BoardFiller, new RegionGrower, new ConstraintDeriver, $solver);
+    $generator = new PuzzleGenerator(new ShapeGrower, new BoardFiller, new RegionGrower, new ConstraintDeriver, new RegionColorer, $solver);
 
     $puzzle = $generator->generate(PipsDifficulty::Easy, seed: 7);
 
@@ -57,7 +74,7 @@ test('generation still succeeds, accepting the last attempt, once the retry budg
     $solver = Mockery::mock(SolutionSolver::class);
     $solver->shouldReceive('hasObviousDuplicate')->andReturn(true);
 
-    $generator = new PuzzleGenerator(new BoardFiller, new RegionGrower, new ConstraintDeriver, $solver);
+    $generator = new PuzzleGenerator(new ShapeGrower, new BoardFiller, new RegionGrower, new ConstraintDeriver, new RegionColorer, $solver);
 
     $puzzle = $generator->generate(PipsDifficulty::Easy, seed: 7);
 
