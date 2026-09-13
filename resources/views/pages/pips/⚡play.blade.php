@@ -793,6 +793,28 @@ new class extends Component
                     $cellRegion[$cell] = $region;
                 }
             }
+            $activeCellSet = array_flip($board['cells']);
+
+            // Which direction each filled cell's own domino partner sits in
+            // (docs/concerns.md: placed dominoes need a real, visible
+            // boundary -- a border around each domino's own two-cell
+            // footprint, suppressed only on the edge shared with its own
+            // partner cell, so two cells of the same domino read as one
+            // tile while a neighboring domino/cell (even same region color)
+            // still shows a clear line between them). Built once here
+            // rather than per-cell, from $placements grouped by dominoId.
+            $dominoCellsById = [];
+            foreach ($placements as $cell => $placement) {
+                $dominoCellsById[$placement['dominoId']][] = $cell;
+            }
+            $partnerOfCell = [];
+            foreach ($dominoCellsById as $cells) {
+                if (count($cells) === 2) {
+                    [$cellA, $cellB] = $cells;
+                    $partnerOfCell[$cellA] = $cellB;
+                    $partnerOfCell[$cellB] = $cellA;
+                }
+            }
         @endphp
         @if ($this->boardIncorrect)
             <p id="pips-incorrect-banner" class="status-line" style="color: var(--warn);">
@@ -809,6 +831,44 @@ new class extends Component
                         $filled = $placements[$cell] ?? null;
                         $cellRow = intdiv($cell, $cols);
                         $cellCol = $cell % $cols;
+                        $dominoEdgeClass = '';
+                        if (isset($partnerOfCell[$cell])) {
+                            $partnerCell = $partnerOfCell[$cell];
+                            $partnerRow = intdiv($partnerCell, $cols);
+                            $partnerCol = $partnerCell % $cols;
+                            $dominoEdgeClass = $partnerRow === $cellRow
+                                ? ($partnerCol > $cellCol ? 'pips-domino-edge-right' : 'pips-domino-edge-left')
+                                : ($partnerRow > $cellRow ? 'pips-domino-edge-down' : 'pips-domino-edge-up');
+                        }
+
+                        // Which of this cell's own 4 sides sit on its
+                        // region's outer silhouette vs. border a same-region
+                        // neighbor (docs/concerns.md, matching the real
+                        // game's own look, docs/images/): the dashed
+                        // grouping border traces a region's perimeter only,
+                        // not every individual cell -- a side facing the
+                        // board edge, an inactive/void cell, or a
+                        // *different* region is "perimeter" (dashed); a
+                        // side facing a same-region neighbor is "internal"
+                        // (a plain, much lighter line instead, applied
+                        // by .pips-cell's own base rule when no
+                        // `pips-region-edge-*` class is present for that
+                        // side).
+                        $neighborInDirection = [
+                            'top' => $cellRow > 0 ? $cell - $cols : null,
+                            'right' => $cellCol < $cols - 1 ? $cell + 1 : null,
+                            'bottom' => $cellRow < $rows - 1 ? $cell + $cols : null,
+                            'left' => $cellCol > 0 ? $cell - 1 : null,
+                        ];
+                        $regionEdgeClasses = [];
+                        foreach ($neighborInDirection as $side => $neighbor) {
+                            $isPerimeter = $neighbor === null
+                                || ! isset($activeCellSet[$neighbor])
+                                || ($cellRegion[$neighbor]['id'] ?? null) !== $region['id'];
+                            if ($isPerimeter) {
+                                $regionEdgeClasses[] = "pips-region-edge-{$side}";
+                            }
+                        }
                     @endphp
                     <button type="button"
                         id="pips-cell-{{ $cell }}"
@@ -817,7 +877,7 @@ new class extends Component
                         data-filled="{{ $filled !== null ? '1' : '0' }}"
                         data-domino-id="{{ $filled['dominoId'] ?? '' }}"
                         data-value="{{ $filled['value'] ?? '' }}"
-                        class="pips-cell flex items-center justify-center border-2 rounded-md"
+                        class="pips-cell flex items-center justify-center border-2 rounded-md {{ $dominoEdgeClass }} {{ implode(' ', $regionEdgeClasses) }}"
                         style="grid-column: {{ $cellCol + 1 }}; grid-row: {{ $cellRow + 1 }}; --pips-region-color: var(--region-{{ $region['color'] + 1 }});"
                     >
                         @if ($filled !== null)
@@ -1209,57 +1269,270 @@ new class extends Component
         return nearSharedEdge ? Math.max(clickedCell, otherCell) : clickedCell;
     }
 
-    // --- A placed domino stuck mid-rotation (docs/concerns.md: an invalid
-    // landing spot leaves it "in its rotated styling" instead of moving) --
-    // purely a client-side visual; nothing server-side changed, so nothing
-    // here is trusted for game state. Cleared by the very next board
-    // interaction (below) or once a fresh Livewire render shows those cells
-    // in a different state than when this was applied.
-    let invalidRotationCells = [];
+    // --- Select-then-rotate for a placed domino (docs/concerns.md) -- a
+    // first tap selects it (no server call, purely a client highlight); a
+    // second tap on the *same* domino rotates it 90deg around whichever
+    // cell the tap landed closer to. A rotation that would be invalid
+    // (off the board, or onto a cell someone else already occupies) never
+    // just silently fails -- the domino visually moves there anyway,
+    // grayed out and drawn above everything else via a floating overlay
+    // (built below), while its own two real cells go quiet (`pips-cell-
+    // lifted`, the same "picked up" look a relocate-drag already uses)
+    // since nothing server-side actually changed. That overlay itself
+    // stays clickable, so "it should still rotate" holds even from an
+    // already-invalid state -- each tap is always a fresh, independent
+    // $wire.rotatePlacement() call from the domino's own true, currently-
+    // committed position (never a client-tracked cumulative angle), so a
+    // later tap picking the *other* real cell as pivot can still land
+    // somewhere valid even after an earlier attempt didn't.
+    //
+    // A rotation that *did* land validly keeps the domino selected for a
+    // couple more seconds (auto-deselecting after, so chaining several
+    // quick rotations doesn't need re-selecting each time); one that's
+    // stuck invalid stays selected indefinitely until the player taps
+    // anywhere else, which reverts it (nothing to actually undo
+    // server-side -- just removes the overlay and un-lifts the real
+    // cells) and deselects.
+    let selectedBoardDominoId = null;
+    let selectedBoardDominoCells = null;
+    let selectedBoardDominoTimeout = null;
+    let rotationOverlayEl = null;
+    let overlayPointerStart = null;
 
-    function markInvalidRotation(cells) {
-        clearInvalidRotationStyling();
-        invalidRotationCells = cells;
+    const BOARD_ROTATE_RESELECT_MS = 1600;
+
+    function selectBoardDomino(dominoId, cells) {
+        selectedBoardDominoId = dominoId;
+        selectedBoardDominoCells = cells;
         cells.forEach((cell) => {
-            document.getElementById('pips-cell-' + cell)?.classList.add('pips-cell-rotate-invalid');
+            document.getElementById('pips-cell-' + cell)?.classList.add('pips-cell-board-selected');
         });
     }
 
-    function clearInvalidRotationStyling() {
-        invalidRotationCells.forEach((cell) => {
-            document.getElementById('pips-cell-' + cell)?.classList.remove('pips-cell-rotate-invalid');
+    function deselectBoardDomino() {
+        if (selectedBoardDominoTimeout) {
+            clearTimeout(selectedBoardDominoTimeout);
+            selectedBoardDominoTimeout = null;
+        }
+        (selectedBoardDominoCells || []).forEach((cell) => {
+            const el = document.getElementById('pips-cell-' + cell);
+            el?.classList.remove('pips-cell-board-selected', 'pips-cell-lifted');
         });
-        invalidRotationCells = [];
+        removeRotationOverlay();
+        selectedBoardDominoId = null;
+        selectedBoardDominoCells = null;
     }
 
+    function removeRotationOverlay() {
+        rotationOverlayEl?.remove();
+        rotationOverlayEl = null;
+    }
+
+    // Mirrors PHP rotatePlacement()'s own row-down/col-right 90deg
+    // clockwise formula exactly -- used here purely to know where to draw
+    // an invalid attempt's floating preview, never to decide validity
+    // itself (that's always the server's own call).
+    function rotationTargetRowCol(pivotCell, otherCell, cols) {
+        const pivotRow = Math.floor(pivotCell / cols);
+        const pivotCol = pivotCell % cols;
+        const deltaRow = Math.floor(otherCell / cols) - pivotRow;
+        const deltaCol = (otherCell % cols) - pivotCol;
+
+        return { row: pivotRow + deltaCol, col: pivotCol - deltaRow };
+    }
+
+    // Builds the floating "mid-rotation" preview -- the pivot half is
+    // always a clone of a real board cell (the pivot never moves); the
+    // other half clones whatever real cell sits at the computed target
+    // spot (even one occupied by a different domino, per docs/concerns.md
+    // -- it draws *above* that domino, not in place of it) or, if the
+    // target falls off the board entirely, a plain phantom tile with no
+    // region color at all. Both halves get `.pips-cell-rotate-invalid`'s
+    // existing tray-colored, semitransparent look. `data-real-cell` on
+    // each half is what a later tap on this overlay uses to pick the next
+    // rotation's own pivot (see the overlay's own pointerup handler) --
+    // always one of the domino's two *real* cells, never the phantom one,
+    // since only a real cell the domino actually still occupies is ever a
+    // valid $wire.rotatePlacement() argument.
+    function buildRotationOverlay(pivotCell, otherRealCell, targetRowCol, cols, rows) {
+        const pivotEl = document.getElementById('pips-cell-' + pivotCell);
+        const pivotRect = pivotEl.getBoundingClientRect();
+        const pivotRow = Math.floor(pivotCell / cols);
+        const pivotCol = pivotCell % cols;
+        const isHorizontal = targetRowCol.row === pivotRow;
+
+        const targetCell = (targetRowCol.row >= 0 && targetRowCol.row < rows && targetRowCol.col >= 0 && targetRowCol.col < cols)
+            ? targetRowCol.row * cols + targetRowCol.col
+            : null;
+        const targetEl = targetCell !== null ? document.getElementById('pips-cell-' + targetCell) : null;
+
+        const pivotIsFirst = isHorizontal ? targetRowCol.col > pivotCol : targetRowCol.row > pivotRow;
+        // Whichever pair of opposite sides faces the *other* half of this
+        // overlay -- same `.pips-domino-edge-*` classes a real placed
+        // domino's own two cells use to merge into one tile (border
+        // suppressed, divider shown) between themselves, borrowed here for
+        // two cloned halves that were never each other's actual DOM
+        // neighbors. Any `.pips-domino-edge-*`/`.pips-region-edge-*` class
+        // a clone inherited from its *original* context (its real
+        // neighbors there, wherever that was) is stripped first -- this
+        // overlay draws its own pairing from scratch.
+        const edgeClasses = ['pips-domino-edge-up', 'pips-domino-edge-down', 'pips-domino-edge-left', 'pips-domino-edge-right', 'pips-region-edge-top', 'pips-region-edge-bottom', 'pips-region-edge-left', 'pips-region-edge-right'];
+        const firstEdgeClass = isHorizontal ? 'pips-domino-edge-right' : 'pips-domino-edge-down';
+        const secondEdgeClass = isHorizontal ? 'pips-domino-edge-left' : 'pips-domino-edge-up';
+
+        const pivotHalf = pivotEl.cloneNode(true);
+        pivotHalf.removeAttribute('id');
+        pivotHalf.dataset.realCell = String(pivotCell);
+        pivotHalf.classList.remove(...edgeClasses);
+        pivotHalf.classList.add('pips-cell-rotate-invalid', pivotIsFirst ? firstEdgeClass : secondEdgeClass);
+        pivotHalf.style.width = pivotRect.width + 'px';
+        pivotHalf.style.height = pivotRect.height + 'px';
+
+        const targetHalf = targetEl ? targetEl.cloneNode(true) : document.createElement('div');
+        if (targetEl) {
+            targetHalf.removeAttribute('id');
+        } else {
+            targetHalf.className = 'pips-cell flex items-center justify-center border-2 rounded-md';
+            targetHalf.dataset.filled = '1';
+        }
+        targetHalf.dataset.realCell = String(otherRealCell);
+        targetHalf.classList.remove(...edgeClasses);
+        targetHalf.classList.add('pips-cell-rotate-invalid', pivotIsFirst ? secondEdgeClass : firstEdgeClass);
+        targetHalf.style.width = pivotRect.width + 'px';
+        targetHalf.style.height = pivotRect.height + 'px';
+
+        const overlay = document.createElement('div');
+        overlay.className = 'pips-rotation-overlay';
+        overlay.style.display = 'flex';
+        overlay.style.flexDirection = isHorizontal ? 'row' : 'column';
+        overlay.style.width = (isHorizontal ? pivotRect.width * 2 : pivotRect.width) + 'px';
+        overlay.style.height = (isHorizontal ? pivotRect.height : pivotRect.height * 2) + 'px';
+        overlay.style.left = (isHorizontal ? (pivotIsFirst ? pivotRect.left : pivotRect.left - pivotRect.width) : pivotRect.left) + 'px';
+        overlay.style.top = (isHorizontal ? pivotRect.top : (pivotIsFirst ? pivotRect.top : pivotRect.top - pivotRect.height)) + 'px';
+        overlay.append(...(pivotIsFirst ? [pivotHalf, targetHalf] : [targetHalf, pivotHalf]));
+
+        overlay.addEventListener('pointerdown', (e) => {
+            e.stopPropagation();
+            overlayPointerStart = { x: e.clientX, y: e.clientY };
+        });
+        overlay.addEventListener('pointerup', (e) => {
+            e.stopPropagation();
+            const moved = Math.hypot(e.clientX - overlayPointerStart.x, e.clientY - overlayPointerStart.y) > DRAG_THRESHOLD_PX;
+            if (moved) {
+                return;
+            }
+            const half = e.target.closest('[data-real-cell]');
+            const nextPivot = half ? Number(half.dataset.realCell) : pivotCell;
+            attemptBoardRotate(selectedBoardDominoId, nextPivot, selectedBoardDominoCells);
+        });
+
+        return overlay;
+    }
+
+    // The single entry point for every rotate attempt, whether it's the
+    // first tap after selecting or a later one off an already-invalid
+    // overlay -- always a fresh, real $wire round trip from the domino's
+    // current true placement (docs/concerns.md: "it should still rotate").
+    async function attemptBoardRotate(dominoId, pivotCell, currentCells) {
+        removeRotationOverlay();
+        if (selectedBoardDominoTimeout) {
+            clearTimeout(selectedBoardDominoTimeout);
+            selectedBoardDominoTimeout = null;
+        }
+        currentCells.forEach((cell) => {
+            document.getElementById('pips-cell-' + cell)?.classList.remove('pips-cell-lifted');
+        });
+
+        const cols = Number(boardWrapEl.dataset.cols);
+        const rows = Number(boardWrapEl.dataset.rows);
+        const otherCell = currentCells.find((cell) => cell !== pivotCell);
+        const targetRowCol = rotationTargetRowCol(pivotCell, otherCell, cols);
+
+        await $wire.rotatePlacement(dominoId, pivotCell);
+
+        const stillOnOldCells = currentCells.every((cell) => {
+            const el = document.getElementById('pips-cell-' + cell);
+
+            return el?.dataset.filled === '1' && el?.dataset.dominoId === dominoId;
+        });
+
+        if (!stillOnOldCells) {
+            const newCells = [...document.querySelectorAll('.pips-cell[data-domino-id="' + dominoId + '"]')]
+                .map((el) => Number(el.dataset.cell));
+            selectedBoardDominoCells = newCells;
+            newCells.forEach((cell) => {
+                document.getElementById('pips-cell-' + cell)?.classList.add('pips-cell-board-selected');
+            });
+            selectedBoardDominoTimeout = setTimeout(deselectBoardDomino, BOARD_ROTATE_RESELECT_MS);
+
+            return;
+        }
+
+        currentCells.forEach((cell) => {
+            document.getElementById('pips-cell-' + cell)?.classList.add('pips-cell-lifted');
+        });
+        rotationOverlayEl = buildRotationOverlay(pivotCell, otherCell, targetRowCol, cols, rows);
+        document.body.appendChild(rotationOverlayEl);
+    }
+
+    // Any press anywhere else -- a different domino, an empty cell, the
+    // tray, the page background -- deselects the current board domino and
+    // (if it was stuck invalid) reverts it, per docs/concerns.md. Clicks
+    // on the domino itself or its own floating overlay are handled by
+    // their own listeners instead (both `stopPropagation()` or are simply
+    // outside this check), so this never fights them.
+    document.addEventListener('pointerdown', (e) => {
+        if (!selectedBoardDominoId) {
+            return;
+        }
+        if (rotationOverlayEl?.contains(e.target)) {
+            return;
+        }
+        if (selectedBoardDominoCells.some((cell) => document.getElementById('pips-cell-' + cell)?.contains(e.target))) {
+            return;
+        }
+        deselectBoardDomino();
+    });
+
+    // Built from the domino's own real board cells (cloned), not a fresh
+    // tray-styled element -- docs/concerns.md: the old ghost used
+    // `.pips-domino`'s own tray-tile size/styling, which is both smaller
+    // than a real board tile and always horizontal, regardless of the
+    // domino's actual current orientation. Cloning the real `.pips-cell`
+    // elements carries over their already-correct pip content, domino-tile
+    // border/divider classes (`.pips-domino-edge-*`, computed server-side),
+    // and region color for free -- this only needs to size and lay the two
+    // clones out to match the board's own real geometry.
     function buildRelocateGhost(cells) {
+        const [minCell, maxCell] = [...cells].sort((a, b) => a - b);
+        const elMin = document.getElementById('pips-cell-' + minCell);
+        const elMax = document.getElementById('pips-cell-' + maxCell);
+        const cols = Number(boardWrapEl.dataset.cols);
+        const isHorizontal = Math.floor(minCell / cols) === Math.floor(maxCell / cols);
+        const rectMin = elMin.getBoundingClientRect();
+        const rectMax = elMax.getBoundingClientRect();
+
         const ghost = document.createElement('div');
-        ghost.className = 'pips-domino pips-drag-ghost';
+        ghost.className = 'pips-drag-ghost pips-relocate-ghost';
+        ghost.style.display = 'flex';
+        ghost.style.flexDirection = isHorizontal ? 'row' : 'column';
+        ghost.style.width = (isHorizontal ? rectMin.width + rectMax.width : rectMin.width) + 'px';
+        ghost.style.height = (isHorizontal ? rectMin.height : rectMin.height + rectMax.height) + 'px';
 
-        const [cellA, cellB] = cells;
-        const pipA = document.getElementById('pips-cell-' + cellA)?.querySelector('.pips-pip');
-        const pipB = document.getElementById('pips-cell-' + cellB)?.querySelector('.pips-pip');
-
-        if (pipA) {
-            ghost.appendChild(pipA.cloneNode(true));
-        }
-        const divider = document.createElement('div');
-        divider.className = 'pips-domino-divider';
-        ghost.appendChild(divider);
-        if (pipB) {
-            ghost.appendChild(pipB.cloneNode(true));
-        }
+        [elMin, elMax].forEach((el) => {
+            const clone = el.cloneNode(true);
+            clone.removeAttribute('id');
+            clone.style.gridColumn = '';
+            clone.style.gridRow = '';
+            clone.style.width = '100%';
+            clone.style.height = '100%';
+            ghost.appendChild(clone);
+        });
 
         return ghost;
     }
 
     boardEl.addEventListener('pointerdown', (e) => {
-        // Any fresh press on the board is "interacting with it" -- clears a
-        // domino left stuck in its invalid-rotation styling from a previous
-        // tap (docs/concerns.md), regardless of what this new press turns
-        // out to be.
-        clearInvalidRotationStyling();
-
         if ($wire.ended) {
             return;
         }
@@ -1290,6 +1563,12 @@ new class extends Component
         }
 
         if (!relocateGhostEl && Math.hypot(e.clientX - relocateDragStart.x, e.clientY - relocateDragStart.y) > DRAG_THRESHOLD_PX) {
+            // A real drag starting -- clear any selected/mid-rotation
+            // domino *before* building the ghost below, not just at drag
+            // end, so a stale `pips-cell-lifted`/invalid-overlay state left
+            // over from an earlier rotate attempt on this same domino
+            // never leaks into the ghost's own cloned cells.
+            deselectBoardDomino();
             relocateGhostEl = buildRelocateGhost(relocatingCells);
             document.body.appendChild(relocateGhostEl);
             relocatingCells.forEach((cell) => {
@@ -1322,27 +1601,21 @@ new class extends Component
         relocatePivotCellEl = null;
 
         if (!moved) {
-            const pivotCell = pivotCellForTap(e.clientX, e.clientY, pivotCellEl, oldCells);
-
-            $wire.rotatePlacement(dominoId, pivotCell).then(() => {
-                // rotatePlacement() silently no-ops on an invalid landing
-                // spot (docs/concerns.md -- no $message, unlike placeDomino/
-                // movePlacement) -- the only way to tell it didn't move is
-                // to check whether this domino is still on its own old
-                // cells afterward.
-                const stillOnOldCells = oldCells.every((cell) => {
-                    const el = document.getElementById('pips-cell-' + cell);
-
-                    return el?.dataset.filled === '1' && el?.dataset.dominoId === dominoId;
-                });
-
-                if (stillOnOldCells) {
-                    markInvalidRotation(oldCells);
-                }
-            });
+            if (selectedBoardDominoId === dominoId) {
+                const pivotCell = pivotCellForTap(e.clientX, e.clientY, pivotCellEl, oldCells);
+                attemptBoardRotate(dominoId, pivotCell, oldCells);
+            } else {
+                deselectBoardDomino();
+                selectBoardDomino(dominoId, oldCells);
+            }
 
             return;
         }
+
+        // A real drag is a fresh, different gesture -- clears any stale
+        // selected/mid-rotation domino first (reverting it if it was stuck
+        // invalid), same as a tap landing anywhere else would.
+        deselectBoardDomino();
 
         const pair = closestValidPair(e.clientX, e.clientY, oldCells);
         if (pair === null) {

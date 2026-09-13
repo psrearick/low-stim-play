@@ -225,8 +225,9 @@ test('drag, tap-to-place, and pick-up-by-tap all place/remove dominoes correctly
     );
     expect($anyStatusClass)->toBeFalse();
 
-    // --- Tap-to-rotate a placed domino (docs/concerns.md) -- pivots 90
-    // degrees around whichever cell is tapped; a plain click lands at the
+    // --- Select-then-tap-to-rotate a placed domino (docs/concerns.md) -- a
+    // first tap selects it (no server call yet); a second tap pivots it 90
+    // degrees around whichever cell is tapped. A plain click lands at the
     // clicked element's center, not near the shared edge with the other
     // cell, so the pivot is always cellA here (see pivotCellForTap() in the
     // play page's own script block). Where the *other* half lands depends
@@ -234,15 +235,26 @@ test('drag, tap-to-place, and pick-up-by-tap all place/remove dominoes correctly
     // expected outcome, this checks the invariants that must hold either
     // way: the pivot cell never moves, and the domino's own two values are
     // preserved (whether it actually relocated, or the rotation was invalid
-    // and it silently stayed put).
+    // and it's now shown as a floating overlay instead, leaving the pivot
+    // cell itself still reporting the real, unmoved placement).
+    $page->click("#pips-cell-{$second['cellA']}");
+    $page->wait(0.3);
+
+    expect($page->script("document.getElementById('pips-cell-{$second['cellA']}').className"))
+        ->toContain('pips-cell-board-selected');
+
     $page->click("#pips-cell-{$second['cellA']}");
     $page->wait(0.5);
 
     expect($page->script("document.getElementById('pips-cell-{$second['cellA']}').dataset.dominoId"))
         ->toBe($secondDominoId);
 
+    // Scoped to #pips-board specifically -- an invalid attempt's floating
+    // overlay (a clone of the pivot cell, appended to document.body, not
+    // to #pips-board) also carries this same data-domino-id and would
+    // otherwise inflate the match count to 3.
     $cellsAfterRotate = json_decode($page->script(
-        "JSON.stringify([...document.querySelectorAll('.pips-cell[data-domino-id=\"{$secondDominoId}\"]')].map(el => Number(el.dataset.value)))"
+        "JSON.stringify([...document.querySelectorAll('#pips-board .pips-cell[data-domino-id=\"{$secondDominoId}\"]')].map(el => Number(el.dataset.value)))"
     ), true);
 
     expect($cellsAfterRotate)->toHaveCount(2);
@@ -318,7 +330,7 @@ test('drag, tap-to-place, and pick-up-by-tap all place/remove dominoes correctly
     // the pointer happened to release. $secondDominoId is wherever the
     // relocate-drag above actually landed it (near $third's own cells).
     $secondDominoCells = json_decode($page->script(
-        "JSON.stringify([...document.querySelectorAll('.pips-cell[data-domino-id=\"{$secondDominoId}\"]')].map(el => Number(el.dataset.cell)))"
+        "JSON.stringify([...document.querySelectorAll('#pips-board .pips-cell[data-domino-id=\"{$secondDominoId}\"]')].map(el => Number(el.dataset.cell)))"
     ), true);
     expect($secondDominoCells)->toHaveCount(2);
 
@@ -353,7 +365,7 @@ test('drag, tap-to-place, and pick-up-by-tap all place/remove dominoes correctly
 
     $page->assertPresent("#pips-tray-{$secondDominoId}");
     expect($page->script(
-        "[...document.querySelectorAll('.pips-cell[data-domino-id=\"{$secondDominoId}\"]')].length"
+        "[...document.querySelectorAll('#pips-board .pips-cell[data-domino-id=\"{$secondDominoId}\"]')].length"
     ))->toBe(0);
 
     $page->assertNoJavaScriptErrors();

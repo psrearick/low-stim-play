@@ -3181,30 +3181,38 @@ body.scrollable.family-feud-play {
     cursor: pointer;
     user-select: none;
     touch-action: none;
-    /* A plain `border-style: dashed` packs its dashes far too tightly at
-       this border-width (confirmed live: bumping border-width alone barely
-       moves the dash pitch, since the browser derives dash length/gap from
-       its own heuristic, not a value this app controls) -- four repeating
-       linear-gradients (one per edge) stand in for the border instead,
-       giving explicit control over dash length vs. gap. The real border is
-       kept transparent (not `none`) purely so the box model/layout size
-       stays identical to a bordered cell. */
-    border: 2px solid transparent;
+    /* A dashed grouping border traces a *region's own outer perimeter*,
+       not every individual cell (docs/concerns.md, matching the real
+       game's own look, docs/images/) -- a side facing a same-region
+       neighbor instead gets a plain, much lighter line (this rule's own
+       `border`, below), while a side on the region's actual silhouette
+       (facing the board edge, a void/inactive cell, or a *different*
+       region) gets the dashed treatment via one of the 4
+       `--pips-dash-{side}` gradients, each `none` by default and only set
+       to a real gradient by that side's own `.pips-region-edge-*` class
+       (computed server-side per cell, since a region's shape is
+       arbitrary). A plain `border-style: dashed` packs its dashes far too
+       tightly at this border-width regardless (confirmed live: bumping
+       border-width alone barely moves the dash pitch, since the browser
+       derives dash length/gap from its own heuristic, not a value this
+       app controls) -- these gradients give explicit control over dash
+       length vs. gap instead. */
+    --pips-dash-top: none;
+    --pips-dash-right: none;
+    --pips-dash-bottom: none;
+    --pips-dash-left: none;
     /* --die/--die-border fallbacks, not --surface/--surface-border -- see
        .pips-domino's own docblock a little further down for why a bare
        --surface was never actually defined. Unreachable in practice here
        (every cell always sets --pips-region-color inline), but kept
        correct rather than silently dead. */
     --pips-dash-color: oklch(from var(--pips-region-color, var(--die-border)) calc(l - 0.15) c h);
+    border: 1px solid oklch(from var(--pips-region-color, var(--die)) calc(l - 0.06) c h);
     background-color: var(--pips-region-color, var(--die));
-    background-image:
-        linear-gradient(to right, var(--pips-dash-color) 40%, transparent 0%),
-        linear-gradient(to right, var(--pips-dash-color) 40%, transparent 0%),
-        linear-gradient(to bottom, var(--pips-dash-color) 40%, transparent 0%),
-        linear-gradient(to bottom, var(--pips-dash-color) 40%, transparent 0%);
-    background-repeat: repeat-x, repeat-x, repeat-y, repeat-y;
-    background-size: 16px 2px, 16px 2px, 2px 16px, 2px 16px;
-    background-position: 0 0, 0 100%, 0 0, 100% 0;
+    background-image: var(--pips-dash-top), var(--pips-dash-right), var(--pips-dash-bottom), var(--pips-dash-left);
+    background-repeat: repeat-x, repeat-y, repeat-x, repeat-y;
+    background-size: 16px 2px, 2px 16px, 16px 2px, 2px 16px;
+    background-position: 0 0, 100% 0, 0 100%, 0 0;
     /* This app's own global `button { padding: clamp(...) clamp(...) }`
        base style (sized for text buttons) otherwise eats most of a cell's
        own area -- confirmed live via getBoundingClientRect() that it left
@@ -3214,6 +3222,89 @@ body.scrollable.family-feud-play {
        (a higher-priority layer than that base rule); a board cell has no
        such utility class, so it needs the same reset here directly. */
     padding: 0;
+}
+
+.pips-play .pips-cell.pips-region-edge-top {
+    border-top: none;
+    --pips-dash-top: linear-gradient(to right, var(--pips-dash-color) 40%, transparent 0%);
+}
+
+.pips-play .pips-cell.pips-region-edge-right {
+    border-right: none;
+    --pips-dash-right: linear-gradient(to bottom, var(--pips-dash-color) 40%, transparent 0%);
+}
+
+.pips-play .pips-cell.pips-region-edge-bottom {
+    border-bottom: none;
+    --pips-dash-bottom: linear-gradient(to right, var(--pips-dash-color) 40%, transparent 0%);
+}
+
+.pips-play .pips-cell.pips-region-edge-left {
+    border-left: none;
+    --pips-dash-left: linear-gradient(to bottom, var(--pips-dash-color) 40%, transparent 0%);
+}
+
+/* A filled cell reads as its own domino tile, not just a colored square
+   with pips in it (docs/concerns.md: without this, a placed domino has no
+   background/border of its own, so it's impossible to tell where a domino
+   is at all -- worst of all for a 0-0 domino, whose blank face used to be
+   visually identical to an empty cell). Switches the empty cell's dashed
+   grouping border off (`background-image: none`, `border-style: solid`)
+   in favor of a real solid border around the domino's own two-cell
+   footprint -- suppressed only on the edge shared with its own partner
+   cell (the `.pips-domino-edge-*` classes below, computed server-side from
+   which direction that partner cell actually sits in) so the pair reads as
+   one tile, while any other neighbor -- an empty cell, board edge, or a
+   *different* placed domino, even one sitting in the same region color --
+   still shows a clear line. The region color itself is left alone; only
+   the border changes, since "region color, no tray color" is what marks a
+   normally-placed domino apart from one mid-rotation (see
+   .pips-cell-rotate-invalid further down). */
+.pips-play .pips-cell[data-filled="1"] {
+    border-style: solid;
+    /* Thicker than an empty cell's own 1px internal line, and than a
+       region's own perimeter dash, so a domino's outer edge reads
+       unmistakably as a boundary even against a same-region-colored,
+       same-hue neighbor -- confirmed live that a thinner width read as
+       barely distinct from the 1px inter-domino divider below at a normal
+       viewing distance. Also, deliberately, wins over any
+       `.pips-region-edge-*` class this same cell might also carry (equal
+       selector specificity, later in the cascade) -- a domino's own solid
+       border always overrides region grouping at that edge, matching the
+       real game's own look (docs/images/). */
+    border-width: 3px;
+    border-color: var(--die-border);
+    background-image: none;
+}
+
+/* A thin divider mark where the border above is suppressed -- an `inset`
+   box-shadow rather than a second border, so it can sit exactly on the
+   shared edge without adding its own layout width the way a real border
+   would. Both cells on either side of that edge draw the same line at the
+   same physical pixel boundary, so this never doubles up visibly. Mirrors
+   the tray domino's own `.pips-domino-divider`. Deliberately fainter than
+   the outer border (1px, and blended toward the cell's own region color
+   rather than the outer border's full-strength `--die-border`) so the
+   two read as visually distinct weights -- "this is one tile with a seam"
+   vs. "this is the edge of the tile." */
+.pips-play .pips-cell[data-filled="1"].pips-domino-edge-right {
+    border-right: none;
+    box-shadow: inset -1px 0 0 0 color-mix(in oklch, var(--die-border) 55%, var(--pips-region-color, var(--die)) 45%);
+}
+
+.pips-play .pips-cell[data-filled="1"].pips-domino-edge-left {
+    border-left: none;
+    box-shadow: inset 1px 0 0 0 color-mix(in oklch, var(--die-border) 55%, var(--pips-region-color, var(--die)) 45%);
+}
+
+.pips-play .pips-cell[data-filled="1"].pips-domino-edge-down {
+    border-bottom: none;
+    box-shadow: inset 0 -1px 0 0 color-mix(in oklch, var(--die-border) 55%, var(--pips-region-color, var(--die)) 45%);
+}
+
+.pips-play .pips-cell[data-filled="1"].pips-domino-edge-up {
+    border-top: none;
+    box-shadow: inset 0 1px 0 0 color-mix(in oklch, var(--die-border) 55%, var(--pips-region-color, var(--die)) 45%);
 }
 
 /* Whole-board verification only, never per-cell/per-region (docs/
@@ -3237,12 +3328,14 @@ body.scrollable.family-feud-play {
     position: absolute;
     top: calc(var(--pips-badge-row) / var(--pips-rows) * 100%);
     left: calc(var(--pips-badge-col) / var(--pips-cols) * 100%);
-    /* 0.42, not a bigger-looking round number -- a 45deg-rotated square's
+    /* 0.46, not a bigger-looking round number -- a 45deg-rotated square's
        own visual (diagonal) footprint is ~1.41x its own side, so this reads
-       as roughly 0.6 of a cell's width on screen; confirmed live that a
-       larger box here visibly covered the pip dots of the cells it sits
-       between. */
-    width: calc(100% / var(--pips-cols) * 0.42);
+       as roughly 0.65 of a cell's width on screen; confirmed live that a
+       much larger box here visibly covered the pip dots of the cells it
+       sits between. Nudged up slightly from an earlier 0.42 to give a
+       3-character glyph like ">12" room at a legible font-size
+       (docs/concerns.md: the glyphs read too small to begin with). */
+    width: calc(100% / var(--pips-cols) * 0.46);
     aspect-ratio: 1;
     transform: translate(-50%, -50%) rotate(45deg);
     display: flex;
@@ -3261,7 +3354,9 @@ body.scrollable.family-feud-play {
     white-space: nowrap;
     color: oklch(0.98 0.005 90);
     font-weight: bold;
-    font-size: 0.7rem;
+    /* Was 0.7rem -- confirmed too small to read comfortably
+       (docs/concerns.md), especially "=" and "≠". */
+    font-size: 0.95rem;
 }
 
 .pips-play .pips-domino {
@@ -3340,30 +3435,40 @@ body.scrollable.family-feud-play {
     filter: brightness(1.2);
 }
 
-/* A placed domino mid relocate-drag -- the cell keeps its region color/
-   border (nothing server-side has changed yet), only the pip content hides,
-   matching how a dragged tray tile's own origin element stays in the DOM
-   but hidden. */
+/* A placed domino mid relocate-drag, or mid tap-rotation (its real two
+   cells while a `.pips-rotation-overlay` shows the attempted new spot
+   instead, below) -- the cell keeps its region color/border (nothing
+   server-side has changed yet), only the pip content hides, matching how
+   a dragged tray tile's own origin element stays in the DOM but hidden. */
 .pips-play .pips-cell-lifted .pips-pip {
     visibility: hidden;
 }
 
-/* A placed domino that was tap-rotated into an invalid spot (off the
-   board, or onto an already-occupied cell) -- docs/concerns.md: it stays
-   put (the move never actually happens) but keeps looking "rotated" --
-   its own default tray colors instead of the region color(s) it sits on,
-   lightened and see-through so the region color still shows faintly
-   through it -- until the player interacts with the board again (cleared
-   from the play page's own script block on the next pointerdown, and by
-   any fresh Livewire render). */
+/* The domino selected for tap-to-rotate on the board (docs/concerns.md) --
+   a plain accent border, same visual language as a selected tray tile
+   (`.pips-domino-selected`), applied to its own two real cells by the
+   play page's own script block. Purely a client-side highlight; never
+   server-rendered, so nothing here needs to survive a Livewire morph on
+   its own -- the script re-applies it after every rotation that lands
+   validly. */
+.pips-play .pips-cell-board-selected {
+    outline: 3px solid var(--accent);
+    outline-offset: -3px;
+}
+
+/* Both halves of a `.pips-rotation-overlay` (below) -- a placed domino's
+   floating mid-rotation preview, whether it landed off the board or on a
+   cell someone else already occupies (docs/concerns.md) -- its own
+   default tray colors, not whichever region color(s) it's sitting over,
+   lightened and see-through so that color still shows faintly through.
+   Reused as-is regardless of *why* the landing spot is invalid. */
 .pips-play .pips-cell-rotate-invalid {
     /* --die, not --surface -- see .pips-domino's own docblock further up
        for why a bare --surface was never actually defined and silently
        resolved to transparent. */
     background-color: var(--die) !important;
     background-image: none !important;
-    opacity: 0.55;
-    transition: opacity 0.5s ease, background-color 0.5s ease;
+    opacity: 0.6;
 }
 
 .pips-play .pips-drag-ghost {
@@ -3378,6 +3483,23 @@ body.scrollable.family-feud-play {
        transform, rather than subtracting half the ghost's own size in JS
        every time, keeps that update a single, cheap direct property write. */
     transform: translate(-50%, -50%);
+}
+
+/* A placed domino's floating mid-rotation preview (docs/concerns.md) --
+   unlike `.pips-drag-ghost`, this one is *stationary* (left/top are set
+   once, to the attempted landing spot's own computed pixel position, not
+   the cursor) and stays clickable (`pointer-events: auto`, the opposite of
+   the drag ghost's own `none`) so tapping it can keep rotating it further
+   even from an already-invalid position -- see the play page's own script
+   block, buildRotationOverlay()/attemptBoardRotate(). Sits above every
+   other placed domino via z-index, per docs/concerns.md's own "if it's
+   over another domino it should show above it." */
+.pips-play .pips-rotation-overlay {
+    position: fixed;
+    z-index: 55;
+    pointer-events: auto;
+    cursor: pointer;
+    box-shadow: 0 2px 8px var(--die-shadow);
 }
 
 /* Reusable domino pip/dot face (App\resources\views\components\pips-pip.blade.php)

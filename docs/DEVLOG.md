@@ -1543,6 +1543,123 @@ filling an entire real, irregular generated board through simulated pointer gest
 without a solver isn't a reasonable amount of test-authoring effort for what the
 feature-level 2×2 tests already cover deterministically.
 
+**A follow-up round from `docs/concerns.md`'s own "New" section: a placed domino had no
+background or border of its own on the board at all** — a filled cell used the exact
+same region-colored, dashed-bordered look as an empty one, differentiated only by
+whichever pip dots happened to be inside it. Worst case: a 0-0 domino (zero dots on
+either half) was rendered pixel-for-pixel identical to an empty cell, and even a
+domino with visible dots gave no way to tell "these two adjacent cells are one domino"
+from "these are two different dominoes that happen to sit next to each other" or "one
+domino next to an empty cell in the same region color." Also flagged as effectively the
+same bug: the existing `.pips-cell-rotate-invalid` "stuck mid-rotation" styling (the
+previous round's own new feature) was too subtle to read for the same underlying
+reason — a lightened/tray-colored fill with no border change to go with it.
+
+Fixed by making a filled cell read as its own physical domino tile rather than just a
+colored square: `.pips-cell[data-filled="1"]` switches off the empty cell's dashed
+grouping-border background image and gets a real solid 3px border in `--die-border`
+(thicker than an empty cell's plain `border-2` specifically so it reads as a distinct
+weight, not just "the same border, not dashed"). The two cells belonging to one domino
+still need to read as *one* tile, not two bordered squares sitting side by side —
+`pages::pips.play`'s board-rendering loop now computes, per filled cell, which
+direction (`up`/`down`/`left`/`right`) its own domino partner actually sits in (from
+`$placements` grouped by `dominoId`, resolved once before the loop rather than
+per-cell), and a new `.pips-domino-edge-{direction}` class suppresses the border on
+exactly that one shared side while leaving the other three sides alone. A thin `inset`
+box-shadow (1px, blended toward the cell's own region color rather than full-strength
+`--die-border`) stands in for a divider on that suppressed edge, deliberately much
+fainter than the outer 3px border, so the two read as different visual weights — "a
+seam in one tile" vs. "the edge of the tile" — rather than just two border widths that
+happen to differ. Confirmed live (seed 1, easy) across every case this needed to
+distinguish: two different dominoes sitting in the *same* region color (still a clean
+line between them), a domino straddling *two* different region colors (still reads as
+one unbroken tile despite the color change halfway across it, exactly the "can
+legitimately straddle two regions" rule the game's own text already describes), a
+blank 0-0 domino (now has a real border where before it had literally nothing to
+distinguish it from an empty cell), and the invalid-rotation "stuck" styling (now
+obviously a different, flat gray tile against its neighbors, instead of a same-shaped
+cell that was merely somewhat dimmer).
+
+**A third round from `docs/concerns.md`, driven this time by real reference screenshots
+of the actual NYT game the user provided (`docs/images/`, `docs/images/rotation/`) --
+several of these were genuine "read the picture, don't guess" fixes rather than things
+describable from the text alone.**
+
+- **Region grouping borders traced every individual cell, not each region's own outer
+  silhouette** — every cell independently drew a dashed border on all 4 of its own
+  sides, so a 5-cell region rendered as 5 separately-dashed boxes instead of one
+  dashed outline around the whole shape, exactly the opposite of the reference
+  screenshots. Fixed the same way the domino-tile border above works: per cell, per
+  side, `pages::pips.play`'s board loop now checks whether that side's neighbor is
+  active *and* in the same region — if so it's an "internal" side (a plain, much
+  lighter 1px line, matching "the borders in the cells within a region should be less
+  dark than the region perimeter"); if not (a different region, the board's own edge,
+  or a void/inactive cell) it's a "perimeter" side and gets the dashed treatment via a
+  new `.pips-region-edge-{top,right,bottom,left}` class. `.pips-cell`'s own
+  `background-image` now composes from 4 independent `--pips-dash-{side}` custom
+  properties (each `none` unless that side's own class sets a real gradient) instead
+  of always drawing all 4 unconditionally. A domino's own solid border still wins
+  outright wherever it overlaps a region's perimeter (confirmed live: equal selector
+  specificity between `.pips-cell[data-filled="1"]` and `.pips-cell.pips-region-edge-*`
+  resolves by source order, and the filled-cell rule is declared later on purpose).
+- **Badge glyphs (`=`, `≠`, `>12`, etc.) read too small** — bumped `font-size` from
+  0.7rem to 0.95rem and the badge's own diamond from 0.42 to 0.46 of a cell's width (to
+  give a 3-character glyph room without touching neighboring pips), both against the
+  same real-game reference screenshots.
+- **The relocate-drag ghost was both the wrong size and always horizontal, regardless
+  of the domino's actual on-board orientation** — it used to build a fresh element
+  styled like a *tray* tile (`.pips-domino`'s own fixed, much smaller pip size,
+  hardcoded pipA-divider-pipB layout) rather than reflecting the real board tile being
+  dragged. Rewrote `buildRelocateGhost()` to clone the domino's own two real `.pips-cell`
+  elements (carrying over their already-correct pip content, size, and domino-edge
+  border/divider classes for free) and lay them out in a flex row or column based on
+  whether the two cells are actually in the same board row or column.
+- **Rebuilt board-domino rotation as select-then-rotate, replacing the previous
+  single-tap-attempts-once design from the prior round, per explicit new instructions
+  plus the `docs/images/rotation/` reference screenshots.** A first tap selects a
+  placed domino (a purely client-side highlight, `.pips-cell-board-selected`, no
+  `$wire` round trip); a second tap on the *same* domino is what actually attempts a
+  90° pivot rotation now. Critically, "it should still rotate" is taken literally: an
+  attempt that would be invalid (off the board, or onto a cell something else already
+  occupies) is never a silent no-op -- the domino visibly moves there anyway, via a
+  new floating, `position: fixed`, above-everything (`z-index`) `.pips-rotation-overlay`
+  built from real cell geometry (the pivot half is always a clone of a real board cell,
+  since the pivot never moves; the other half clones whichever real cell sits at the
+  computed target -- even one occupied by a *different* domino, which then shows
+  through underneath, matching `docs/images/rotation/Overlapping dominoes.png` -- or,
+  if the target falls fully off the board, a plain phantom tile with no region color,
+  matching `Off Board 1/2.png`), while the domino's own real two cells go quiet
+  (reusing the relocate-drag's existing `.pips-cell-lifted` "picked up" look, since
+  nothing server-side actually changed). A rotation that *did* land validly keeps the
+  domino selected for ~1.6s (long enough to chain a few more quick rotations without
+  re-selecting, per "it stays selected for a second or two"), auto-deselecting after;
+  one that's stuck invalid stays selected indefinitely until the player taps anywhere
+  else (a new document-level `pointerdown` listener, skipped only for clicks on the
+  selected domino's own real cells or its overlay), which reverts it -- there's nothing
+  to actually undo server-side, so "revert" is just removing the overlay and un-lifting
+  the real cells.
+
+  Every rotate attempt, whether the very first tap after selecting or a later one
+  clicking directly on an already-invalid floating overlay, is a fresh, independent
+  `$wire.rotatePlacement()` call computed from the domino's own *true*, currently
+  server-committed position -- never a client-tracked cumulative angle. This was a
+  deliberate simplification once it became clear the server's own `rotatePlacement()`
+  has no way to represent "rotate N×90° from a remembered baseline" (it only ever
+  knows "pivot around this real cell, from wherever the domino's `$placements` actually
+  are right now") -- so a later tap picking the domino's *other* real cell as pivot
+  instead (via `data-real-cell` on each overlay half, tracking which of the domino's
+  two real cells that half represents, regardless of what's visually cloned into it)
+  can still land somewhere valid even after an earlier attempt from the same base
+  didn't, without needing to duplicate the server's own multi-step rotation math
+  client-side just to decide validity (only the *positioning* of an invalid preview is
+  computed client-side, via a JS port of the server's own row-down/col-right rotation
+  formula -- purely cosmetic, never trusted for anything that actually changes state).
+  `tests/Browser/PipsDragPlacementTest.php`'s own tap-to-rotate section was updated for
+  the new two-tap flow and to scope its post-rotation `data-domino-id` queries to
+  `#pips-board` specifically -- an invalid attempt's floating overlay clones the pivot
+  cell verbatim, carrying the same `data-domino-id` into `document.body`, which was
+  briefly inflating an unscoped `document.querySelectorAll()` match count by one.
+
 ## Punchline
 
 A Quiplash-style room game (players privately write funny answers to prompts, then vote,

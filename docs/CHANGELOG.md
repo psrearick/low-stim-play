@@ -2,6 +2,15 @@
 
 A terse, commit-by-commit record of what changed, newest first. No rationale or decisions here — see `docs/DEVLOG.md` for the *why* behind anything listed here, organized by feature instead of by commit. See `docs/TODO.md` for what's still outstanding.
 
+## 2026-09-13
+
+- Added a "New" section to `docs/concerns.md` and reference screenshots (`docs/images/`, `docs/images/rotation/`) of the real NYT game's own domino tile/region border look and rotation behavior.
+- Filled board cells now render as their own bordered domino tile (a real border around the domino's own two-cell footprint, merged with a light divider on the shared edge) instead of looking identical to an empty cell.
+- Region grouping's dashed border now traces each region's own outer perimeter only, with a lighter plain line between cells of the same region, instead of every individual cell getting its own dashed border.
+- Bumped Pips constraint badge glyph size and badge size so `=`/`≠`/`>12`-style symbols read clearly.
+- Fixed the relocate-drag ghost showing a small, always-horizontal tray-styled tile regardless of the domino's real size/orientation on the board.
+- Rebuilt board-domino rotation as select-then-rotate: a first tap selects a placed domino, a second attempts a 90° pivot rotation. An invalid attempt (off the board, or onto an occupied cell) now visibly shows the domino rotated into that spot, grayed out and drawn above other dominoes, instead of silently doing nothing; it stays selected until the player taps elsewhere, which reverts it.
+
 ## 2026-09-12
 
 - Fixed several live-play Pips bugs from `docs/concerns.md`: tray domino rotation resizing every other domino in the tray (now a CSS transform instead of a flex-direction swap, which also fixed an invisible tray-domino background caused by a never-defined `--surface` CSS variable); domino counts per tier cut to match the real game (Easy 5, Medium 7, Hard 13, was a full double-N set of 15/21/28); dashed cell/region borders packing their dashes too tight; dragging a placed domino off the board now returns it to the tray instead of snapping back; removed live per-cell/per-region checkmark/X verification in favor of a whole-board banner and outline shown only once every cell is filled, silently hidden again the moment the board is touched; replaced a placed domino's tap-to-rotate "swap values in place" with a real 90-degree pivot rotation around whichever cell is tapped.

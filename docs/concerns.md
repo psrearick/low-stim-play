@@ -1,5 +1,9 @@
 # Pips
 
+## New
+
+- Because dominoes do not have backgrounds or borders that show on the board, you cannot tell where the dominoes are, and you cannot differentiate one domino from another. Also, when a domino is rotated such that one side is off the board, it does seem to show that. 
+
 ## General
 
 - The dashes on the outlines on the dominoes are too close together. There should be more space between each dash.
