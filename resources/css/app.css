@@ -3181,9 +3181,30 @@ body.scrollable.family-feud-play {
     cursor: pointer;
     user-select: none;
     touch-action: none;
-    border-style: dashed;
-    background-color: var(--pips-region-color, var(--surface));
-    border-color: oklch(from var(--pips-region-color, var(--surface-border)) calc(l - 0.15) c h);
+    /* A plain `border-style: dashed` packs its dashes far too tightly at
+       this border-width (confirmed live: bumping border-width alone barely
+       moves the dash pitch, since the browser derives dash length/gap from
+       its own heuristic, not a value this app controls) -- four repeating
+       linear-gradients (one per edge) stand in for the border instead,
+       giving explicit control over dash length vs. gap. The real border is
+       kept transparent (not `none`) purely so the box model/layout size
+       stays identical to a bordered cell. */
+    border: 2px solid transparent;
+    /* --die/--die-border fallbacks, not --surface/--surface-border -- see
+       .pips-domino's own docblock a little further down for why a bare
+       --surface was never actually defined. Unreachable in practice here
+       (every cell always sets --pips-region-color inline), but kept
+       correct rather than silently dead. */
+    --pips-dash-color: oklch(from var(--pips-region-color, var(--die-border)) calc(l - 0.15) c h);
+    background-color: var(--pips-region-color, var(--die));
+    background-image:
+        linear-gradient(to right, var(--pips-dash-color) 40%, transparent 0%),
+        linear-gradient(to right, var(--pips-dash-color) 40%, transparent 0%),
+        linear-gradient(to bottom, var(--pips-dash-color) 40%, transparent 0%),
+        linear-gradient(to bottom, var(--pips-dash-color) 40%, transparent 0%);
+    background-repeat: repeat-x, repeat-x, repeat-y, repeat-y;
+    background-size: 16px 2px, 16px 2px, 2px 16px, 2px 16px;
+    background-position: 0 0, 0 100%, 0 0, 100% 0;
     /* This app's own global `button { padding: clamp(...) clamp(...) }`
        base style (sized for text buttons) otherwise eats most of a cell's
        own area -- confirmed live via getBoundingClientRect() that it left
@@ -3195,32 +3216,21 @@ body.scrollable.family-feud-play {
     padding: 0;
 }
 
-.pips-play .pips-status-broken {
-    background-color: color-mix(in oklch, var(--pips-region-color, var(--surface)) 60%, var(--warn) 40%);
-}
-
-.pips-play .pips-status-broken::after {
-    content: '✕';
-    position: absolute;
-    top: 2px;
-    right: 4px;
-    font-size: 0.6em;
-    color: var(--warn);
-}
-
-.pips-play .pips-status-satisfied {
-    border-style: solid;
-    border-width: 3px;
-    border-color: var(--accent);
-}
-
-.pips-play .pips-status-satisfied::after {
-    content: '✓';
-    position: absolute;
-    top: 2px;
-    right: 4px;
-    font-size: 0.6em;
-    color: var(--accent);
+/* Whole-board verification only, never per-cell/per-region (docs/
+   concerns.md: no live checkmark/X feedback while the board is still being
+   filled, and an incorrect board never points at which region is wrong) --
+   applied to the board itself only once every cell is filled but something
+   is still wrong (pages::pips.play's own $boardIncorrect). A *correctly*
+   filled board instead ends the game immediately (endGame(solved: true)),
+   swapping the whole board out for the existing post-game results screen
+   in the same request -- a deliberate scope decision (docs/DEVLOG.md's
+   Pips entry), not an oversight: a green-outlined-board "moment" would
+   need a second round trip (or a client-side delay) to ever actually be
+   visible before that swap happens. An `outline`, not a `border`, so it
+   doesn't perturb the grid's own cell sizing. */
+.pips-play .pips-board-incorrect {
+    outline: 4px solid var(--warn);
+    outline-offset: 4px;
 }
 
 .pips-play .pips-badge {
@@ -3257,30 +3267,35 @@ body.scrollable.family-feud-play {
 .pips-play .pips-domino {
     cursor: pointer;
     user-select: none;
-    background: var(--surface);
-    border-color: var(--surface-border);
+    /* --die/--die-border, not --surface/--surface-border -- a bare
+       --surface was never actually defined anywhere (only the Tailwind-
+       consumable --color-surface alias for --die was, see this file's own
+       @theme inline block up top and the app-sidebar rule's own docblock
+       for this exact pitfall) -- confirmed live this rule was silently
+       resolving to a transparent background before this fix. */
+    background: var(--die);
+    border-color: var(--die-border);
     touch-action: none;
+    /* Rotation (below) is a `transform`, not a flex-direction/layout change
+       -- animating it slowly here is what makes a 90deg turn read as a
+       turn rather than an instant jump-cut (docs/concerns.md). */
+    transition: transform 0.5s ease, opacity 0.5s ease, filter 0.5s ease;
 }
 
 .pips-play .pips-domino-divider {
     width: 2px;
     align-self: stretch;
-    background-color: var(--surface-border);
-}
-
-/* A vertical domino's divider needs to be a horizontal line (full width,
-   thin height) instead -- align-self: stretch above only ever stretches
-   the *cross* axis, which flips between width and height along with
-   flex-direction itself. */
-.pips-play .pips-domino-vertical .pips-domino-divider {
-    width: auto;
-    height: 2px;
+    background-color: var(--die-border);
 }
 
 .pips-play .pips-domino-selected {
     border-style: double;
     border-width: 4px;
     border-color: var(--accent);
+    /* Sits above whichever neighbor it's mid-rotation over (see the
+       "may overlap" rule below) rather than being drawn under it. */
+    position: relative;
+    z-index: 5;
 }
 
 /* Client-only rotation state (tapping an already-selected tray tile again
@@ -3289,17 +3304,40 @@ body.scrollable.family-feud-play {
    just 2, since it's a 1x2 rectangle rather than a square: horizontal vs.
    vertical (.pips-domino-vertical) crossed with which end each value
    renders on (.pips-domino-flipped). Composed from two independent classes
-   rather than 4 exclusive ones. */
-.pips-play .pips-domino-vertical {
-    flex-direction: column;
+   rather than 4 exclusive ones.
+   Each rotates the *whole tile* (divider included) by a plain `transform`
+   around its own center -- not a flex-direction swap -- so the element's
+   own layout box (the space it reserves in the tray's flex row) never
+   changes size. That's the fix for a real, confirmed bug (docs/
+   concerns.md): a flex-direction swap made a rotated tile intrinsically
+   taller, and this row's default `align-items: stretch` then stretched
+   every *other*, unrotated tile in the same row to match -- rotating one
+   domino visibly resized every domino next to it. A `transform` only
+   repaints; it never touches layout, so siblings can't be affected. The
+   visual result can overlap neighboring tiles once rotated -- explicitly
+   fine per docs/concerns.md ("It may overlap the other dominoes... The
+   other dominoes do not move out of the way or reflow"). */
+.pips-play .pips-domino-vertical:not(.pips-domino-flipped) {
+    transform: rotate(90deg);
 }
 
 .pips-play .pips-domino-flipped:not(.pips-domino-vertical) {
-    flex-direction: row-reverse;
+    transform: rotate(180deg);
 }
 
 .pips-play .pips-domino-vertical.pips-domino-flipped {
-    flex-direction: column-reverse;
+    transform: rotate(270deg);
+}
+
+/* Only a *vertical* orientation reads as "mid-rotation" -- a domino that's
+   landed back on a horizontal orientation (0deg or the 180deg "flipped"
+   orientation) looks exactly like a standard, un-rotated tray tile
+   (docs/concerns.md: "If a domino in the tray is rotated into a horizontal
+   position, it is styled like a standard tray domino rather than a rotated
+   domino"). */
+.pips-play .pips-domino-vertical {
+    opacity: 0.55;
+    filter: brightness(1.2);
 }
 
 /* A placed domino mid relocate-drag -- the cell keeps its region color/
@@ -3308,6 +3346,24 @@ body.scrollable.family-feud-play {
    but hidden. */
 .pips-play .pips-cell-lifted .pips-pip {
     visibility: hidden;
+}
+
+/* A placed domino that was tap-rotated into an invalid spot (off the
+   board, or onto an already-occupied cell) -- docs/concerns.md: it stays
+   put (the move never actually happens) but keeps looking "rotated" --
+   its own default tray colors instead of the region color(s) it sits on,
+   lightened and see-through so the region color still shows faintly
+   through it -- until the player interacts with the board again (cleared
+   from the play page's own script block on the next pointerdown, and by
+   any fresh Livewire render). */
+.pips-play .pips-cell-rotate-invalid {
+    /* --die, not --surface -- see .pips-domino's own docblock further up
+       for why a bare --surface was never actually defined and silently
+       resolved to transparent. */
+    background-color: var(--die) !important;
+    background-image: none !important;
+    opacity: 0.55;
+    transition: opacity 0.5s ease, background-color 0.5s ease;
 }
 
 .pips-play .pips-drag-ghost {

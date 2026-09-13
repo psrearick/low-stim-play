@@ -60,7 +60,7 @@ test('an explicit difficulty resolves to that tier\'s board size', function () {
     expect($board['dimensions']['rows'])->toBeLessThanOrEqual(PipsDifficulty::Hard->rows());
     expect($board['dimensions']['cols'])->toBeLessThanOrEqual(PipsDifficulty::Hard->cols());
     expect($board['cells'])->toHaveCount(PipsDifficulty::Hard->cellCount());
-    expect($component->get('trayRemaining'))->toHaveCount(28);
+    expect($component->get('trayRemaining'))->toHaveCount(PipsDifficulty::Hard->dominoCount());
 });
 
 test('the same seed and difficulty always produce the same puzzle', function () {
@@ -96,9 +96,10 @@ test('placeDomino places a valid domino via the tap-to-select path', function ()
 
 test('placeDomino rejects non-adjacent cells', function () {
     $component = Livewire::test('pages::pips.play', ['seed' => 1, 'difficulty' => 'easy']);
+    $dominoId = collect($component->get('trayRemaining'))->first();
 
     // Cells 0 and 2 are two apart on the same row -- not adjacent.
-    $component->call('placeDomino', '0-1', 0, 2);
+    $component->call('placeDomino', $dominoId, 0, 2);
 
     expect($component->get('placements'))->toBe([])
         ->and($component->get('message'))->not->toBeNull();
@@ -141,7 +142,9 @@ test('a region never shows satisfied until it is fully filled, even if the const
         'regions' => [
             ['id' => 0, 'cells' => [0, 1], 'constraint' => ['type' => 'less', 'value' => 100], 'color' => 0, 'badge' => null],
         ],
+        'dominoes' => ['0-1'],
     ]);
+    $component->set('trayRemaining', ['0-1']);
 
     // A "less than 100" constraint on a 2-cell, maxPip=4 region is
     // trivially true (max possible sum is 8) -- ConstraintChecker itself
@@ -154,6 +157,81 @@ test('a region never shows satisfied until it is fully filled, even if the const
     $component->call('placeDomino', '0-1', 0, 1, false);
 
     expect($component->get('regionStatus')[0])->toBe('Satisfied');
+});
+
+/**
+ * Same 2x2 layout as pipsTwoByTwoBoard(), but with an 'equal' constraint
+ * over all four cells -- one that a fully-filled board can actually fail,
+ * unlike a 'none' constraint (always Satisfied regardless of values),
+ * needed to exercise a genuinely *incorrect* full board (docs/concerns.md).
+ */
+function pipsTwoByTwoEqualBoard(): array
+{
+    $board = pipsTwoByTwoBoard();
+    $board['regions'][0]['constraint'] = ['type' => 'equal', 'value' => null];
+
+    return $board;
+}
+
+test('boardIncorrect stays false while the board is only partially filled', function () {
+    $component = Livewire::test('pages::pips.play', ['seed' => 1, 'difficulty' => 'easy']);
+    $component->set('board', pipsTwoByTwoEqualBoard());
+    $component->set('trayRemaining', ['0-1', '2-3']);
+
+    $component->call('placeDomino', '0-1', 0, 1, flip: false);
+
+    expect($component->get('boardIncorrect'))->toBeFalse();
+});
+
+test('boardIncorrect turns true once every cell is filled but a region is broken, without ending the game', function () {
+    $component = Livewire::test('pages::pips.play', ['seed' => 1, 'difficulty' => 'easy']);
+    $component->set('board', pipsTwoByTwoEqualBoard());
+    $component->set('trayRemaining', ['0-1', '2-3']);
+
+    // Values 0,1,2,3 are all different -- an 'equal' constraint over all
+    // four cells is broken.
+    $component->call('placeDomino', '0-1', 0, 1, flip: false)
+        ->call('placeDomino', '2-3', 2, 3, flip: false);
+
+    expect($component->get('boardIncorrect'))->toBeTrue()
+        ->and($component->get('ended'))->toBeFalse();
+});
+
+test('boardIncorrect clears the moment the player interacts with an incorrect board, and stays hidden until the board is full again', function () {
+    $component = Livewire::test('pages::pips.play', ['seed' => 1, 'difficulty' => 'easy']);
+    $component->set('board', pipsTwoByTwoEqualBoard());
+    $component->set('trayRemaining', ['0-1', '2-3']);
+
+    $component->call('placeDomino', '0-1', 0, 1, flip: false)
+        ->call('placeDomino', '2-3', 2, 3, flip: false);
+    expect($component->get('boardIncorrect'))->toBeTrue();
+
+    $component->call('removePlacement', '2-3');
+    expect($component->get('boardIncorrect'))->toBeFalse();
+
+    // Filled again, still wrong -- the banner reappears (nothing about a
+    // one-time-only dismissal), it's purely derived from current state.
+    $component->call('placeDomino', '2-3', 2, 3, flip: false);
+    expect($component->get('boardIncorrect'))->toBeTrue();
+});
+
+test('boardIncorrect is false once the board is completely and correctly filled', function () {
+    $component = Livewire::test('pages::pips.play', ['seed' => 1, 'difficulty' => 'easy']);
+    $component->set('board', pipsTwoByTwoEqualBoard());
+    $component->set('trayRemaining', []);
+
+    // boardIncorrect is purely derived from current state (docs/concerns.md
+    // -- never a stored flag), so setting a complete, correct fill directly
+    // is enough to exercise it, with no action call needed to "trigger" a
+    // recheck.
+    $component->set('placements', [
+        0 => ['value' => 1, 'dominoId' => '0-1'],
+        1 => ['value' => 1, 'dominoId' => '0-1'],
+        2 => ['value' => 1, 'dominoId' => '2-3'],
+        3 => ['value' => 1, 'dominoId' => '2-3'],
+    ]);
+
+    expect($component->get('boardIncorrect'))->toBeFalse();
 });
 
 test('solving the whole board ends the game as solved with a positive score', function () {
@@ -201,39 +279,85 @@ test('removePlacement returns a placed domino to the tray', function () {
         ->and($component->get('trayRemaining'))->toContain($dominoId);
 });
 
-test('rotatePlacement swaps a placed domino\'s two values in place', function () {
+/**
+ * A tight, fully-controlled 2x2 board -- (0,0)=0 (1,0)=1 / (0,1)=2 (1,1)=3
+ * in row-major order -- rather than a real generated puzzle's own
+ * irregular shape, so the exact geometry a pivot-rotation depends on
+ * (docs/concerns.md) is deterministic instead of incidental to whatever a
+ * given seed happens to grow.
+ */
+function pipsTwoByTwoBoard(): array
+{
+    return [
+        'dimensions' => ['rows' => 2, 'cols' => 2],
+        'cells' => [0, 1, 2, 3],
+        'regions' => [
+            ['id' => 0, 'cells' => [0, 1, 2, 3], 'constraint' => ['type' => 'none', 'value' => null], 'color' => 0, 'badge' => null],
+        ],
+        'dominoes' => ['0-1', '2-3'],
+    ];
+}
+
+test('rotatePlacement pivots a placed domino 90 degrees clockwise around the given cell', function () {
     $component = Livewire::test('pages::pips.play', ['seed' => 1, 'difficulty' => 'easy']);
-    $puzzle = app(PuzzleGenerator::class)->forSeed(1, PipsDifficulty::Easy);
-    $placement = $puzzle->solution['placements'][0];
-    $lo = min($placement['valueA'], $placement['valueB']);
-    $hi = max($placement['valueA'], $placement['valueB']);
-    $dominoId = "{$lo}-{$hi}";
+    $component->set('board', pipsTwoByTwoBoard());
+    $component->set('trayRemaining', ['0-1', '2-3']);
 
-    $component->call('placeDomino', $dominoId, $placement['cellA'], $placement['cellB'], flip: false);
-    expect($component->get('placements')[$placement['cellA']]['value'])->toBe($lo)
-        ->and($component->get('placements')[$placement['cellB']]['value'])->toBe($hi);
+    // A horizontal domino at cells 0 (left, pivot) and 1 (right) -- rotating
+    // it clockwise around cell 0 should swing cell 1's value down to cell 2
+    // (east becomes south), leaving cell 0 untouched.
+    $component->call('placeDomino', '0-1', 0, 1, flip: false);
+    $component->call('rotatePlacement', '0-1', 0);
 
-    $component->call('rotatePlacement', $dominoId);
+    expect($component->get('placements'))->not->toHaveKey(1)
+        ->and($component->get('placements')[0]['value'])->toBe(0)
+        ->and($component->get('placements')[2]['value'])->toBe(1)
+        ->and($component->get('placements')[2]['dominoId'])->toBe('0-1');
+});
 
-    expect($component->get('placements')[$placement['cellA']]['value'])->toBe($hi)
-        ->and($component->get('placements')[$placement['cellB']]['value'])->toBe($lo)
-        // Footprint is unchanged -- still the same two cells, still in the tray minus this id.
-        ->and($component->get('trayRemaining'))->not->toContain($dominoId);
+test('rotatePlacement silently does nothing when the landing cell is off the board', function () {
+    $component = Livewire::test('pages::pips.play', ['seed' => 1, 'difficulty' => 'easy']);
+    $component->set('board', pipsTwoByTwoBoard());
+    $component->set('trayRemaining', ['0-1', '2-3']);
+
+    // Pivoting around cell 1 (the right cell of a top-row domino) swings
+    // cell 0's value to row -1 -- off the board entirely.
+    $component->call('placeDomino', '0-1', 0, 1, flip: false);
+    $component->call('rotatePlacement', '0-1', 1);
+
+    expect($component->get('placements')[0]['value'])->toBe(0)
+        ->and($component->get('placements')[1]['value'])->toBe(1)
+        ->and($component->get('message'))->toBeNull();
+});
+
+test('rotatePlacement silently does nothing when the landing cell is already covered', function () {
+    $component = Livewire::test('pages::pips.play', ['seed' => 1, 'difficulty' => 'easy']);
+    $component->set('board', pipsTwoByTwoBoard());
+    $component->set('trayRemaining', ['0-1', '2-3']);
+
+    $component->call('placeDomino', '0-1', 0, 1, flip: false)
+        ->call('placeDomino', '2-3', 2, 3, flip: false);
+
+    // Pivoting around cell 0 would swing cell 1's value onto cell 2 -- but
+    // cell 2 is already covered by the other domino.
+    $component->call('rotatePlacement', '0-1', 0);
+
+    expect($component->get('placements')[0]['value'])->toBe(0)
+        ->and($component->get('placements')[1]['value'])->toBe(1)
+        ->and($component->get('placements')[2]['dominoId'])->toBe('2-3');
 });
 
 test('rotatePlacement does nothing once the game has ended', function () {
     $component = Livewire::test('pages::pips.play', ['seed' => 1, 'difficulty' => 'easy']);
-    $puzzle = app(PuzzleGenerator::class)->forSeed(1, PipsDifficulty::Easy);
-    $placement = $puzzle->solution['placements'][0];
-    $lo = min($placement['valueA'], $placement['valueB']);
-    $hi = max($placement['valueA'], $placement['valueB']);
-    $dominoId = "{$lo}-{$hi}";
+    $component->set('board', pipsTwoByTwoBoard());
+    $component->set('trayRemaining', ['0-1', '2-3']);
 
-    $component->call('placeDomino', $dominoId, $placement['cellA'], $placement['cellB'], flip: false)
+    $component->call('placeDomino', '0-1', 0, 1, flip: false)
         ->call('giveUp')
-        ->call('rotatePlacement', $dominoId);
+        ->call('rotatePlacement', '0-1', 0);
 
-    expect($component->get('placements')[$placement['cellA']]['value'])->toBe($lo);
+    expect($component->get('placements')[0]['value'])->toBe(0)
+        ->and($component->get('placements')[1]['value'])->toBe(1);
 });
 
 test('movePlacement relocates an already-placed domino to a new cell pair', function () {

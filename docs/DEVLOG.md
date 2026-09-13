@@ -1421,6 +1421,128 @@ localSelectedDominoId) return;` before resetting anything. Confirmed by the fix 
 turning a consistently-timing-out (~22s) browser test back into a consistently-fast
 (~2.6s) pass, five runs straight.
 
+**A round of live-play bug fixes from `docs/concerns.md`, all confirmed by actually
+running the app in a real browser (`docker compose up`, Claude in Chrome) rather than
+from reading the code.**
+
+- **Domino counts were roughly 2-3x too many.** `PipsDifficulty::dominoCount()` used to
+  be a formula (`C(N+1,2)`, the full double-`maxPip` set size) rather than a real design
+  choice — Easy shipped all 15 dominoes of a double-4 set, Hard all 28 of a double-6
+  set, both far busier than the real game. `dominoCount()` is now a fixed, chosen value
+  per tier (Easy 5, Medium 7, Hard 13 — within the requested 4-5/6-8/12-14 ranges),
+  `cellCount()` stays `2 × dominoCount()` as before, and `rows()`/`cols()` shrank to
+  match (Easy 4×4, Medium 4×5, Hard 5×8) so the bounding box keeps roughly the same
+  1.4-1.6x-of-cellCount ratio the shape grower wants. `BoardFiller::assignDominoes()`
+  needed no change at all — it already only ever consumes the first `count($pairs)`
+  entries of a shuffled full domino set, so a smaller `dominoCount()` just means fewer
+  of the full set's dominoes get drawn. The one real wrinkle: the tray can no longer be
+  "every domino from 0-0 through maxPip-maxPip" (the play page used to just generate
+  that list from `maxPip()` alone) since it's now a genuine subset — `PuzzleGenerator`
+  persists which dominoes a given puzzle actually used as a new `board.dominoes` list
+  (safe to expose; it doesn't reveal the solution's cell mapping), and the play page's
+  `allDominoIds()` reads that instead of re-deriving a full set.
+
+- **Rotating a tray domino resized every other domino in the tray.** The old
+  implementation swapped `flex-direction` (row ↔ column) on the rotated tile — which
+  genuinely changes its own intrinsic height, and the tray row's default
+  `align-items: stretch` then stretched every *other*, unrotated tile in the same flex
+  row to match. Confirmed live: rotating tile 1 visibly grew tiles 2-8 taller too.
+  Fixed by rotating with a plain CSS `transform: rotate(90/180/270deg)` on the whole
+  tile instead — a transform never touches layout, so the tile's reserved space in the
+  tray never changes size, and siblings can't be affected. It can now visually overlap
+  a neighbor once rotated, which `docs/concerns.md` explicitly calls acceptable ("the
+  other dominoes do not move out of the way or reflow"). The existing `rotationStep`/
+  `isFlipped()` client-side model needed no changes — a whole-box rotation by
+  `90 * step` degrees turns out to already match that model's `vertical`/`flipped`
+  class semantics exactly, so only the CSS the classes drive had to change, not the JS
+  that toggles them (or the existing browser test asserting those classes toggle
+  correctly).
+
+- **While experimenting with the dash spacing below, found `.pips-domino`'s own
+  `background: var(--surface)` (and `--surface-border`) were silently resolving to
+  transparent** — a bare `--surface` custom property was never actually defined
+  anywhere (only the Tailwind-consumable `--color-surface` alias for `--die` was; see
+  the app-sidebar rule's own docblock for this exact, previously-fixed pitfall
+  elsewhere in this file). Confirmed live via `getComputedStyle()`. Every tray domino's
+  background has been invisible (falling through to the page background) since it was
+  first built. Fixed by switching to `--die`/`--die-border` directly, matching the
+  established fix pattern.
+
+- **Dashed cell/region borders packed their dashes far too close together, and plain
+  CSS can't control that.** `border-style: dashed`'s dash length/gap is a browser
+  heuristic, not something a `border-width` bump actually moves in any useful way
+  (confirmed live: quadrupling the border width barely changed the dash pitch at all).
+  Replaced with four repeating `linear-gradient` backgrounds (one per edge) at an
+  explicit 16px pitch, 40% dash / 60% gap — the standard "border-image via background"
+  technique for exactly this kind of control plain borders don't offer.
+
+- **Allow dragging a placed domino off the board to remove it.** The relocate-drag
+  gesture used to just snap back in place whenever the drop point wasn't close enough
+  to a valid empty cell pair, whether that was because the drop missed by a little or
+  because it landed nowhere near the board at all. Now checks the drop point against
+  the board's own bounding rect first: outside it, `$wire.removePlacement()` returns
+  the domino to the tray; inside it but not near a valid pair, it still just snaps
+  back as before.
+
+- **Rewrote per-cell/per-region live verification (the blue checkmark, misplaced red
+  X's) into whole-board-only verification, on request** — `docs/concerns.md` was
+  explicit that no verification should show until every cell is filled, and an
+  incorrect board should never point at which region is wrong. `getRegionStatusProperty()`
+  stays (still needed internally by `isBoardSolved()`), but the blade template no
+  longer renders a `pips-status-*` class or a ✓/✕ pseudo-element per cell at all. A new
+  `getBoardIncorrectProperty()` computed property — true only once every cell is filled
+  and the board is still wrong — drives a banner ("The board is incorrect.") and a
+  whole-board `outline` (not a `border`, so it doesn't perturb the grid's own cell
+  sizing). Deliberately a computed property, never a stored flag: "clears the moment
+  the player interacts with the board, stays hidden until every spot is filled again"
+  (`docs/concerns.md`'s own wording) falls out for free from deriving it fresh every
+  render, since removing/relocating even one domino makes the board no longer fully
+  filled — the only thing the property checks. A *correct* fully-filled board still
+  ends the game immediately via the existing `endGame(solved: true)` path (unchanged),
+  swapping the whole interactive board out for the pre-existing post-game results
+  screen in the same request — deliberately **not** chasing a literal "outline the
+  board green" moment for the correct case too, since that would need a second round
+  trip (or a client-side delay before the swap) to ever actually be visible, which felt
+  like real complexity for a purely cosmetic flourish the results screen already covers
+  by announcing "Solved!" unambiguously.
+
+- **Replaced `rotatePlacement()`'s old "swap the two values in place" behavior with a
+  real geometric pivot rotation, per `docs/concerns.md`.** A placed domino now rotates
+  90° clockwise around whichever of its own two cells the client says is the pivot
+  (`rotatePlacement(string $dominoId, int $pivotCell)`) — the pivot stays put, the
+  other cell sweeps a quarter turn around it (`newRow = pivotRow + deltaCol; newCol =
+  pivotCol - deltaRow`, the standard row-down/col-right 90°-clockwise rotation). Which
+  cell is the pivot is the client's own call (`docs/concerns.md`: "the side you click
+  on", defaulting to the right/higher-index cell when the tap lands within 25% of the
+  shared edge — `pivotCellForTap()` in the play page's own script) since that's a pure
+  UI reading of *where* the tap landed; the resulting geometry is still fully
+  server-validated (bounds, real active-cell membership, occupancy), the same
+  never-trust-the-client rule every other placement/move endpoint already follows. An
+  invalid landing spot (off the board, or onto an already-occupied cell) is a silent
+  no-op — no `$message`, unlike `placeDomino()`/`movePlacement()` — and the two cells
+  pick up a client-only `pips-cell-rotate-invalid` class (tray colors, not the region's
+  own, lightened and semitransparent) so the domino visibly "stays mid-rotation"
+  instead of silently doing nothing. That class is deliberately never synced through a
+  Livewire morph hook the way the tray's own rotation classes are — the JS only ever
+  adds it in the `.then()` callback *after* the round trip (and its own DOM morph)
+  already landed, so the next thing that could wipe it is a genuinely new interaction,
+  which is exactly when it should clear anyway (done via a `clearInvalidRotationStyling()`
+  call at the very top of the board's own `pointerdown` handler). This is a real
+  behavior change, not just a bugfix — the old "swap in place, footprint never changes"
+  test coverage was replaced with new `PipsGameTest` cases driving a small, fully
+  hand-set 2×2 board (real generated puzzles have irregular, seed-dependent shapes,
+  too unpredictable to assert a specific rotation outcome against) and a browser-test
+  rewrite that checks the invariants that hold regardless of which way a real board's
+  geometry actually resolves (the pivot cell never moves; the domino's own two values
+  are always preserved) rather than a hardcoded before/after.
+
+Full-board scenarios (the boardIncorrect banner/outline appearing on a real generated
+puzzle, not just the hand-set 2×2 fixture) were verified live via direct `$wire.call()`
+in a real browser session rather than added as a permanent browser test — reliably
+filling an entire real, irregular generated board through simulated pointer gestures
+without a solver isn't a reasonable amount of test-authoring effort for what the
+feature-level 2×2 tests already cover deterministically.
+
 ## Punchline
 
 A Quiplash-style room game (players privately write funny answers to prompts, then vote,

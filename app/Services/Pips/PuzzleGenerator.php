@@ -91,7 +91,7 @@ class PuzzleGenerator
 
     /**
      * @return array{
-     *     board: array{dimensions: array{rows: int, cols: int}, cells: list<int>, regions: list<array{id: int, cells: list<int>, constraint: array{type: string, value: int|null}, color: int, badge: ?array{row: float, col: float}}>},
+     *     board: array{dimensions: array{rows: int, cols: int}, cells: list<int>, regions: list<array{id: int, cells: list<int>, constraint: array{type: string, value: int|null}, color: int, badge: ?array{row: float, col: float}}>, dominoes: list<string>},
      *     solution: array{cellValues: array<int, int>, placements: list<array{cellA: int, cellB: int, valueA: int, valueB: int}>},
      *     seed: int,
      * }
@@ -132,10 +132,29 @@ class PuzzleGenerator
                 'dimensions' => ['rows' => $rows, 'cols' => $cols],
                 'cells' => $activeCells,
                 'regions' => $this->regionsAsList($regions, $colors, $badges),
+                'dominoes' => $this->dominoIdsUsed($solution['placements']),
             ],
             'solution' => $solution,
             'seed' => $seed,
         ];
+    }
+
+    /**
+     * The actual tray composition for this puzzle -- a small, randomly
+     * drawn subset of the tier's full double-`maxPip()` set (BoardFiller
+     * only ever fills `PipsDifficulty::dominoCount()` of the tray, not
+     * every possible pair), so the client can't just re-derive "every 0-0
+     * through N-N pair" from `maxPip()` alone the way it used to.
+     *
+     * @param  list<array{cellA: int, cellB: int, valueA: int, valueB: int}>  $placements
+     * @return list<string>
+     */
+    private function dominoIdsUsed(array $placements): array
+    {
+        return array_map(
+            fn (array $placement) => min($placement['valueA'], $placement['valueB']).'-'.max($placement['valueA'], $placement['valueB']),
+            $placements,
+        );
     }
 
     /**

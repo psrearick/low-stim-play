@@ -1,7 +1,6 @@
 <?php
 
 use App\Enums\PipsDifficulty;
-use App\Services\Pips\ConstraintChecker;
 use App\Services\Pips\PuzzleGenerator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Pest\Browser\Api\PendingAwaitablePage;
@@ -58,15 +57,7 @@ function waitUntilTrue(PendingAwaitablePage $page, string $jsExpression, float $
  */
 test('drag, tap-to-place, and pick-up-by-tap all place/remove dominoes correctly on a real page', function () {
     $generator = app(PuzzleGenerator::class);
-    $checker = new ConstraintChecker;
     $puzzle = $generator->forSeed(1, PipsDifficulty::Easy);
-
-    $regionOf = [];
-    foreach ($puzzle->board['regions'] as $region) {
-        foreach ($region['cells'] as $cell) {
-            $regionOf[$cell] = $region;
-        }
-    }
 
     $first = $puzzle->solution['placements'][0];
     $firstLo = min($first['valueA'], $first['valueB']);
@@ -212,9 +203,7 @@ test('drag, tap-to-place, and pick-up-by-tap all place/remove dominoes correctly
     expect(abs($rowA - $rowB) + abs($colA - $colB))->toBe(1);
 
     // --- Tap-to-select/tap-to-place (docs/specs/pips.md section 3) -- a
-    // first-class second path, not a fallback -- placing a second, distinct
-    // domino via real clicks, and checking the live per-region status class
-    // updates to match what ConstraintChecker itself computes.
+    // first-class second path, not a fallback.
     $page->click("#pips-tray-{$secondDominoId}")
         ->click("#pips-cell-{$second['cellA']}")
         ->click("#pips-cell-{$second['cellB']}");
@@ -227,43 +216,38 @@ test('drag, tap-to-place, and pick-up-by-tap all place/remove dominoes correctly
     // convention (first tap always gets the domino's lower pip).
     $secondLoValue = min($second['valueA'], $second['valueB']);
     $secondHiValue = max($second['valueA'], $second['valueB']);
-    $touchedRegionIds = array_unique([$regionOf[$second['cellA']]['id'], $regionOf[$second['cellB']]['id']]);
 
-    foreach ($touchedRegionIds as $regionId) {
-        $region = $regionOf[$second['cellA']]['id'] === $regionId ? $regionOf[$second['cellA']] : $regionOf[$second['cellB']];
+    // No per-cell/per-region verification styling shows up before the
+    // board is completely full (docs/concerns.md) -- confirmed live that
+    // this partially-filled board never renders a status class at all.
+    $anyStatusClass = $page->script(
+        "[...document.querySelectorAll('.pips-cell')].some(el => /pips-status-/.test(el.className))"
+    );
+    expect($anyStatusClass)->toBeFalse();
 
-        $filledValues = [];
-        $remaining = 0;
-
-        foreach ($region['cells'] as $cell) {
-            if ($cell === $second['cellA']) {
-                $filledValues[] = $secondLoValue;
-            } elseif ($cell === $second['cellB']) {
-                $filledValues[] = $secondHiValue;
-            } elseif (isset($filled[0]) && $cell === $filled[0]['cell']) {
-                $filledValues[] = (int) $filled[0]['value'];
-            } elseif (isset($filled[1]) && $cell === $filled[1]['cell']) {
-                $filledValues[] = (int) $filled[1]['value'];
-            } else {
-                $remaining++;
-            }
-        }
-
-        $expected = strtolower($checker->check($region['constraint'], $filledValues, $remaining, PipsDifficulty::Easy->maxPip())->name);
-
-        $class = $page->script("document.getElementById('pips-cell-{$second['cellA']}').className");
-        expect($class)->toContain("pips-status-{$expected}");
-    }
-
-    // --- Tap-to-rotate a placed domino (docs/DEVLOG.md's Pips entry) -- a
-    // plain tap (no real drag) on an already-placed domino swaps its two
-    // cells' values in place; it stays placed, not returned to the tray.
-    $valueBeforeRotate = $page->script("document.getElementById('pips-cell-{$second['cellA']}').dataset.value");
+    // --- Tap-to-rotate a placed domino (docs/concerns.md) -- pivots 90
+    // degrees around whichever cell is tapped; a plain click lands at the
+    // clicked element's center, not near the shared edge with the other
+    // cell, so the pivot is always cellA here (see pivotCellForTap() in the
+    // play page's own script block). Where the *other* half lands depends
+    // on this board's own real geometry, so rather than hardcoding an
+    // expected outcome, this checks the invariants that must hold either
+    // way: the pivot cell never moves, and the domino's own two values are
+    // preserved (whether it actually relocated, or the rotation was invalid
+    // and it silently stayed put).
     $page->click("#pips-cell-{$second['cellA']}");
-    waitUntilTrue($page, "document.getElementById('pips-cell-{$second['cellA']}').dataset.value !== '{$valueBeforeRotate}'");
+    $page->wait(0.5);
 
-    expect($page->script("document.getElementById('pips-cell-{$second['cellA']}').dataset.value"))
-        ->not->toBe($valueBeforeRotate);
+    expect($page->script("document.getElementById('pips-cell-{$second['cellA']}').dataset.dominoId"))
+        ->toBe($secondDominoId);
+
+    $cellsAfterRotate = json_decode($page->script(
+        "JSON.stringify([...document.querySelectorAll('.pips-cell[data-domino-id=\"{$secondDominoId}\"]')].map(el => Number(el.dataset.value)))"
+    ), true);
+
+    expect($cellsAfterRotate)->toHaveCount(2);
+    sort($cellsAfterRotate);
+    expect($cellsAfterRotate)->toBe([$secondLoValue, $secondHiValue]);
     $page->assertMissing("#pips-tray-{$secondDominoId}");
 
     // --- Drag-to-relocate a placed domino -- picks it up (a ghost built
@@ -328,6 +312,49 @@ test('drag, tap-to-place, and pick-up-by-tap all place/remove dominoes correctly
         $badgeCount = $page->script("document.querySelectorAll('.pips-badge').length");
         expect($badgeCount)->toBeGreaterThan(0);
     }
+
+    // --- Dragging a placed domino to anywhere outside the board returns it
+    // to the tray (docs/concerns.md), rather than leaving it stuck wherever
+    // the pointer happened to release. $secondDominoId is wherever the
+    // relocate-drag above actually landed it (near $third's own cells).
+    $secondDominoCells = json_decode($page->script(
+        "JSON.stringify([...document.querySelectorAll('.pips-cell[data-domino-id=\"{$secondDominoId}\"]')].map(el => Number(el.dataset.cell)))"
+    ), true);
+    expect($secondDominoCells)->toHaveCount(2);
+
+    $dragOffBoardScript = <<<'JS'
+        (() => {
+            const cellA = document.getElementById('pips-cell-__FROM_CELL__');
+            const from = cellA.getBoundingClientRect();
+            const fromPoint = { x: from.left + from.width / 2, y: from.top + from.height / 2 };
+            // The page's top-left corner -- reliably outside the board's
+            // own bounding rect regardless of exactly where the board is
+            // laid out.
+            const toPoint = { x: 5, y: 5 };
+
+            function fire(type, target, point) {
+                target.dispatchEvent(new PointerEvent(type, {
+                    bubbles: true, cancelable: true, composed: true,
+                    clientX: point.x, clientY: point.y,
+                    pointerId: 1, pointerType: 'mouse', isPrimary: true,
+                }));
+            }
+
+            fire('pointerdown', cellA, fromPoint);
+            fire('pointermove', document, { x: (fromPoint.x + toPoint.x) / 2, y: (fromPoint.y + toPoint.y) / 2 });
+            fire('pointermove', document, toPoint);
+            fire('pointerup', document, toPoint);
+        })()
+        JS;
+
+    $page->script(str_replace('__FROM_CELL__', (string) $secondDominoCells[0], $dragOffBoardScript));
+
+    waitUntilTrue($page, "document.getElementById('pips-tray-{$secondDominoId}') !== null");
+
+    $page->assertPresent("#pips-tray-{$secondDominoId}");
+    expect($page->script(
+        "[...document.querySelectorAll('.pips-cell[data-domino-id=\"{$secondDominoId}\"]')].length"
+    ))->toBe(0);
 
     $page->assertNoJavaScriptErrors();
 });

@@ -203,7 +203,11 @@ class BoardFiller
      * fixed-order list is already a uniform random bijection), drawing one
      * random bit per pair to decide orientation -- drawn even for doubles,
      * so the randomizer stream shape never depends on how many doubles
-     * exist.
+     * exist. `$pairs` only ever has `PipsDifficulty::dominoCount()` entries
+     * (a deliberately small subset of the tier's full double-`maxPip()` set,
+     * see that method's own docblock), so this only ever consumes the first
+     * `count($pairs)` entries of the shuffled full set -- the rest are
+     * simply never drawn for this puzzle.
      *
      * @param  list<array{0: int, 1: int}>  $pairs
      * @return array{cellValues: array<int, int>, placements: list<array{cellA: int, cellB: int, valueA: int, valueB: int}>}

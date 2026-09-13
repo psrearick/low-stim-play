@@ -54,9 +54,9 @@ enum PipsDifficulty: string
     public function rows(): int
     {
         return match ($this) {
-            self::Easy => 6,
-            self::Medium => 7,
-            self::Hard => 8,
+            self::Easy => 4,
+            self::Medium => 4,
+            self::Hard => 5,
         };
     }
 
@@ -66,20 +66,28 @@ enum PipsDifficulty: string
     public function cols(): int
     {
         return match ($this) {
-            self::Easy => 8,
-            self::Medium => 9,
-            self::Hard => 10,
+            self::Easy => 4,
+            self::Medium => 5,
+            self::Hard => 8,
         };
     }
 
     /**
-     * The count of distinct dominoes in a full double-N set: C(N+1, 2) + (N+1).
+     * How many dominoes this tier's tray actually holds -- a small subset of
+     * the full double-`maxPip()` set (BoardFiller draws exactly this many
+     * from a shuffled full set), matching the real NYT game's own tray
+     * sizes rather than a full double-N set (docs/concerns.md: a full set
+     * was roughly double every tier's intended count -- Hard's 28-domino
+     * full double-6 set in particular made for a much bigger, busier board
+     * than the real game ever ships).
      */
     public function dominoCount(): int
     {
-        $n = $this->maxPip() + 1;
-
-        return intdiv($n * ($n + 1), 2);
+        return match ($this) {
+            self::Easy => 5,
+            self::Medium => 7,
+            self::Hard => 13,
+        };
     }
 
     /**

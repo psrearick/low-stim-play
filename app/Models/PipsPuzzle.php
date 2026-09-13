@@ -16,7 +16,7 @@ use Illuminate\Database\Eloquent\Model;
  *
  * @property int $seed
  * @property PipsDifficulty $difficulty
- * @property array{dimensions: array{rows: int, cols: int}, regions: list<array{id: int, cells: list<int>, constraint: array{type: string, value: int|null}}>} $board
+ * @property array{dimensions: array{rows: int, cols: int}, regions: list<array{id: int, cells: list<int>, constraint: array{type: string, value: int|null}}>, dominoes: list<string>} $board
  * @property array{cellValues: list<int>, placements: list<array{cellA: int, cellB: int, valueA: int, valueB: int}>} $solution
  */
 #[Fillable(['seed', 'difficulty', 'board', 'solution'])]

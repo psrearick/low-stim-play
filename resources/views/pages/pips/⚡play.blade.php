@@ -58,7 +58,7 @@ new class extends Component
      * resetGame(). Never includes the puzzle's `solution` (see PipsPuzzle's
      * own docblock).
      *
-     * @var array{dimensions: array{rows: int, cols: int}, cells: list<int>, regions: list<array{id: int, cells: list<int>, constraint: array{type: string, value: int|null}, color: int, badge: ?array{row: float, col: float}}>}
+     * @var array{dimensions: array{rows: int, cols: int}, cells: list<int>, regions: list<array{id: int, cells: list<int>, constraint: array{type: string, value: int|null}, color: int, badge: ?array{row: float, col: float}}>, dominoes: list<string>}
      */
     public array $board = [];
 
@@ -217,14 +217,23 @@ new class extends Component
     }
 
     /**
-     * Rotates a placed domino in place -- swaps which of its two cells
-     * holds which value, footprint unchanged (always valid, so no
-     * rejection path is needed beyond "is this actually a placed
-     * domino"). A plain tap (not a drag) on a placed domino calls this now
-     * instead of removePlacement() -- relocating happens via drag instead
-     * (movePlacement() below).
+     * Rotates a placed domino 90 degrees clockwise around one of its own two
+     * cells (docs/concerns.md) -- `$pivotCell` stays put, the domino's other
+     * cell sweeps a quarter turn around it, so the domino ends up covering
+     * $pivotCell plus whichever cell is 90 degrees clockwise (screen-space)
+     * from its old position relative to the pivot. Which cell is the pivot
+     * is entirely the client's own call (docs/concerns.md: "the side you
+     * click on", defaulting to the right side near the domino's center) --
+     * this only ever validates the *result*, the same "never trust the
+     * client for adjacency/occupancy" rule movePlacement() already follows.
+     *
+     * A landing spot that's off the board, outside the grown shape's own
+     * active cells, or already covered by a different domino is rejected
+     * silently (no $message, unlike placeDomino()/movePlacement() -- the
+     * spec calls for the domino simply staying visually "mid-rotation",
+     * not an error banner) and the domino stays exactly where it was.
      */
-    public function rotatePlacement(string $dominoId): void
+    public function rotatePlacement(string $dominoId, int $pivotCell): void
     {
         if ($this->ended) {
             return;
@@ -235,14 +244,40 @@ new class extends Component
             fn (array $placement) => $placement['dominoId'] === $dominoId,
         ));
 
-        if (count($cells) !== 2) {
+        if (count($cells) !== 2 || ! in_array($pivotCell, $cells, true)) {
             return;
         }
 
-        [$cellA, $cellB] = $cells;
-        $valueA = $this->placements[$cellA]['value'];
-        $this->placements[$cellA]['value'] = $this->placements[$cellB]['value'];
-        $this->placements[$cellB]['value'] = $valueA;
+        $otherCell = $cells[0] === $pivotCell ? $cells[1] : $cells[0];
+        $cols = $this->board['dimensions']['cols'];
+        $rows = $this->board['dimensions']['rows'];
+
+        $pivotRow = intdiv($pivotCell, $cols);
+        $pivotCol = $pivotCell % $cols;
+        $deltaRow = intdiv($otherCell, $cols) - $pivotRow;
+        $deltaCol = ($otherCell % $cols) - $pivotCol;
+
+        // A 90deg clockwise turn in a row-down/col-right grid: east becomes
+        // south, south becomes west, west becomes north, north becomes east.
+        $newRow = $pivotRow + $deltaCol;
+        $newCol = $pivotCol - $deltaRow;
+
+        if ($newRow < 0 || $newRow >= $rows || $newCol < 0 || $newCol >= $cols) {
+            return;
+        }
+
+        $newCell = $newRow * $cols + $newCol;
+
+        if (! in_array($newCell, $this->board['cells'], true) || isset($this->placements[$newCell])) {
+            return;
+        }
+
+        $pivotValue = $this->placements[$pivotCell]['value'];
+        $otherValue = $this->placements[$otherCell]['value'];
+
+        unset($this->placements[$pivotCell], $this->placements[$otherCell]);
+        $this->placements[$pivotCell] = ['value' => $pivotValue, 'dominoId' => $dominoId];
+        $this->placements[$newCell] = ['value' => $otherValue, 'dominoId' => $dominoId];
 
         $this->persistState();
 
@@ -325,19 +360,20 @@ new class extends Component
     }
 
     /**
-     * Live per-region satisfied/broken/unknown status, keyed by region id
-     * -- drives the board's per-region visual feedback (docs/specs/pips.md
-     * section 4/5, a shape/icon change, not color-only).
+     * Live per-region satisfied/broken/unknown status, keyed by region id --
+     * internal only (isBoardSolved() below), never rendered per-cell/
+     * per-region (docs/concerns.md: "Do not show any verification until
+     * every domino is placed... Do not outline specific dominoes or
+     * indicate what is wrong" -- verification is whole-board only, see
+     * $boardIncorrect below).
      *
-     * A "Satisfied" verdict is only ever shown once a region is completely
+     * A "Satisfied" verdict is only ever counted once a region is completely
      * filled, even though ConstraintChecker itself can resolve a loose
      * greater/less constraint as satisfied far earlier (e.g. a region whose
      * maximum possible total already stays under a "less than" threshold
-     * with zero cells filled) -- true early, but confusing to show as
-     * "correct" on a region the player hasn't touched at all, so it's
-     * downgraded back to Unknown here until $remaining reaches 0. Broken
-     * still surfaces as early as ConstraintChecker itself allows -- only
-     * the "looks done" signal needed gating, not the "already broken" one.
+     * with zero cells filled) -- true early, but not a meaningful "this
+     * region is correct" signal on one the player hasn't finished, so it's
+     * downgraded back to Unknown here until $remaining reaches 0.
      *
      * @return array<int, string>
      */
@@ -357,6 +393,23 @@ new class extends Component
         }
 
         return $status;
+    }
+
+    /**
+     * True once every cell is filled and the board is wrong -- purely
+     * derived from current state, never a stored flag, so "interacting
+     * with the board clears it, and it stays hidden until every spot is
+     * filled again" (docs/concerns.md) falls out for free: removing (or
+     * relocating, mid-move) even one domino makes the board no longer
+     * fully filled, which is the only thing this checks.
+     */
+    public function getBoardIncorrectProperty(): bool
+    {
+        if ($this->ended || count($this->placements) !== count($this->board['cells'] ?? [])) {
+            return false;
+        }
+
+        return ! $this->isBoardSolved();
     }
 
     private function resolveDifficulty(?string $value): PipsDifficulty
@@ -500,20 +553,16 @@ new class extends Component
     }
 
     /**
+     * The tray's actual composition -- a small subset of the tier's full
+     * double-`maxPip()` set that PuzzleGenerator drew for this specific
+     * puzzle (App\Services\Pips\PuzzleGenerator's own `dominoIdsUsed()`),
+     * not every possible pair up to `maxPip()`.
+     *
      * @return list<string>
      */
     private function allDominoIds(): array
     {
-        $maxPip = PipsDifficulty::from($this->resolvedDifficulty)->maxPip();
-        $ids = [];
-
-        for ($a = 0; $a <= $maxPip; $a++) {
-            for ($b = $a; $b <= $maxPip; $b++) {
-                $ids[] = "{$a}-{$b}";
-            }
-        }
-
-        return $ids;
+        return $this->board['dominoes'] ?? [];
     }
 
     /**
@@ -745,13 +794,18 @@ new class extends Component
                 }
             }
         @endphp
+        @if ($this->boardIncorrect)
+            <p id="pips-incorrect-banner" class="status-line" style="color: var(--warn);">
+                The board is incorrect.
+            </p>
+        @endif
+
         <div class="flex flex-col items-center gap-4 w-full max-w-2xl" id="pips-board-wrap"
             data-rows="{{ $rows }}" data-cols="{{ $cols }}">
-            <div class="pips-board" id="pips-board" style="--pips-rows: {{ $rows }}; --pips-cols: {{ $cols }};">
+            <div class="pips-board {{ $this->boardIncorrect ? 'pips-board-incorrect' : '' }}" id="pips-board" style="--pips-rows: {{ $rows }}; --pips-cols: {{ $cols }};">
                 @foreach ($board['cells'] as $cell)
                     @php
                         $region = $cellRegion[$cell];
-                        $status = $this->regionStatus[$region['id']] ?? 'Unknown';
                         $filled = $placements[$cell] ?? null;
                         $cellRow = intdiv($cell, $cols);
                         $cellCol = $cell % $cols;
@@ -763,7 +817,7 @@ new class extends Component
                         data-filled="{{ $filled !== null ? '1' : '0' }}"
                         data-domino-id="{{ $filled['dominoId'] ?? '' }}"
                         data-value="{{ $filled['value'] ?? '' }}"
-                        class="pips-cell pips-status-{{ strtolower($status) }} flex items-center justify-center border-2 rounded-md"
+                        class="pips-cell flex items-center justify-center border-2 rounded-md"
                         style="grid-column: {{ $cellCol + 1 }}; grid-row: {{ $cellRow + 1 }}; --pips-region-color: var(--region-{{ $region['color'] + 1 }});"
                     >
                         @if ($filled !== null)
@@ -1110,6 +1164,7 @@ new class extends Component
     let relocatingCells = null;
     let relocateDragStart = null;
     let relocateGhostEl = null;
+    let relocatePivotCellEl = null;
 
     function findPlacementCells(dominoId) {
         const cells = [...boardEl.querySelectorAll('.pips-cell[data-filled="1"]')]
@@ -1117,6 +1172,64 @@ new class extends Component
             .map((el) => Number(el.dataset.cell));
 
         return cells.length === 2 ? cells : null;
+    }
+
+    // --- A tap-rotate's pivot side (docs/concerns.md: "rotates ... around
+    // the side you click on. If you click close to the center, it rotates
+    // around the right side.") -- $wire.rotatePlacement() itself validates
+    // the resulting landing spot (never trusting the client for that), but
+    // *which* cell is the pivot is purely this client's own call, made from
+    // where inside the tapped cell the pointer actually landed.
+    const ROTATE_PIVOT_CENTER_ZONE = 0.25;
+
+    function pivotCellForTap(clickX, clickY, cellEl, cells) {
+        const clickedCell = Number(cellEl.dataset.cell);
+        const otherCell = cells.find((c) => c !== clickedCell);
+        const cols = Number(boardWrapEl.dataset.cols);
+        const clickedRow = Math.floor(clickedCell / cols);
+        const otherRow = Math.floor(otherCell / cols);
+        const rect = cellEl.getBoundingClientRect();
+
+        let nearSharedEdge;
+        if (clickedRow === otherRow) {
+            // Horizontal neighbor -- the shared edge is whichever side
+            // (left/right) of the tapped cell faces the other cell.
+            nearSharedEdge = otherCell > clickedCell
+                ? (clickX - rect.left) / rect.width > 1 - ROTATE_PIVOT_CENTER_ZONE
+                : (clickX - rect.left) / rect.width < ROTATE_PIVOT_CENTER_ZONE;
+        } else {
+            nearSharedEdge = otherCell > clickedCell
+                ? (clickY - rect.top) / rect.height > 1 - ROTATE_PIVOT_CENTER_ZONE
+                : (clickY - rect.top) / rect.height < ROTATE_PIVOT_CENTER_ZONE;
+        }
+
+        // "Close to center" defaults to the right side -- the higher-index
+        // cell of the pair (screen-reading-order "right", regardless of
+        // whether the pair is arranged horizontally or vertically).
+        return nearSharedEdge ? Math.max(clickedCell, otherCell) : clickedCell;
+    }
+
+    // --- A placed domino stuck mid-rotation (docs/concerns.md: an invalid
+    // landing spot leaves it "in its rotated styling" instead of moving) --
+    // purely a client-side visual; nothing server-side changed, so nothing
+    // here is trusted for game state. Cleared by the very next board
+    // interaction (below) or once a fresh Livewire render shows those cells
+    // in a different state than when this was applied.
+    let invalidRotationCells = [];
+
+    function markInvalidRotation(cells) {
+        clearInvalidRotationStyling();
+        invalidRotationCells = cells;
+        cells.forEach((cell) => {
+            document.getElementById('pips-cell-' + cell)?.classList.add('pips-cell-rotate-invalid');
+        });
+    }
+
+    function clearInvalidRotationStyling() {
+        invalidRotationCells.forEach((cell) => {
+            document.getElementById('pips-cell-' + cell)?.classList.remove('pips-cell-rotate-invalid');
+        });
+        invalidRotationCells = [];
     }
 
     function buildRelocateGhost(cells) {
@@ -1141,6 +1254,12 @@ new class extends Component
     }
 
     boardEl.addEventListener('pointerdown', (e) => {
+        // Any fresh press on the board is "interacting with it" -- clears a
+        // domino left stuck in its invalid-rotation styling from a previous
+        // tap (docs/concerns.md), regardless of what this new press turns
+        // out to be.
+        clearInvalidRotationStyling();
+
         if ($wire.ended) {
             return;
         }
@@ -1157,6 +1276,7 @@ new class extends Component
         relocatingDominoId = dominoId;
         relocatingCells = cells;
         relocateDragStart = { x: e.clientX, y: e.clientY };
+        relocatePivotCellEl = cellEl;
         cacheCellCenters();
         document.addEventListener('pointermove', onRelocateDragMove);
         document.addEventListener('pointerup', onRelocateDragEnd);
@@ -1193,19 +1313,52 @@ new class extends Component
 
         const dominoId = relocatingDominoId;
         const oldCells = relocatingCells;
+        const pivotCellEl = relocatePivotCellEl;
         const moved = Math.hypot(e.clientX - relocateDragStart.x, e.clientY - relocateDragStart.y) > DRAG_THRESHOLD_PX;
 
         removeRelocateGhost();
         relocatingDominoId = null;
         relocatingCells = null;
+        relocatePivotCellEl = null;
 
         if (!moved) {
-            $wire.rotatePlacement(dominoId);
+            const pivotCell = pivotCellForTap(e.clientX, e.clientY, pivotCellEl, oldCells);
+
+            $wire.rotatePlacement(dominoId, pivotCell).then(() => {
+                // rotatePlacement() silently no-ops on an invalid landing
+                // spot (docs/concerns.md -- no $message, unlike placeDomino/
+                // movePlacement) -- the only way to tell it didn't move is
+                // to check whether this domino is still on its own old
+                // cells afterward.
+                const stillOnOldCells = oldCells.every((cell) => {
+                    const el = document.getElementById('pips-cell-' + cell);
+
+                    return el?.dataset.filled === '1' && el?.dataset.dominoId === dominoId;
+                });
+
+                if (stillOnOldCells) {
+                    markInvalidRotation(oldCells);
+                }
+            });
+
             return;
         }
 
         const pair = closestValidPair(e.clientX, e.clientY, oldCells);
         if (pair === null) {
+            // Dropped outside the board's own footprint entirely -- returns
+            // the domino to the tray (docs/concerns.md) rather than leaving
+            // it stuck with nowhere valid nearby. A drop that's merely
+            // *inside* the board but not near any valid empty pair (e.g.
+            // over an occupied cell) still just snaps back in place.
+            const boardRect = boardEl.getBoundingClientRect();
+            const droppedOutsideBoard = e.clientX < boardRect.left || e.clientX > boardRect.right
+                || e.clientY < boardRect.top || e.clientY > boardRect.bottom;
+
+            if (droppedOutsideBoard) {
+                $wire.removePlacement(dominoId);
+            }
+
             return;
         }
 
