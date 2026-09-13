@@ -822,7 +822,7 @@ new class extends Component
             </p>
         @endif
 
-        <div class="flex flex-col items-center gap-4 w-full max-w-2xl" id="pips-board-wrap"
+        <div class="flex flex-col items-center gap-4 w-full max-w-lg" id="pips-board-wrap"
             data-rows="{{ $rows }}" data-cols="{{ $cols }}">
             <div class="pips-board {{ $this->boardIncorrect ? 'pips-board-incorrect' : '' }}" id="pips-board" style="--pips-rows: {{ $rows }}; --pips-cols: {{ $cols }};">
                 @foreach ($board['cells'] as $cell)
@@ -1299,6 +1299,28 @@ new class extends Component
     let rotationOverlayEl = null;
     let overlayPointerStart = null;
 
+    // Tracks an in-progress *chain* of consecutive invalid rotation
+    // attempts around the same fixed pivot cell -- {dominoId, pivotCell,
+    // delta}, where `delta` is the rotating domino's current (possibly
+    // hypothetical, off-board) offset from that pivot. Without this,
+    // re-tapping the same valid side after landing invalid just
+    // recomputed the exact same single 90deg turn from the domino's true,
+    // unchanged placement every time -- confirmed live (a real click
+    // sequence, several seconds apart, watched in the browser) as the
+    // actual "gets stuck showing one invalid position forever" bug, since
+    // nothing server-side ever changes on a failed attempt for that
+    // recomputation to build on. Each continued tap on the *same* pivot
+    // now instead advances `delta` one more 90deg turn from wherever the
+    // preview currently is, so four consecutive taps walk the domino
+    // through a full circle -- typically three distinct invalid spots,
+    // then back to its real position -- exactly like a physical domino
+    // spinning around a fixed corner would. A tap that picks a *different*
+    // pivot (the domino's other real cell, or its own overlay's target
+    // half) starts a fresh chain from that pivot instead, via the
+    // `dominoId`/`pivotCell` match in attemptBoardRotate() below rather
+    // than an explicit reset.
+    let boardRotationPreview = null;
+
     const BOARD_ROTATE_RESELECT_MS = 1600;
 
     function selectBoardDomino(dominoId, cells) {
@@ -1321,6 +1343,7 @@ new class extends Component
         removeRotationOverlay();
         selectedBoardDominoId = null;
         selectedBoardDominoCells = null;
+        boardRotationPreview = null;
     }
 
     function removeRotationOverlay() {
@@ -1328,43 +1351,49 @@ new class extends Component
         rotationOverlayEl = null;
     }
 
-    // Mirrors PHP rotatePlacement()'s own row-down/col-right 90deg
-    // clockwise formula exactly -- used here purely to know where to draw
-    // an invalid attempt's floating preview, never to decide validity
-    // itself (that's always the server's own call).
-    function rotationTargetRowCol(pivotCell, otherCell, cols) {
-        const pivotRow = Math.floor(pivotCell / cols);
-        const pivotCol = pivotCell % cols;
-        const deltaRow = Math.floor(otherCell / cols) - pivotRow;
-        const deltaCol = (otherCell % cols) - pivotCol;
-
-        return { row: pivotRow + deltaCol, col: pivotCol - deltaRow };
+    // A cell's (row, col) offset from another cell, purely as grid math --
+    // used both to seed a fresh rotation chain from the domino's true
+    // placement and to detect a chain walking back around to it.
+    function cellDelta(fromCell, ofCell, cols) {
+        return {
+            row: Math.floor(fromCell / cols) - Math.floor(ofCell / cols),
+            col: (fromCell % cols) - (ofCell % cols),
+        };
     }
 
-    // Builds the floating "mid-rotation" preview -- the pivot half is
-    // always a clone of a real board cell (the pivot never moves); the
-    // other half clones whatever real cell sits at the computed target
-    // spot (even one occupied by a different domino, per docs/concerns.md
-    // -- it draws *above* that domino, not in place of it) or, if the
-    // target falls off the board entirely, a plain phantom tile with no
-    // region color at all. Both halves get `.pips-cell-rotate-invalid`'s
-    // existing tray-colored, semitransparent look. `data-real-cell` on
-    // each half is what a later tap on this overlay uses to pick the next
+    // Mirrors PHP rotatePlacement()'s own row-down/col-right 90deg
+    // clockwise formula exactly -- east becomes south, south becomes west,
+    // west becomes north, north becomes east. Used purely to know where to
+    // draw an invalid attempt's floating preview (and to advance a chain
+    // of them), never to decide validity itself (that's always the
+    // server's own call).
+    function rotateDeltaClockwise(delta) {
+        return { row: delta.col, col: -delta.row };
+    }
+
+    // Builds the floating "mid-rotation" preview -- both halves always show
+    // the *rotating domino's own* two pip values (docs/concerns.md: the
+    // preview "should show it rotated," not whatever happens to already be
+    // at the landing spot) -- cloned from the domino's own two real cells,
+    // read before either gets lifted below. What's actually sitting at the
+    // target spot (another domino, or nothing at all off the board) is
+    // never cloned for its *content* -- positioning this floating,
+    // semitransparent half exactly on top of it is what lets that real
+    // background/color show faintly through underneath (`.pips-cell-
+    // rotate-invalid`'s own opacity), which is all "it draws above another
+    // domino" or "off the board" actually needs. `data-real-cell` on each
+    // half is what a later tap on this overlay uses to pick the next
     // rotation's own pivot (see the overlay's own pointerup handler) --
-    // always one of the domino's two *real* cells, never the phantom one,
-    // since only a real cell the domino actually still occupies is ever a
-    // valid $wire.rotatePlacement() argument.
-    function buildRotationOverlay(pivotCell, otherRealCell, targetRowCol, cols, rows) {
+    // always one of the domino's two real cells, since only a real cell it
+    // actually still occupies is ever a valid $wire.rotatePlacement()
+    // argument.
+    function buildRotationOverlay(pivotCell, otherRealCell, targetRowCol, cols) {
         const pivotEl = document.getElementById('pips-cell-' + pivotCell);
+        const otherEl = document.getElementById('pips-cell-' + otherRealCell);
         const pivotRect = pivotEl.getBoundingClientRect();
         const pivotRow = Math.floor(pivotCell / cols);
         const pivotCol = pivotCell % cols;
         const isHorizontal = targetRowCol.row === pivotRow;
-
-        const targetCell = (targetRowCol.row >= 0 && targetRowCol.row < rows && targetRowCol.col >= 0 && targetRowCol.col < cols)
-            ? targetRowCol.row * cols + targetRowCol.col
-            : null;
-        const targetEl = targetCell !== null ? document.getElementById('pips-cell-' + targetCell) : null;
 
         const pivotIsFirst = isHorizontal ? targetRowCol.col > pivotCol : targetRowCol.row > pivotRow;
         // Whichever pair of opposite sides faces the *other* half of this
@@ -1387,28 +1416,48 @@ new class extends Component
         pivotHalf.classList.add('pips-cell-rotate-invalid', pivotIsFirst ? firstEdgeClass : secondEdgeClass);
         pivotHalf.style.width = pivotRect.width + 'px';
         pivotHalf.style.height = pivotRect.height + 'px';
+        // Purely visual -- the pivot never moves, so the *real* pivot cell
+        // is still sitting directly underneath this clone at the exact
+        // same screen position, still fully wired up to the board's own
+        // normal pointerdown/pointerup handling (tap-to-rotate with a
+        // freshly computed, click-position-sensitive pivot, *and*
+        // drag-to-relocate). No explicit pointer-events override needed
+        // here -- it inherits `none` from the overlay wrapper itself (see
+        // that class's own docblock for why the wrapper, not just this
+        // child, has to be the one set to `none`), letting every click/drag
+        // on this half fall straight through to that real cell, same as if
+        // this overlay half weren't drawn at all.
 
-        const targetHalf = targetEl ? targetEl.cloneNode(true) : document.createElement('div');
-        if (targetEl) {
-            targetHalf.removeAttribute('id');
-        } else {
-            targetHalf.className = 'pips-cell flex items-center justify-center border-2 rounded-md';
-            targetHalf.dataset.filled = '1';
-        }
+        const targetHalf = otherEl.cloneNode(true);
+        targetHalf.removeAttribute('id');
         targetHalf.dataset.realCell = String(otherRealCell);
         targetHalf.classList.remove(...edgeClasses);
         targetHalf.classList.add('pips-cell-rotate-invalid', pivotIsFirst ? secondEdgeClass : firstEdgeClass);
+        // Unlike the pivot half above, this one has nothing real underneath
+        // it worth falling through to (either genuinely off the board, or
+        // sitting on top of some other domino this gesture isn't about) --
+        // stays genuinely clickable so tapping it can still pick the
+        // domino's other real cell as a fresh pivot.
+        targetHalf.style.pointerEvents = 'auto';
+        targetHalf.style.cursor = 'pointer';
         targetHalf.style.width = pivotRect.width + 'px';
         targetHalf.style.height = pivotRect.height + 'px';
 
+        // Page-relative (`position: absolute`, offset by the current scroll
+        // position), not viewport-relative `position: fixed` -- this
+        // overlay marks a *specific spot on the board*, not something that
+        // should stay pinned to the viewport while the page scrolls out
+        // from under it. `position: fixed` also never expands the page's
+        // own scrollable area, so a preview landing below the fold was
+        // simply unreachable -- no amount of scrolling ever revealed it.
         const overlay = document.createElement('div');
         overlay.className = 'pips-rotation-overlay';
         overlay.style.display = 'flex';
         overlay.style.flexDirection = isHorizontal ? 'row' : 'column';
         overlay.style.width = (isHorizontal ? pivotRect.width * 2 : pivotRect.width) + 'px';
         overlay.style.height = (isHorizontal ? pivotRect.height : pivotRect.height * 2) + 'px';
-        overlay.style.left = (isHorizontal ? (pivotIsFirst ? pivotRect.left : pivotRect.left - pivotRect.width) : pivotRect.left) + 'px';
-        overlay.style.top = (isHorizontal ? pivotRect.top : (pivotIsFirst ? pivotRect.top : pivotRect.top - pivotRect.height)) + 'px';
+        overlay.style.left = (isHorizontal ? (pivotIsFirst ? pivotRect.left : pivotRect.left - pivotRect.width) : pivotRect.left) + window.scrollX + 'px';
+        overlay.style.top = (isHorizontal ? pivotRect.top : (pivotIsFirst ? pivotRect.top : pivotRect.top - pivotRect.height)) + window.scrollY + 'px';
         overlay.append(...(pivotIsFirst ? [pivotHalf, targetHalf] : [targetHalf, pivotHalf]));
 
         overlay.addEventListener('pointerdown', (e) => {
@@ -1430,49 +1479,144 @@ new class extends Component
     }
 
     // The single entry point for every rotate attempt, whether it's the
-    // first tap after selecting or a later one off an already-invalid
-    // overlay -- always a fresh, real $wire round trip from the domino's
-    // current true placement (docs/concerns.md: "it should still rotate").
+    // first tap after selecting or a later one continuing an already-
+    // invalid chain (docs/concerns.md: "it should still rotate"; see
+    // `boardRotationPreview` above for why a *continued* tap on the same
+    // pivot has to advance from the chain's current delta rather than
+    // always recomputing from the domino's true placement). Landing
+    // somewhere genuinely new is still always a real $wire round trip
+    // (server-validated, via movePlacement() -- see below for why); an
+    // attempt this client can already tell is invalid skips that round
+    // trip entirely, since there's nothing to persist either way.
+    // Guards against overlapping attempts -- attemptBoardRotate() is async
+    // (it awaits a real $wire round trip), and both the overlay's own tap
+    // handler and a plain board tap can each call it. Two genuine human
+    // taps close enough together (well within a normal network round trip)
+    // used to start a *second* attempt before the first one's response had
+    // landed -- each one independently un-lifts the real cells, tears down
+    // the current overlay, and fires its own $wire call, and whichever
+    // response happened to land second would silently clobber whatever the
+    // first one had just written (a real cell left un-lifted, or an
+    // overlay for the wrong attempt, or a rotation that looked like it did
+    // nothing at all) -- confirmed live as the actual cause of "it flashes
+    // and then just sits there." A tap that arrives while one is already
+    // in flight is simply ignored until the current one finishes.
+    let boardRotateInFlight = false;
+
     async function attemptBoardRotate(dominoId, pivotCell, currentCells) {
-        removeRotationOverlay();
-        if (selectedBoardDominoTimeout) {
-            clearTimeout(selectedBoardDominoTimeout);
-            selectedBoardDominoTimeout = null;
-        }
-        currentCells.forEach((cell) => {
-            document.getElementById('pips-cell-' + cell)?.classList.remove('pips-cell-lifted');
-        });
-
-        const cols = Number(boardWrapEl.dataset.cols);
-        const rows = Number(boardWrapEl.dataset.rows);
-        const otherCell = currentCells.find((cell) => cell !== pivotCell);
-        const targetRowCol = rotationTargetRowCol(pivotCell, otherCell, cols);
-
-        await $wire.rotatePlacement(dominoId, pivotCell);
-
-        const stillOnOldCells = currentCells.every((cell) => {
-            const el = document.getElementById('pips-cell-' + cell);
-
-            return el?.dataset.filled === '1' && el?.dataset.dominoId === dominoId;
-        });
-
-        if (!stillOnOldCells) {
-            const newCells = [...document.querySelectorAll('.pips-cell[data-domino-id="' + dominoId + '"]')]
-                .map((el) => Number(el.dataset.cell));
-            selectedBoardDominoCells = newCells;
-            newCells.forEach((cell) => {
-                document.getElementById('pips-cell-' + cell)?.classList.add('pips-cell-board-selected');
-            });
-            selectedBoardDominoTimeout = setTimeout(deselectBoardDomino, BOARD_ROTATE_RESELECT_MS);
-
+        if (boardRotateInFlight) {
             return;
         }
+        boardRotateInFlight = true;
 
-        currentCells.forEach((cell) => {
-            document.getElementById('pips-cell-' + cell)?.classList.add('pips-cell-lifted');
-        });
-        rotationOverlayEl = buildRotationOverlay(pivotCell, otherCell, targetRowCol, cols, rows);
-        document.body.appendChild(rotationOverlayEl);
+        try {
+            removeRotationOverlay();
+            if (selectedBoardDominoTimeout) {
+                clearTimeout(selectedBoardDominoTimeout);
+                selectedBoardDominoTimeout = null;
+            }
+            currentCells.forEach((cell) => {
+                document.getElementById('pips-cell-' + cell)?.classList.remove('pips-cell-lifted');
+            });
+
+            const cols = Number(boardWrapEl.dataset.cols);
+            const otherCell = currentCells.find((cell) => cell !== pivotCell);
+            const pivotRow = Math.floor(pivotCell / cols);
+            const pivotCol = pivotCell % cols;
+            const trueDelta = cellDelta(otherCell, pivotCell, cols);
+
+            // A tap on the *same* pivot this chain is already mid-rotation
+            // around continues it (advancing one more turn from wherever
+            // the preview currently sits); anything else -- a fresh
+            // selection, or a tap that picked the domino's other real cell
+            // instead -- starts a brand new chain from the domino's true,
+            // currently-committed delta.
+            const continuingChain = boardRotationPreview
+                && boardRotationPreview.dominoId === dominoId
+                && boardRotationPreview.pivotCell === pivotCell;
+            const delta = rotateDeltaClockwise(continuingChain ? boardRotationPreview.delta : trueDelta);
+            const backToTruePosition = delta.row === trueDelta.row && delta.col === trueDelta.col;
+
+            const markSelected = (cells) => {
+                cells.forEach((cell) => {
+                    document.getElementById('pips-cell-' + cell)?.classList.add('pips-cell-board-selected');
+                });
+                selectedBoardDominoTimeout = setTimeout(deselectBoardDomino, BOARD_ROTATE_RESELECT_MS);
+            };
+
+            if (backToTruePosition) {
+                // A full 360deg circle back to the domino's real,
+                // already-committed position -- nothing to persist, just
+                // drop the chain and show it normally selected again.
+                boardRotationPreview = null;
+                selectedBoardDominoCells = currentCells;
+                markSelected(currentCells);
+
+                return;
+            }
+
+            const targetRow = pivotRow + delta.row;
+            const targetCol = pivotCol + delta.col;
+            const targetCell = targetRow * cols + targetCol;
+            const targetEl = targetRow >= 0 && targetRow < Number(boardWrapEl.dataset.rows)
+                && targetCol >= 0 && targetCol < cols
+                ? document.getElementById('pips-cell-' + targetCell)
+                : null;
+            // A cell this client doesn't even see rendered is off the
+            // board or outside the active shape; one it does see is only
+            // available if nothing else already covers it. Either way this
+            // is a guess for positioning and for deciding whether a real
+            // $wire round trip is worth making at all -- landing here is
+            // still always the server's own call below, never this.
+            const looksAvailable = !!targetEl && (targetEl.dataset.filled !== '1' || targetEl.dataset.dominoId === dominoId);
+
+            if (looksAvailable) {
+                // Always movePlacement(), never rotatePlacement() -- a
+                // chained rotation can be 1, 2, or 3 quarter-turns away
+                // from the domino's true stored position (having walked
+                // through invalid spots in between that never actually
+                // persisted), and movePlacement() already validates a
+                // direct (pivot, target) pair -- including treating the
+                // domino's own current cells as available -- in one round
+                // trip no matter how many turns it represents.
+                const minCell = Math.min(pivotCell, targetCell);
+                const maxCell = Math.max(pivotCell, targetCell);
+                const [lo, hi] = dominoId.split('-').map(Number);
+                const pivotValue = Number(document.getElementById('pips-cell-' + pivotCell)?.dataset.value);
+                const flip = pivotCell === minCell ? pivotValue === hi : pivotValue === lo;
+
+                await $wire.movePlacement(dominoId, minCell, maxCell, flip);
+
+                if (document.getElementById('pips-cell-' + targetCell)?.dataset.dominoId === dominoId) {
+                    boardRotationPreview = null;
+                    const newCells = [...document.querySelectorAll('.pips-cell[data-domino-id="' + dominoId + '"]')]
+                        .map((el) => Number(el.dataset.cell));
+                    selectedBoardDominoCells = newCells;
+                    markSelected(newCells);
+
+                    return;
+                }
+            }
+
+            // Still invalid (off the board, outside the active shape, on
+            // someone else's cell, or -- rare -- a move that looked
+            // available here but the server rejected anyway) -- keep the
+            // chain alive from here so the *next* tap on this same pivot
+            // continues rotating onward instead of recomputing this exact
+            // same spot again. Built before lifting the real cells below
+            // -- buildRotationOverlay() clones them verbatim, so adding
+            // `pips-cell-lifted` (which hides a cell's own pip content)
+            // first would have cloned that hidden state straight into the
+            // overlay too, leaving its pivot half blank.
+            boardRotationPreview = { dominoId, pivotCell, delta };
+            rotationOverlayEl = buildRotationOverlay(pivotCell, otherCell, { row: targetRow, col: targetCol }, cols);
+            document.body.appendChild(rotationOverlayEl);
+            currentCells.forEach((cell) => {
+                document.getElementById('pips-cell-' + cell)?.classList.add('pips-cell-lifted');
+            });
+        } finally {
+            boardRotateInFlight = false;
+        }
     }
 
     // Any press anywhere else -- a different domino, an empty cell, the
@@ -1526,6 +1670,14 @@ new class extends Component
             clone.style.gridRow = '';
             clone.style.width = '100%';
             clone.style.height = '100%';
+            // Strips any transient state the *real* cell might currently
+            // be in (lifted from an in-progress rotation attempt on this
+            // same domino, mid-rotation gray styling, the selected
+            // outline) -- the ghost should always show a normal, fully
+            // visible tile regardless of what the real board looks like
+            // at this exact moment, rather than needing that transient
+            // state cleared first.
+            clone.classList.remove('pips-cell-lifted', 'pips-cell-rotate-invalid', 'pips-cell-board-selected');
             ghost.appendChild(clone);
         });
 
@@ -1563,12 +1715,24 @@ new class extends Component
         }
 
         if (!relocateGhostEl && Math.hypot(e.clientX - relocateDragStart.x, e.clientY - relocateDragStart.y) > DRAG_THRESHOLD_PX) {
-            // A real drag starting -- clear any selected/mid-rotation
-            // domino *before* building the ghost below, not just at drag
-            // end, so a stale `pips-cell-lifted`/invalid-overlay state left
-            // over from an earlier rotate attempt on this same domino
-            // never leaks into the ghost's own cloned cells.
-            deselectBoardDomino();
+            // Deliberately *not* calling deselectBoardDomino() here just
+            // because the pointer crossed the drag threshold -- confirmed
+            // live as a real bug: genuine mouse/trackpad input almost
+            // always drifts a few pixels between pointerdown and pointerup
+            // even for an intended plain tap, which crossed this same
+            // threshold here on every real click and deselected the
+            // domino mid-gesture -- so by the time pointerup itself
+            // decided (correctly) that the *overall* movement was small
+            // enough to count as a tap after all, the selection had
+            // already been wiped, and onRelocateDragEnd's own "!moved"
+            // branch found nothing selected and started a fresh selection
+            // instead of continuing the rotation ("I still cannot click to
+            // pivot from the valid cell"). Only onRelocateDragEnd's own
+            // `moved` check (the total start-to-end distance, decided once
+            // the gesture is actually over) is trusted to tell a real drag
+            // from a tap; buildRelocateGhost() below strips any leftover
+            // transient state from its own clones directly instead, so the
+            // ghost still never needs this to have already run.
             relocateGhostEl = buildRelocateGhost(relocatingCells);
             document.body.appendChild(relocateGhostEl);
             relocatingCells.forEach((cell) => {

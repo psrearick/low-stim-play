@@ -78,6 +78,56 @@ test('drag, tap-to-place, and pick-up-by-tap all place/remove dominoes correctly
 
     $page->assertPresent("#pips-tray-{$firstDominoId}");
 
+    // --- Tapping the same valid pivot repeatedly after an invalid rotation
+    // must keep advancing through new positions, not recompute the exact
+    // same spot forever (docs/DEVLOG.md's Pips entry -- the actual root
+    // cause of a real "it gets stuck" report: a failed rotation attempt
+    // never persists anything server-side, so recomputing a single 90deg
+    // turn from the domino's true, unchanged placement produced the same
+    // result on every repeated tap). Run first, while the board is still
+    // completely empty, so cells 11/15 -- this seed's board is 4 columns
+    // wide with active cells 1,2,3,4,5,6,7,10,11,15 (not 14), so 15 is a
+    // genuine corner with only one active neighbor -- are guaranteed free
+    // regardless of where the natural solution places $first/$second/
+    // $third below. Placed directly via $wire (bypassing drag/tap-to-place,
+    // already covered elsewhere in this test) purely to control the
+    // geometry deterministically: pivoting on the corner (15) sends the
+    // domino's other cell around a clean, predictable 4-step circle -- off
+    // the right edge, off the bottom edge, onto the inactive cell 14, then
+    // back to its real, original position.
+    $chainDominoId = '0-4';
+    $findWireScript = "(() => { const el = [...document.querySelectorAll('[wire\\\\:id]')].find(e => e.className.includes('flex-col')); return window.Livewire.find(el.getAttribute('wire:id')); })()";
+    $page->script("{$findWireScript}.placeDomino('{$chainDominoId}', 11, 15, false)");
+    waitUntilTrue($page, "document.getElementById('pips-cell-15').dataset.filled === '1'");
+
+    $page->click('#pips-cell-15');
+    waitUntilTrue($page, "document.getElementById('pips-cell-15').classList.contains('pips-cell-board-selected')");
+
+    $overlayRects = [];
+    for ($i = 0; $i < 3; $i++) {
+        $page->click('#pips-cell-15');
+        waitUntilTrue($page, 'document.querySelector(".pips-rotation-overlay") !== null');
+        $overlayRects[] = $page->script(
+            '(() => { const r = document.querySelector(".pips-rotation-overlay").getBoundingClientRect(); return JSON.stringify({w: Math.round(r.width), h: Math.round(r.height), left: Math.round(r.left), top: Math.round(r.top)}); })()'
+        );
+    }
+
+    expect(array_unique($overlayRects))->toHaveCount(3, 'three consecutive taps on the same pivot should show three distinct invalid positions, not the same one repeated');
+
+    // A fourth tap completes the circle back to the domino's real,
+    // untouched placement -- nothing to persist, so no overlay and no
+    // server round trip needed for this step.
+    $page->click('#pips-cell-15');
+    waitUntilTrue($page, 'document.querySelector(".pips-rotation-overlay") === null');
+
+    expect($page->script("document.getElementById('pips-cell-11').dataset.dominoId"))->toBe($chainDominoId);
+    expect($page->script("document.getElementById('pips-cell-15').dataset.dominoId"))->toBe($chainDominoId);
+
+    // Picked back up so it doesn't interfere with the tap-to-place/drag
+    // coverage below, which assumes a fresh, empty board.
+    $page->script("{$findWireScript}.removePlacement('{$chainDominoId}')");
+    waitUntilTrue($page, "document.getElementById('pips-cell-11').dataset.filled === '0'");
+
     // --- Tap-to-rotate a tray tile before placing it (docs/DEVLOG.md's
     // Pips entry) -- a real 90deg-per-tap cycle (horizontal, vertical,
     // horizontal-flipped, vertical-flipped), not just a 180deg flip, since

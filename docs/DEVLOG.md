@@ -1660,6 +1660,213 @@ describable from the text alone.**
   cell verbatim, carrying the same `data-domino-id` into `document.body`, which was
   briefly inflating an unscoped `document.querySelectorAll()` match count by one.
 
+**Two real bugs and one perceived bug in that rotation-overlay rewrite, found from live
+play immediately after shipping it.**
+
+- **The overlay's own pip content was invisible.** `attemptBoardRotate()` added
+  `pips-cell-lifted` (which hides a cell's pip dots) to the domino's real cells *before*
+  calling `buildRotationOverlay()`, which clones those same real cells -- so the clone
+  inherited the already-hidden state, and every invalid preview rendered as a flat gray
+  box with nothing legible in it regardless of which values were actually there.
+  Reordered: the overlay is built first, from the cells' still-normal state, *then* they
+  get lifted. This alone likely explains most of what looked like "stuck, nothing
+  happens when I click again" -- every invalid attempt looked visually identical (blank
+  gray) whether or not the pivot/target had actually changed, since there was nothing to
+  see either way. Confirmed live afterward that repeatedly tapping a domino stuck between
+  two invalid orientations (one pivot lands off the board, the other lands on an occupied
+  cell) *does* correctly recompute and redraw a new overlay on each tap -- it just wasn't
+  visibly changing before this fix. A domino that's genuinely invalid from *both* of its
+  own two possible pivots will still look "stuck" no matter how many times it's tapped,
+  because there's nowhere valid for it to go -- that's the documented, intentional
+  behavior (tap elsewhere to deselect/revert), not a bug.
+- **The overlay used `position: fixed`, so a preview landing below the fold was
+  unreachable no matter how far the player scrolled** -- `fixed` positioning is
+  deliberately viewport-relative (right for the drag ghost, which should track the
+  cursor) and never expands the page's own scrollable area, so an off-board preview
+  extending past the visible viewport had no way to ever be scrolled into view, and
+  would drift out of alignment with the board if the page *did* scroll for some other
+  reason. Switched to `position: absolute` with the pivot cell's own `getBoundingClientRect()`
+  offset by `window.scrollX`/`scrollY` -- page-relative, scrolls with the board it's
+  actually attached to, and lets the browser's normal scrollable-area calculation account
+  for it.
+- **Added a real, permanent gap between the board and the tray** (`.pips-board`'s own
+  `margin-bottom`, `calc(100% / var(--pips-cols) * 1.05)` -- a percentage margin resolves
+  against the containing block's *width*, which equals one cell's own height here since
+  every cell is square) so an off-board preview hanging below the board's last row can
+  never visually overlap the tray underneath it, and shrank the board's own max width
+  twice over the same round (`max-w-2xl` to `max-w-xl`, then to `max-w-lg`) after the
+  first cut still wasn't enough to keep the whole board+tray combo on one screen without
+  scrolling on a real viewport (docs/concerns.md: "the board should be slightly
+  smaller").
+
+**Two more real bugs found from a `docs/images/rotation/Current Problem.png` screenshot
+the user sent of their own actual browser session, still broken after the round above --
+the pip-visibility fix from that round only covered the *pivot* half, and a second,
+independent bug (a genuine click race, not yet found) was making the whole feature look
+non-functional regardless.**
+
+- **The overlay's "moving" half never had any pip content at all.** For an off-board
+  target specifically, `buildRotationOverlay()` built that half as a bare, empty `<div>`
+  -- it never had pip markup added to it in the first place, so it always rendered as a
+  flat gray box no matter what the domino's own value actually was (this is distinct
+  from the previous round's fix, which only addressed the *pivot* half showing up
+  blank). Worse, for a target that *was* a real, occupied cell, the old code cloned that
+  occupying cell's own content -- so the preview showed whichever domino was already
+  there instead of the domino actually being rotated. Fixed by always cloning pip
+  content from the rotating domino's own real "other" cell for this half, regardless of
+  what's really at the target spot -- the real occupant's color/pips (if any) still show
+  through underneath via `.pips-cell-rotate-invalid`'s own semitransparency, purely from
+  the overlay being positioned on top of it, with no need to clone that cell's content
+  specifically.
+- **A real click race, not the earlier round's own lift-ordering bug, was the actual
+  cause of "clicking again does nothing" reported live.** `attemptBoardRotate()` is
+  async (it awaits a real `$wire.rotatePlacement()` round trip); nothing stopped a
+  second tap from starting a *second* concurrent call before the first one's response
+  had landed. Each call independently tears down the current overlay and un-lifts the
+  real cells at its own start, then does its own DOM writes once its own response
+  arrives -- two overlapping calls landing out of order left inconsistent state behind
+  (an overlay for the wrong attempt, or a real cell that should have been re-lifted but
+  wasn't), exactly matching what was reported: a cell still showing its old pips
+  un-dimmed, and further taps that appeared to do nothing. Added a simple in-flight
+  guard (`boardRotateInFlight`) that ignores a new attempt while one is already
+  awaiting its response. Confirmed live: firing 4 real pointer clicks back-to-back with
+  zero delay between them (previously enough to corrupt the state) now consistently
+  leaves exactly one overlay and both real cells correctly lifted, and a later click
+  still continues rotating normally afterward.
+
+**The actual root cause of "a cell's own pips never disappear," found from a follow-up
+screenshot of a still-broken live session: a real, deterministic CSS bug, not a timing
+issue at all (correctly called out as such -- the race-condition fix above was real, but
+it wasn't this).** `.pips-cell-lifted .pips-pip { visibility: hidden; }` looks like it
+should hide every dot inside a lifted cell, but `visibility` only *inherits* into a
+descendant that doesn't set its own value for that property -- and `.pips-pip-dot.is-
+visible` (the rule that makes a dot showing an actual pip value visible in the first
+place) sets `visibility: visible` directly on itself. An element's own explicit
+declaration always wins over an inherited one regardless of specificity, so every dot
+that was actually supposed to disappear when a domino got lifted (mid relocate-drag, or
+now mid tap-rotation) never did -- confirmed live via `getComputedStyle()` that the
+`.pips-pip` container's own computed `visibility` was correctly `hidden` while its
+visible dot children still individually computed to `visible`. This is almost certainly
+what actually produced "the domino looks like it's taking three spaces, not two" -- the
+real "other" cell's own value stayed fully on screen the entire time, right alongside
+the new floating preview. Fixed by targeting `.pips-pip-dot` directly (not the outer
+`.pips-pip`) with `!important`, which beats a plain class-level `visibility: visible`
+regardless of inheritance. Re-verified afterward, with real multi-second gaps between
+clicks specifically to rule out timing: switching which side of an already-invalid
+domino is used as the pivot (cell 1 → cell 2, five real seconds apart) visibly moves
+the floating preview to a different computed position each time, proving the underlying
+rotation logic itself was never actually frozen -- a domino invalid from *both* of its
+own two sides will still never find a valid spot no matter which side is tapped (that
+part is correct, expected behavior, not a bug), but it was never failing to *recompute*
+on each tap the way it looked like it was.
+
+**The real explanation for "it gets stuck," found from the user's own precise
+description of the interaction itself, once the pip-visibility noise above was out of
+the way: the floating overlay's pivot half was silently eating every click and drag
+meant for the real board underneath it.** The pivot never moves during an invalid
+rotation attempt, so its own overlay half sits pixel-for-pixel on top of the real,
+still-fully-valid pivot cell -- and that overlay half had `pointer-events: auto`
+(inherited from the wrapper), meaning every tap *and every drag-to-relocate attempt* on
+that entire side of the domino was being captured by the transparent-looking overlay
+tile instead of ever reaching the real cell underneath. The only side left reachable at
+all was the *other* half (off the board, or over nothing this domino owns) -- exactly
+"I can only interact with the side in the invalid cell." Setting only the pivot-half
+*child* to `pointer-events: none` looked like the obvious fix but, confirmed live via
+`document.elementFromPoint()` on a minimal repro, wasn't enough on its own: hit-testing
+still resolved to the overlay *wrapper* underneath that child, not through to the real
+cell -- a child opting out of hit-testing doesn't make its parent transparent too. The
+actual fix has to flip the whole layering: the wrapper itself gets `pointer-events:
+none` as its default, and only the target half (the one genuine interactive surface --
+tapping it to try the other pivot) opts back in with its own `pointer-events: auto`.
+Re-verified with the same `elementFromPoint()` technique directly against the real page
+afterward: a click at the pivot cell's own screen position now resolves through to
+`#pips-cell-N` itself, and both a real tap-to-rotate (with a freshly click-position-
+computed pivot, not a fixed one) and a real drag-to-relocate gesture starting from that
+exact spot are both live again.
+
+Even after that fix, one more report came in: "you still cannot click to pivot from
+the valid cell if there is a side in an invalid cell." The `pointer-events` layering was
+correct by then -- this was a separate bug, in `onRelocateDragMove()`. That handler
+called `deselectBoardDomino()` the instant pointer movement crossed the 10px
+drag-vs-tap threshold, on the theory that any movement meant a relocate-drag was
+starting and the rotation selection should be cleared. But real mouse/trackpad input
+routinely drifts more than 10px even during an intended plain click, and the
+*final* tap-vs-drag classification (based on total start-to-end distance) happens
+later, in `onRelocateDragEnd()` -- by which point `deselectBoardDomino()` had already
+wiped `selectedBoardDominoId`, so a genuine "keep rotating" tap on the valid pivot cell
+was misclassified as a fresh selection instead of a continued rotation. This is why it
+only reproduced with real mouse movement: the project's own synthetic-event tests
+dispatch `pointerdown`/`pointerup` at identical coordinates with zero movement, never
+exercising the threshold-crossing path at all. Fixed by removing the premature
+`deselectBoardDomino()` call from `onRelocateDragMove()` entirely -- it now only builds
+the relocate-ghost on threshold-crossing, and defers all selection/deselection decisions
+to `onRelocateDragEnd()`'s own end-of-gesture check, as it should have from the start.
+Decoupled from that, `buildRelocateGhost()` now strips `pips-cell-lifted`,
+`pips-cell-rotate-invalid`, and `pips-cell-board-selected` from its own cloned cells
+directly, so the ghost always renders as a normal, real-looking domino regardless of
+what transient state the source cells happen to be in at drag-start time -- that
+guarantee no longer depends on deselecting anything first.
+
+Fixing that click-jitter bug made repeated taps on the valid side register again, but
+it exposed the real, deeper bug underneath, which the earlier "gets stuck" reports had
+actually been describing all along: every tap -- whether it was the first rotation
+attempt or the fifth in a row on the same pivot -- recomputed the exact same single
+90deg turn from the domino's true, currently-committed placement, because a failed
+attempt never persists anything server-side for a later recomputation to build on. So
+repeatedly tapping the one real, on-board side of an already-invalid domino kept
+showing the identical invalid position forever, instead of continuing to rotate through
+new ones each time -- indistinguishable, to the eye, from "stuck," even though each tap
+genuinely was re-running the rotate logic. **This was reported live and caught by the
+user watching a real click sequence in their own browser, not by this project's own
+testing**: an agent verification pass had run the same corner-domino scenario and
+watched the overlay DOM node get destroyed and rebuilt on every tap (proving each click
+really did re-run the code) and concluded from that alone that the behavior was
+correct -- without checking whether the *position* it rebuilt at was actually
+different each time. It wasn't; three separate real clicks, several seconds apart,
+all produced pixel-identical overlay rectangles, and that was wrongly read as
+"mathematically expected" instead of the bug it was. The lesson carried forward: proving
+a handler re-ran is not the same as proving it produced the right *output* -- the
+actual claim being tested (here, "does it keep rotating") has to be checked directly,
+not inferred from a proxy signal.
+
+The real fix needed the client to track an in-progress rotation **chain** -- a small
+`{dominoId, pivotCell, delta}` object (`boardRotationPreview`) recording how far the
+domino's other cell has hypothetically rotated from its true position around a fixed
+pivot, independent of whatever the server has actually committed. A tap on the *same*
+pivot the chain is already built around advances `delta` one more 90deg turn from
+wherever the preview currently sits (not from the true placement); a tap that picks a
+different pivot (the domino's other real cell, or the overlay's own target half)
+starts a fresh chain instead. Since a 90deg rotation applied four times is the identity
+transform, this makes the chain a genuine 4-step cycle around any fixed pivot -- for a
+domino sitting in a true corner with only one open neighbor, that's typically three
+distinct invalid spots (off one edge, off the other, onto some inactive cell) and then
+back to the domino's real, untouched position on the fourth tap, with nothing to
+persist for that last step since it's exactly where the domino already truly is.
+Landing on a genuinely new *valid* cell mid-chain (rather than back at the start) now
+always goes through `movePlacement()` rather than `rotatePlacement()` -- a chained
+rotation can be 1, 2, or 3 quarter-turns away from the domino's true stored position by
+the time it lands somewhere real, and `rotatePlacement()` can only ever compute a
+single 90deg step from whatever's actually persisted, so it can't reach a multi-turn
+landing in one call the way `movePlacement()`'s direct (pivot, target) validation can.
+An attempt the client can already tell is invalid (off the board entirely, or the
+target cell is on record as occupied by something else) skips the server round trip
+altogether -- there's nothing to persist either way, and it also sidesteps
+`movePlacement()` setting a real `$message` ("Dominoes can only be placed on adjacent
+cells." / "That cell is already covered.") that would otherwise show as an unwanted
+banner for what's supposed to be a silent, banner-free invalid-rotation preview
+(`rotatePlacement()`'s own docblock is explicit that this stays silent by design).
+`rotatePlacement()` itself is unchanged and still fully covered by its own tests --
+the client just no longer calls it, since `movePlacement()` already generalizes to
+every case a chained rotation can land on, including the plain single-turn one.
+
+Covered by a new assertion in `tests/Browser/PipsDragPlacementTest.php`: places a
+domino directly via `$wire.placeDomino()` on this seed's board at its own real corner
+(cell 15, cols=4, whose only active neighbor is cell 11 -- 14 isn't part of the active
+shape), taps it into an invalid rotation, then taps the same valid pivot three more
+times and asserts the floating overlay's on-screen rect is different all three times
+(`array_unique(...)->toHaveCount(3)`) before a fourth tap completes the circle back to
+the real placement with no overlay left at all.
+
 ## Punchline
 
 A Quiplash-style room game (players privately write funny answers to prompts, then vote,

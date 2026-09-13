@@ -3174,6 +3174,17 @@ body.scrollable.family-feud-play {
     gap: 0;
     aspect-ratio: var(--pips-cols) / var(--pips-rows);
     width: 100%;
+    /* A rotated domino's own floating invalid-position preview (see
+       .pips-rotation-overlay) can hang up to one full cell below the
+       board's own bottom edge -- this reserves real room for that so it
+       can never overlap the tray underneath (docs/concerns.md). Percentage
+       margins resolve against the containing block's *width*, which here
+       equals this element's own (every cell is square, so one cell's
+       height and one cell's width are the same number) -- 1.05x rather
+       than a flat 1x purely so the two edges are never pixel-adjacent, kept
+       small since the board's own overall size was cut for the same reason
+       (docs/concerns.md: "the board should be slightly smaller"). */
+    margin-bottom: calc(100% / var(--pips-cols) * 1.05);
 }
 
 .pips-play .pips-cell {
@@ -3439,9 +3450,18 @@ body.scrollable.family-feud-play {
    cells while a `.pips-rotation-overlay` shows the attempted new spot
    instead, below) -- the cell keeps its region color/border (nothing
    server-side has changed yet), only the pip content hides, matching how
-   a dragged tray tile's own origin element stays in the DOM but hidden. */
-.pips-play .pips-cell-lifted .pips-pip {
-    visibility: hidden;
+   a dragged tray tile's own origin element stays in the DOM but hidden.
+   Targets `.pips-pip-dot` directly, with `!important`, rather than just
+   `visibility: hidden` on the outer `.pips-pip` -- confirmed live (a real,
+   deterministic bug, not a timing issue) that a dot actually showing a
+   value has its own `.pips-pip-dot.is-visible` rule setting `visibility:
+   visible` directly on itself, which -- since `visibility` only inherits
+   into a descendant that doesn't set its own value -- overrode the
+   `.pips-pip`-level `hidden` outright. A lifted/mid-rotation cell was
+   never actually blank: every dot that was supposed to disappear stayed
+   fully visible regardless of the parent's own `visibility: hidden`. */
+.pips-play .pips-cell-lifted .pips-pip-dot {
+    visibility: hidden !important;
 }
 
 /* The domino selected for tap-to-rotate on the board (docs/concerns.md) --
@@ -3488,17 +3508,32 @@ body.scrollable.family-feud-play {
 /* A placed domino's floating mid-rotation preview (docs/concerns.md) --
    unlike `.pips-drag-ghost`, this one is *stationary* (left/top are set
    once, to the attempted landing spot's own computed pixel position, not
-   the cursor) and stays clickable (`pointer-events: auto`, the opposite of
-   the drag ghost's own `none`) so tapping it can keep rotating it further
-   even from an already-invalid position -- see the play page's own script
-   block, buildRotationOverlay()/attemptBoardRotate(). Sits above every
-   other placed domino via z-index, per docs/concerns.md's own "if it's
-   over another domino it should show above it." */
+   the cursor). `position: absolute`, not `fixed` -- this marks a specific
+   spot on the board, which itself scrolls with the page, not something
+   that should stay pinned to the viewport (confirmed live: `fixed`
+   positioning also never expands the page's own scrollable area, so a
+   preview landing below the fold was simply unreachable no matter how far
+   the player tried to scroll). Sits above every other placed domino via
+   z-index, per docs/concerns.md's own "if it's over another domino it
+   should show above it."
+
+   `pointer-events: none` here, not `auto` -- the *wrapper's* own box
+   covers both halves, including the pivot half, which sits directly on
+   top of the real, still-fully-interactive pivot cell (the pivot never
+   moves). Confirmed live via `elementFromPoint()` that giving only the
+   pivot *child* `pointer-events: none` wasn't enough on its own: hit-
+   testing still resolved to this wrapper *itself* underneath that child,
+   not all the way through to the real cell -- exactly the bug behind "I
+   can't click or drag the valid side anymore," since every click/drag
+   attempt on that side was landing on this transparent wrapper box
+   instead of ever reaching the real board cell. Setting the wrapper to
+   `none` lets the pivot half's own area fall through completely; the
+   target half (the only part that should stay genuinely clickable, to
+   pick a new pivot) opts back in with its own `pointer-events: auto`. */
 .pips-play .pips-rotation-overlay {
-    position: fixed;
+    position: absolute;
     z-index: 55;
-    pointer-events: auto;
-    cursor: pointer;
+    pointer-events: none;
     box-shadow: 0 2px 8px var(--die-shadow);
 }
 

@@ -10,6 +10,9 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 - Bumped Pips constraint badge glyph size and badge size so `=`/`≠`/`>12`-style symbols read clearly.
 - Fixed the relocate-drag ghost showing a small, always-horizontal tray-styled tile regardless of the domino's real size/orientation on the board.
 - Rebuilt board-domino rotation as select-then-rotate: a first tap selects a placed domino, a second attempts a 90° pivot rotation. An invalid attempt (off the board, or onto an occupied cell) now visibly shows the domino rotated into that spot, grayed out and drawn above other dominoes, instead of silently doing nothing; it stays selected until the player taps elsewhere, which reverts it.
+- Fixed an invalid board rotation's own real cells not actually hiding their pips (a `visibility` inheritance bug), and its floating overlay silently eating clicks/drags meant for the real, still-valid pivot cell underneath it (a `pointer-events` layering bug).
+- Fixed a board rotation getting stuck unresponsive to further taps on the valid pivot cell after landing invalid, caused by a premature deselect firing on ordinary pointer-movement jitter during a plain click.
+- Fixed repeated taps on the same valid pivot after an invalid rotation always showing the identical invalid position instead of continuing to rotate through new ones each time; it now walks a real 4-step rotation cycle back to the domino's original position. Added browser test coverage.
 
 ## 2026-09-12
 
