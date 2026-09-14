@@ -166,6 +166,62 @@ test('drag, tap-to-place, and pick-up-by-tap all place/remove dominoes correctly
     expect($rotationStates[3])->toBe(['selected' => true, 'vertical' => true, 'flipped' => true]);
     expect($rotationStates[4]['selected'])->toBeFalse();
 
+    // --- docs/concerns.md: on mobile, a dragged domino didn't track
+    // directly under the finger once rotated to vertical -- the drag
+    // ghost is a clone of the real tray tile, so it also carries the
+    // rotation classes, and every rotation class also sets `transform` on
+    // that same element (the CSS fix re-states each rotation alongside the
+    // ghost's own centering translate). Rotates $thirdDominoId to vertical
+    // (2 clicks: select, then one rotate step) and checks the ghost is
+    // still centered on the live pointer position mid-drag, not offset by
+    // roughly half the tile's own size. Released far outside the board so
+    // the drop is rejected and the tile snaps back to the tray -- its own
+    // two cells are still needed, unplaced, as the relocate-drag's drop
+    // target later in this test.
+    $page->click("#pips-tray-{$thirdDominoId}");
+    waitUntilTrue($page, "document.getElementById('pips-tray-{$thirdDominoId}').classList.contains('pips-domino-selected')");
+    $page->click("#pips-tray-{$thirdDominoId}");
+    waitUntilTrue($page, "document.getElementById('pips-tray-{$thirdDominoId}').classList.contains('pips-domino-vertical')");
+
+    $rotatedDragScript = <<<'JS'
+        (() => {
+            const tray = document.getElementById('pips-tray-__DOMINO_ID__');
+            const rect = tray.getBoundingClientRect();
+            const fromPoint = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+            const toPoint = { x: fromPoint.x + 40, y: fromPoint.y + 60 };
+
+            function fire(type, target, point) {
+                target.dispatchEvent(new PointerEvent(type, {
+                    bubbles: true, cancelable: true, composed: true,
+                    clientX: point.x, clientY: point.y,
+                    pointerId: 1, pointerType: 'mouse', isPrimary: true,
+                }));
+            }
+
+            fire('pointerdown', tray, fromPoint);
+            fire('pointermove', document, toPoint);
+
+            const ghost = document.querySelector('.pips-drag-ghost');
+            const ghostRect = ghost.getBoundingClientRect();
+            const ghostCenter = { x: ghostRect.left + ghostRect.width / 2, y: ghostRect.top + ghostRect.height / 2 };
+
+            fire('pointerup', document, { x: 5, y: 5 });
+
+            return JSON.stringify({ pointer: toPoint, ghostCenter });
+        })()
+        JS;
+
+    $rotatedDragResult = json_decode($page->script(str_replace(
+        '__DOMINO_ID__',
+        $thirdDominoId,
+        $rotatedDragScript,
+    )), true);
+
+    expect(abs($rotatedDragResult['ghostCenter']['x'] - $rotatedDragResult['pointer']['x']))->toBeLessThanOrEqual(1);
+    expect(abs($rotatedDragResult['ghostCenter']['y'] - $rotatedDragResult['pointer']['y']))->toBeLessThanOrEqual(1);
+
+    waitUntilTrue($page, "document.getElementById('pips-tray-{$thirdDominoId}') !== null && document.getElementById('pips-tray-{$thirdDominoId}').style.visibility !== 'hidden'");
+
     // --- Drag: dispatches real pointer events directly, rather than
     // Playwright's own drag()/dragTo() helper -- that helper simulates the
     // native HTML5 drag-and-drop protocol (dragstart/dragover/drop), which

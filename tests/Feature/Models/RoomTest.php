@@ -125,6 +125,21 @@ test('pendingGameType is NOT null when game_session_id points at an already-fini
     expect($room->fresh()->pendingGameType())->toBe(GameType::Hoax);
 });
 
+/**
+ * docs/concerns.md: switching games in a room reverted to the previous
+ * one -- caused by this stale marker never being cleared when the host
+ * picks a genuinely different game from the room hub (see
+ * pages::room.show::startGame(), the only caller).
+ */
+test('clearPendingGame removes the marker entirely, not just leaves it stale', function () {
+    $room = Room::factory()->create();
+    $room->markPendingGame(GameType::Punchline);
+
+    $room->clearPendingGame();
+
+    expect($room->pendingGameType())->toBeNull();
+});
+
 test('extendExpiry resets expiry to a full LIFETIME_MINUTES from now, not just adding time to whatever it already was', function () {
     $room = Room::factory()->create(['expires_at' => now()->addMinute()]);
 

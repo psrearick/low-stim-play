@@ -1,2 +1,0 @@
-- After playing a game in a room, when the host tries to start a new game of a different type, it reverts to the previous type. For example, if the room completed a game of Punchline, if the host goes to start Hoax, it reverts to Punchline, so only one game can be played. Rooms should be able to switch games.
-- In Pips, on mobile, the domino does not move directly under the users finger, but is offset.

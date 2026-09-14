@@ -218,6 +218,33 @@ test('the host starting a game resets a stale game_session_id and redirects into
     expect($room->fresh()->game_session_id)->toBeNull();
 });
 
+/**
+ * docs/concerns.md: "After playing a game in a room, when the host tries
+ * to start a new game of a different type, it reverts to the previous
+ * type." The previous game's own openLobby() left Room::pendingGameType()
+ * pointing at it; nothing ever cleared that marker, so the new game's own
+ * {game}.room page read it back as "the host switched to {old game}" and
+ * showed a stale Join banner into it instead of this room's real
+ * "Open Lobby" screen.
+ */
+test('the host starting a new game clears the previous game\'s stale pending marker', function () {
+    $host = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+    $room->markPendingGame(GameType::Punchline);
+
+    Livewire::actingAs($host)
+        ->test('pages::room.show', ['code' => $room->code])
+        ->call('startGame', GameType::Hoax)
+        ->assertRedirect(route('hoax.room', ['code' => $room->code]));
+
+    expect($room->fresh()->pendingGameType())->toBeNull();
+
+    Livewire::actingAs($host)
+        ->test('pages::hoax.room', ['code' => $room->code])
+        ->assertDontSee('The host switched to')
+        ->assertSee('Open Lobby');
+});
+
 test('a non-host cannot start a game from the room hub', function () {
     $host = User::factory()->create();
     $guest = User::factory()->create();

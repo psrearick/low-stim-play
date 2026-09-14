@@ -168,6 +168,13 @@ new class extends Component
 
         $this->room->update(['game_session_id' => null]);
 
+        // Clears any pending-game marker the *previous* game's openLobby()
+        // left behind -- otherwise that game's own {game}.room page would
+        // read this fresh selection as "the host switched to {old game}"
+        // and revert right back into it (docs/concerns.md, Room::
+        // clearPendingGame()'s own docblock).
+        $this->room->clearPendingGame();
+
         $this->redirect(route($type->roomRoute(), ['code' => $this->room->code]));
     }
 

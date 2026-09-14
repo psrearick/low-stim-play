@@ -2,6 +2,14 @@
 
 A terse, commit-by-commit record of what changed, newest first. No rationale or decisions here — see `docs/DEVLOG.md` for the *why* behind anything listed here, organized by feature instead of by commit. See `docs/TODO.md` for what's still outstanding.
 
+## 2026-09-14
+
+- Fixed a room reverting to the previous game the instant the host tried to start a genuinely different one (a stale pending-game marker was never cleared on switch).
+- Fixed a dragged Pips domino not tracking directly under the finger on mobile once rotated to vertical (the drag ghost's centering transform was losing to a higher-specificity rotation rule).
+- Fixed a page left open while backgrounded (screen off, switched to a different app, or restored from the back/forward cache) never reflecting real-time updates once foregrounded again -- every Livewire component now refreshes from the database on `visibilitychange`/`pageshow`.
+- Removed old, already-fixed `docs/concerns.md` items and their reference screenshots.
+- Centered game card titles.
+
 ## 2026-09-13
 
 - Added a "New" section to `docs/concerns.md` and reference screenshots (`docs/images/`, `docs/images/rotation/`) of the real NYT game's own domino tile/region border look and rotation behavior.

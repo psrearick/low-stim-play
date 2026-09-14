@@ -107,6 +107,51 @@ document.addEventListener('livewire:init', () => {
     });
 })();
 
+// ---- Refresh every Livewire component when the page comes back into view
+// docs/concerns.md: playing a game as a PWA (or, per that report, probably
+// any mobile browser tab), then switching to a different app or turning
+// the screen off, left the page frozen on whatever it last rendered --
+// confirmed during Farkle, but this is a page-agnostic gap, not a Farkle
+// one, so it's fixed globally rather than per-game. Nothing pushes a
+// broadcast to a client that isn't listening at the moment it fires
+// (Echo/Reverb's presence-channel events aren't queued/replayed for a
+// reconnecting socket), so any real-time update (a room's game switching,
+// another player's move, a round ending) that happened while the tab was
+// backgrounded is simply lost -- the tab reconnects its socket for
+// *future* events, but has no way to know it missed anything, so it just
+// keeps showing the same stale render until some other action happens to
+// trigger a round trip. The previously-documented workaround (go to the
+// room page, resume your seat) only "worked" because loading a fresh page
+// re-mounts every component from scratch, reading current DB state.
+//
+// $wire.$refresh() gets the identical result without a navigation:
+// Livewire's Eloquent model hydration (vendor/livewire/livewire/src/
+// Features/SupportModels/ModelSynth.php's hydrate()) always re-queries by
+// primary key rather than trusting any previously-known attributes, so
+// re-committing every mounted component's existing snapshot re-renders it
+// against the real, current row in the database -- exactly "go to the
+// correct view," with no explicit per-page reload/resync logic needed
+// anywhere. `visibilitychange` (not `focus`) is what actually fires when a
+// PWA/mobile browser tab is foregrounded again on both iOS and Android;
+// `pageshow`'s `persisted` flag covers a desktop tab restored from the
+// back/forward cache, which some browsers don't pair with a
+// `visibilitychange` firing at all.
+function refreshLiveComponents() {
+    window.Livewire?.all().forEach((component) => component.$wire.$refresh());
+}
+
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+        refreshLiveComponents();
+    }
+});
+
+window.addEventListener('pageshow', (event) => {
+    if (event.persisted) {
+        refreshLiveComponents();
+    }
+});
+
 document.addEventListener('DOMContentLoaded', () => {
     const themeToggle = document.querySelector('[data-theme-toggle]');
 

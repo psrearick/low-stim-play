@@ -3506,6 +3506,36 @@ body.scrollable.family-feud-play {
     transform: translate(-50%, -50%);
 }
 
+/* docs/concerns.md: on mobile, a dragged domino didn't track directly
+   under the finger once rotated to vertical. The tray drag-out ghost is a
+   clone of the real `.pips-domino` tray tile (see the play page's own
+   onTrayDragMove()), so a rotated tile's clone carries its rotation
+   classes (`.pips-domino-vertical`/`.pips-domino-flipped`) along with the
+   new `.pips-drag-ghost` class -- and every `.pips-domino-vertical`/
+   `.pips-domino-flipped` combination above also sets `transform`, on the
+   very same element. Both rules target one property on one element, so
+   only one wins outright rather than combining: each rotation selector has
+   two classes (0,2,0) versus `.pips-drag-ghost` alone at one class
+   (0,1,0), so the rotation always won, silently dropping the
+   `translate(-50%, -50%)` centering entirely -- the ghost's untranslated
+   top-left corner sat at the cursor instead, reading as "offset" by
+   roughly half the tile's own size once rotated (unrotated/step 0 has
+   neither class, so it was never affected). Fixed by re-stating each
+   rotation alongside the centering translate at matching 3-class
+   specificity, so the ghost is always centered on the cursor regardless of
+   orientation. */
+.pips-play .pips-drag-ghost.pips-domino-vertical:not(.pips-domino-flipped) {
+    transform: translate(-50%, -50%) rotate(90deg);
+}
+
+.pips-play .pips-drag-ghost.pips-domino-flipped:not(.pips-domino-vertical) {
+    transform: translate(-50%, -50%) rotate(180deg);
+}
+
+.pips-play .pips-drag-ghost.pips-domino-vertical.pips-domino-flipped {
+    transform: translate(-50%, -50%) rotate(270deg);
+}
+
 /* A placed domino's floating mid-rotation preview (docs/concerns.md) --
    unlike `.pips-drag-ghost`, this one is *stationary* (left/top are set
    once, to the attempted landing spot's own computed pixel position, not

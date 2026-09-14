@@ -155,6 +155,26 @@ class Room extends Model
         return $value !== null ? GameType::from($value) : null;
     }
 
+    /**
+     * Clears whatever markPendingGame() last wrote -- called by
+     * pages::room.show's startGame() the instant the host picks a *new*
+     * game from the room hub (docs/concerns.md: switching games kept
+     * reverting to the previous one). Without this, the previous game's
+     * still-unexpired cache entry outlives that game entirely, so every
+     * {game}.room page's own switchedElsewhere/switchedGameType check
+     * (which only ever compares the cached type against its own) reads it
+     * as "the host switched to {old game}" and shows a stale "Join {old
+     * game}" banner instead of this room page's real "Open Lobby" screen,
+     * even though the host is the one who just navigated here to start it.
+     * Safe to clear unconditionally: the new game's own openLobby() is the
+     * only thing that writes a fresh entry back, and nothing reads this key
+     * in between that matters -- see markPendingGame()'s own docblock.
+     */
+    public function clearPendingGame(): void
+    {
+        Cache::forget($this->pendingGameCacheKey());
+    }
+
     private function pendingGameCacheKey(): string
     {
         return "room:{$this->code}:pending-game";
