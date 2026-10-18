@@ -223,6 +223,35 @@ test('a timed solo game whose clock actually reaches zero is still recorded', fu
         ->and(GameParticipant::where('user_id', $user->id)->exists())->toBeTrue();
 });
 
+test('a timed solo game the client ends at 0 while the server still reads a second left is recorded', function () {
+    $user = User::factory()->create();
+
+    // The client countdown can hit 0 a moment before the server's
+    // whole-second clock does (clock skew, timestamp truncation).
+    Livewire::actingAs($user)
+        ->test('pages::boggle.play', ['size' => 4, 'minutes' => 3])
+        ->set('board', boggleCatsBoard())
+        ->set('path', [0, 1, 2])
+        ->call('submitWord')
+        ->set('endsAt', now()->addSecond()->timestamp)
+        ->call('endGame')
+        ->assertSet('ended', true)
+        ->assertSet('endedEarly', false)
+        ->assertSee('0:00');
+
+    expect(GameSession::count())->toBe(1)
+        ->and(GameParticipant::where('user_id', $user->id)->exists())->toBeTrue();
+});
+
+test('ending a timed solo game with more than the grace window left is still treated as early', function () {
+    Livewire::test('pages::boggle.play', ['size' => 4, 'minutes' => 3])
+        ->set('endsAt', now()->addSeconds(10)->timestamp)
+        ->call('endGame')
+        ->assertSet('endedEarly', true);
+
+    expect(GameSession::count())->toBe(0);
+});
+
 test('starting a new game after ending early clears the stale endedEarly/gameSessionId state', function () {
     $user = User::factory()->create();
 

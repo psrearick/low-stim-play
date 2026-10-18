@@ -2,6 +2,10 @@
 
 A terse, commit-by-commit record of what changed, newest first. No rationale or decisions here — see `docs/DEVLOG.md` for the *why* behind anything listed here, organized by feature instead of by commit. See `docs/TODO.md` for what's still outstanding.
 
+## 2026-10-18
+
+- Fixed a timed Word Grid game that ran out naturally sometimes stopping at 0:01 and not being recorded in stats (client countdown rounding plus server whole-second truncation tripped the "ended early" check; added a 3-second grace window and pinned the finished clock to 0:00).
+
 ## 2026-09-14
 
 - Fixed a room reverting to the previous game the instant the host tried to start a genuinely different one (a stale pending-game marker was never cleared on switch).

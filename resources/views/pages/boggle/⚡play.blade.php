@@ -136,6 +136,13 @@ new class extends Component
     public bool $endedEarly = false;
 
     /**
+     * How many seconds the server may still see on the clock when the
+     * client-side countdown calls endGame() at 0 and still count it as the
+     * clock running out (see finishGame()).
+     */
+    private const TIMER_EXPIRY_GRACE_SECONDS = 3;
+
+    /**
      * @var list<string>|null
      */
     public ?array $allValidWords = null;
@@ -465,11 +472,13 @@ new class extends Component
 
         // "End Game" clicked to stop a *timed* solo game early, before its
         // own clock actually reached zero -- as opposed to either a timed
-        // game whose clock genuinely ran out (the JS countdown only ever
-        // calls this once $this->remainingSeconds has already reached 0,
-        // so the server sees the same 0 by the time this runs) or an
-        // untimed game, whose *only* real finish condition is clicking
-        // this same button (remainingSeconds is null there, never > 0).
+        // game whose clock genuinely ran out (the JS countdown calls this
+        // once its *client-side* clock hits 0, which the server can still
+        // see as a second or two short -- client/server clock skew plus
+        // now()->timestamp truncating to whole seconds -- hence the grace
+        // window rather than a strict > 0) or an untimed game, whose
+        // *only* real finish condition is clicking this same button
+        // (remainingSeconds is null there, never > 0).
         // Neither of those two legitimate-finish cases should be treated
         // as "not finished" just because the trigger was the same button
         // click -- only a genuine early stop should skip recording.
@@ -477,10 +486,19 @@ new class extends Component
         // shared session for every seat at once, a materially bigger
         // consequence than one player quitting their own local timer
         // early, and out of scope for this specific fix.
-        if (! $this->isSharedSession && ($this->remainingSeconds ?? 0) > 0) {
+        if (! $this->isSharedSession && ($this->remainingSeconds ?? 0) > self::TIMER_EXPIRY_GRACE_SECONDS) {
             $this->endedEarly = true;
 
             return;
+        }
+
+        // Within the grace window the server can still read 0:01-0:03 --
+        // pin the clock to zero so the frozen HUD shows 0:00, not 0:01.
+        if ($this->endsAt !== null) {
+            $this->endsAt = min($this->endsAt, now()->timestamp);
+            // Busts Livewire's per-request computed-property cache, which
+            // still holds the pre-clamp value read just above.
+            unset($this->remainingSeconds);
         }
 
         if ($this->isSharedSession) {
@@ -1031,7 +1049,9 @@ new class extends Component
             timerValueEl.classList.remove('low');
             return;
         }
-        const remaining = Math.max(0, Math.round(endsAt - Date.now() / 1000));
+        // ceil, not round: round hit 0 (and fired endGame()) with up to
+        // half a second still genuinely left on the clock.
+        const remaining = Math.max(0, Math.ceil(endsAt - Date.now() / 1000));
         const m = Math.floor(remaining / 60);
         const s = remaining % 60;
         timerValueEl.textContent = m + ':' + String(s).padStart(2, '0');
