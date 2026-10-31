@@ -3,7 +3,6 @@
 use App\Enums\GameMode;
 use App\Enums\GameResult;
 use App\Enums\GameType;
-use App\Enums\RoomStatus;
 use App\Events\RoomGameStateUpdated;
 use App\Models\GameParticipant;
 use App\Models\GameSession;
@@ -809,7 +808,7 @@ new class extends Component
             // Without this, the "Back to room" button above visibly did
             // nothing: it navigated to the room page, which immediately
             // redirected right back here. See docs/concerns.md.
-            $this->resolveRoom()->update(['status' => RoomStatus::Finished]);
+            $this->resolveRoom()->finishCurrentGame($this->gameSessionId);
 
             $seatUserIds = RoomSeat::where('room_id', $this->resolveRoom()->id)
                 ->orderBy('seat_index')

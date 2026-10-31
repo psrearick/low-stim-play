@@ -2,6 +2,10 @@
 
 A terse, commit-by-commit record of what changed, newest first. No rationale or decisions here — see `docs/DEVLOG.md` for the *why* behind anything listed here, organized by feature instead of by commit. See `docs/TODO.md` for what's still outstanding.
 
+## 2026-10-31
+
+- Reworked the room game-to-game transition: a finished game now returns the room to Lobby and clears the stale pending-game marker; the host's results screen gets Play again (reopens the same lobby with remembered settings) and Choose another game, and non-hosts see "Waiting for the host to pick the next game"; room lobbies remember each game's last settings and the host can go back to Change settings; non-hosts between games are taken to a newly opened lobby after a 10-second countdown unless they choose Stay here; lobby presence moved to its own `room.{code}.lobby` channel so only players actually in the lobby count toward "all ready"; the room hub updates live when a game starts or ends; Word Grid no longer crashes on a results-screen reload after the room moves on, and a mid-game arrival at its room page goes to the hub instead of a dead-end waiting screen.
+
 ## 2026-10-18
 
 - Fixed a timed Word Grid game that ran out naturally sometimes stopping at 0:01 and not being recorded in stats (client countdown rounding plus server whole-second truncation tripped the "ended early" check; added a 3-second grace window and pinned the finished clock to 0:00).

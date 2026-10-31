@@ -510,7 +510,7 @@ test('a full 3-round game ends with one GameParticipant per seat carrying points
     }
 
     $room->refresh();
-    expect($room->status)->toBe(RoomStatus::Finished);
+    expect($room->status)->toBe(RoomStatus::Lobby);
 
     $session = GameSession::find($room->game_session_id);
     expect($session->ended_at)->not->toBeNull();
@@ -795,7 +795,7 @@ test('the host can end the game early, scoring whatever partial round progress e
         ->assertSet('phase', PunchlinePhase::GameEnd);
 
     $room->refresh();
-    expect($room->status)->toBe(RoomStatus::Finished);
+    expect($room->status)->toBe(RoomStatus::Lobby);
 
     $session = GameSession::find($room->game_session_id);
     expect($session->ended_at)->not->toBeNull();
@@ -819,7 +819,7 @@ test('a non-host cannot end the game early', function () {
         ->assertForbidden();
 
     $room->refresh();
-    expect($room->status)->not->toBe(RoomStatus::Finished);
+    expect($room->status)->toBe(RoomStatus::Active);
 });
 
 test('acting on a matchup id from a round that already moved on elsewhere quietly no-ops instead of a hard 404', function () {

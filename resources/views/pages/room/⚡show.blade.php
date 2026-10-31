@@ -58,6 +58,8 @@ new class extends Component
             "echo-presence:{$channel},leaving" => 'onLeaving',
             "echo-presence:{$channel},RoomEnded" => 'onRoomEnded',
             "echo-presence:{$channel},RoomGameSwitched" => 'onGameSwitched',
+            "echo-presence:{$channel},RoomGameStarting" => 'onRoomChanged',
+            "echo-presence:{$channel},RoomGameFinished" => 'onRoomChanged',
         ];
     }
 
@@ -189,7 +191,22 @@ new class extends Component
      * -- the same banner a late joiner already sees. Mirrors
      * <livewire:game-lobby>'s own onGameSwitched().
      */
-    public function onGameSwitched(): void {}
+    public function onGameSwitched(): void
+    {
+        $this->onRoomChanged();
+    }
+
+    /**
+     * A game starting or finishing changes activeGameType/pendingGameType
+     * below, both read off $this->room's status/game_session_id -- this page
+     * previously only ever listened for RoomGameSwitched, so it kept showing
+     * "the host is setting up X -- Join" after X had already started (and,
+     * for Word Grid, that Join led to a dead-end waiting screen).
+     */
+    public function onRoomChanged(): void
+    {
+        $this->room->refresh();
+    }
 
     public function endRoom(): void
     {
@@ -260,9 +277,9 @@ new class extends Component
                 </a>
             @else
                 <p class="status-line">The host is setting up {{ $this->pendingGameType->label() }} -- hasn't started yet.</p>
-                <a href="{{ route($this->pendingGameType->roomRoute(), ['code' => $room->code]) }}">
-                    <button type="button">Join</button>
-                </a>
+                <x-room-follow-countdown
+                    :href="route($this->pendingGameType->roomRoute(), ['code' => $room->code])"
+                    :token="$room->pendingGameToken() ?? $this->pendingGameType->value" />
             @endif
         </div>
     @endif

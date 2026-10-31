@@ -22,7 +22,8 @@ uses(RefreshDatabase::class);
  * player straight back into their seat -- couldn't tell "still playing"
  * from "already over," and silently redirected right back to the game the
  * user had just clicked "Back to room" to leave. Fixed by finishGame()
- * marking the room RoomStatus::Finished once an online game actually ends.
+ * moving the room off Active once an online game actually ends (now back
+ * to RoomStatus::Lobby, via Room::finishCurrentGame()).
  *
  * "Back to room" itself now points at the game-agnostic room hub
  * (pages::room.show), not this game's own lobby -- see docs/concerns.md's
@@ -65,5 +66,5 @@ it('actually navigates back to the room after the host ends the game', function 
         ->assertPathIs('/room/'.$room->code)
         ->assertSee('Start a new game in this room');
 
-    expect($room->fresh()->status)->toBe(RoomStatus::Finished);
+    expect($room->fresh()->status)->toBe(RoomStatus::Lobby);
 });

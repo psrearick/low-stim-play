@@ -8,7 +8,7 @@ Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
     return (int) $user->id === (int) $id;
 });
 
-Broadcast::channel('room.{code}', function (User $user, string $code) {
+$authorizeRoomPresence = function (User $user, string $code) {
     $room = Room::notExpired()->where('code', $code)->first();
 
     if (! $room) {
@@ -20,4 +20,10 @@ Broadcast::channel('room.{code}', function (User $user, string $code) {
         'name' => $user->name,
         'is_host' => $room->host_user_id === $user->id,
     ];
-});
+};
+
+Broadcast::channel('room.{code}', $authorizeRoomPresence);
+
+// Only <livewire:game-lobby> joins this one -- see its getListeners() for
+// why lobby presence is kept separate from the room-wide channel above.
+Broadcast::channel('room.{code}.lobby', $authorizeRoomPresence);

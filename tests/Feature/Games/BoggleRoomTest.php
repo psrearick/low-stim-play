@@ -229,14 +229,18 @@ test('other players are redirected once the room has started', function () {
     // flips the room to Active *before* dispatching the event that leads
     // here, in the same request. Reproduce that ordering directly since
     // this test exercises pages::boggle.room in isolation.
+    // The guest is already sitting on this page (mounted before the game
+    // starts) -- arriving *after* it started now redirects to the room hub
+    // at mount() instead, see the mid-game test below.
+    $guestPage = Livewire::actingAs($guest)->test('pages::boggle.room', ['code' => $room->code]);
+
     $room->update(['status' => RoomStatus::Active]);
 
     Livewire::actingAs($host)
         ->test('pages::boggle.room', ['code' => $room->code])
         ->call('onRoomStarting');
 
-    Livewire::actingAs($guest)
-        ->test('pages::boggle.room', ['code' => $room->code])
+    $guestPage
         ->call('onRoomStarted')
         ->assertRedirect(route('boggle.play', [
             'size' => $room->fresh()->gameSession->settings['size'],
@@ -297,7 +301,7 @@ test('players in a room play the same board and are ranked against each other', 
     // never changed once a game ended, so pages::boggle.room's own
     // redirectIfAlreadyStarted() kept bouncing straight back into the
     // now-finished game. Confirm both halves of the fix.
-    expect($room->fresh()->status)->toBe(RoomStatus::Finished);
+    expect($room->fresh()->status)->toBe(RoomStatus::Lobby);
 
     Livewire::actingAs($host)
         ->test('pages::boggle.room', ['code' => $room->code])

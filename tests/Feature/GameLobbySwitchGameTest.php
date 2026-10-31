@@ -34,9 +34,21 @@ test('another present player sees a join prompt when the room switches games, wi
     // other presence-channel tests (e.g. GameLobbyTest's onReadyToggled
     // coverage), since a real Reverb broadcast needs a live connection
     // this test environment doesn't have (BROADCAST_CONNECTION=null).
-    Livewire::actingAs($host)
+    Livewire::actingAs(User::factory()->create())
         ->test('game-lobby', ['room' => $room, 'currentGame' => GameType::Boggle])
         ->call('onGameSwitched')
         ->assertNoRedirect()
-        ->assertSee(GameType::Yahtzee->label());
+        ->assertSee(GameType::Yahtzee->label())
+        ->assertSee('Stay here');
+});
+
+test('the host never sees a "host switched" prompt for their own switch', function () {
+    $host = User::factory()->create();
+    $room = Room::factory()->create(['host_user_id' => $host->id]);
+    $room->markPendingGame(GameType::Yahtzee);
+
+    Livewire::actingAs($host)
+        ->test('game-lobby', ['room' => $room, 'currentGame' => GameType::Boggle])
+        ->call('onGameSwitched')
+        ->assertDontSee('The host switched to');
 });

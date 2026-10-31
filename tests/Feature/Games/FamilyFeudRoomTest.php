@@ -583,7 +583,7 @@ test('a full online game writes one correctly-attributed GameParticipant per sea
     // never changed once a game ended, so pages::family-feud.room's own
     // redirectIfAlreadyStarted() kept bouncing straight back into the
     // now-finished game. Confirm both halves of the fix.
-    expect($room->fresh()->status)->toBe(RoomStatus::Finished);
+    expect($room->fresh()->status)->toBe(RoomStatus::Lobby);
 
     Livewire::actingAs($host)
         ->test('pages::family-feud.room', ['code' => $room->code])

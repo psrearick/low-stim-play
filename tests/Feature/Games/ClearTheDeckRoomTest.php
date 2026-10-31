@@ -672,7 +672,7 @@ test('reaching the final round ends the game and records a GameParticipant per s
         ->assertSet('phase', ClearTheDeckPhase::GameEnd);
 
     $room->refresh();
-    expect($room->status)->toBe(RoomStatus::Finished);
+    expect($room->status)->toBe(RoomStatus::Lobby);
 
     $session->refresh();
     expect($session->ended_at)->not->toBeNull();
@@ -742,7 +742,7 @@ test('the host can end the game early, scoring whoever currently has the lowest 
         ->assertSet('phase', ClearTheDeckPhase::GameEnd);
 
     $room->refresh();
-    expect($room->status)->toBe(RoomStatus::Finished);
+    expect($room->status)->toBe(RoomStatus::Lobby);
 
     $session = GameSession::find($room->game_session_id);
     expect($session->ended_at)->not->toBeNull();
@@ -765,5 +765,5 @@ test('a non-host cannot end a Clear the Deck game early', function () {
         ->call('endGameManually')
         ->assertForbidden();
 
-    expect($room->fresh()->status)->not->toBe(RoomStatus::Finished);
+    expect($room->fresh()->status)->toBe(RoomStatus::Active);
 });

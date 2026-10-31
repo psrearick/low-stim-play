@@ -68,8 +68,8 @@ test('a game switched to a different type still resolves the correct label and s
     ])->assertSee('Word Grid is being played right now')->assertDontSee('Watch');
 });
 
-test('a finished room (no active game) shows nothing', function () {
-    $room = Room::factory()->create(['status' => RoomStatus::Finished]);
+test('a room back between games (no active game) tells a non-host the host is choosing, not that a game started', function () {
+    $room = Room::factory()->create(['status' => RoomStatus::Lobby]);
     $session = GameSession::factory()->create(['type' => GameType::Farkle, 'mode' => GameMode::Online]);
     $room->update(['game_session_id' => $session->id]);
 
@@ -77,7 +77,10 @@ test('a finished room (no active game) shows nothing', function () {
         'roomCode' => $room->code,
         'currentGame' => GameType::Farkle,
         'myGameSessionId' => $session->id,
-    ])->assertDontSee('started a new')->assertDontSee('being played right now');
+    ])
+        ->assertDontSee('started a new')
+        ->assertDontSee('being played right now')
+        ->assertSee('Waiting for the host to pick the next game');
 });
 
 /**

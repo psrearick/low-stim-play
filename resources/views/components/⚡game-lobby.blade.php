@@ -34,17 +34,26 @@ new class extends Component
     }
 
     /**
+     * Presence (who's in this lobby) and ready toggles live on their own
+     * room.{code}.lobby channel, not the room-wide room.{code} one: every
+     * member with *any* page of the site open is present on the room-wide
+     * channel (<livewire:rooms-menu> joins it from the navbar on every
+     * page), so counting that toward "all ready" meant anyone idling on the
+     * homepage or still reading the last game's results blocked the host's
+     * Start Game. Only people actually on this lobby page join this one.
+     *
      * @return array<string, string>
      */
     protected function getListeners(): array
     {
         $channel = "room.{$this->room->code}";
+        $lobbyChannel = "{$channel}.lobby";
 
         return [
-            "echo-presence:{$channel},here" => 'onHere',
-            "echo-presence:{$channel},joining" => 'onJoining',
-            "echo-presence:{$channel},leaving" => 'onLeaving',
-            "echo-presence:{$channel},RoomPlayerReadyToggled" => 'onReadyToggled',
+            "echo-presence:{$lobbyChannel},here" => 'onHere',
+            "echo-presence:{$lobbyChannel},joining" => 'onJoining',
+            "echo-presence:{$lobbyChannel},leaving" => 'onLeaving',
+            "echo-presence:{$lobbyChannel},RoomPlayerReadyToggled" => 'onReadyToggled',
             "echo-presence:{$channel},RoomGameStarting" => 'onGameStarting',
             "echo-presence:{$channel},RoomGameSwitched" => 'onGameSwitched',
         ];
@@ -189,9 +198,33 @@ new class extends Component
      */
     public function getSwitchedGameTypeProperty(): ?GameType
     {
+        // Only ever the host's own doing -- see the matching guard on
+        // every {game}.room page's getSwitchedElsewhereProperty().
+        if ($this->isHost) {
+            return null;
+        }
+
         $type = $this->room->pendingGameType();
 
         return $type !== $this->currentGame ? $type : null;
+    }
+
+    /**
+     * Room members who aren't on this lobby page right now -- listed so the
+     * host can see who hasn't come over yet, but deliberately not part of
+     * $this->players, so they never hold up getAllReadyProperty() below.
+     *
+     * @return list<string>
+     */
+    public function getAbsentMemberNamesProperty(): array
+    {
+        return $this->room->members()
+            ->with('user')
+            ->whereNotIn('user_id', array_keys($this->players))
+            ->orderBy('created_at')
+            ->get()
+            ->map(fn ($member) => $member->user->name)
+            ->all();
     }
 
     public function getAllReadyProperty(): bool
@@ -221,12 +254,7 @@ new class extends Component
     <p class="status-line">Share this code so others can join.</p>
 
     @if ($this->switchedGameType !== null)
-        <div class="setup w-full">
-            <p class="status-line">The host switched to {{ $this->switchedGameType->label() }}.</p>
-            <a href="{{ route($this->switchedGameType->roomRoute(), ['code' => $room->code]) }}">
-                <button type="button">Join</button>
-            </a>
-        </div>
+        <x-room-switched-banner :room="$room" :type="$this->switchedGameType" />
     @endif
 
     <ul class="w-full flex flex-col gap-2">
@@ -245,6 +273,12 @@ new class extends Component
         @empty
             <li class="status-line">Waiting for players...</li>
         @endforelse
+        @foreach ($this->absentMemberNames as $index => $name)
+            <li wire:key="absent-{{ $index }}" class="flex items-center justify-between w-full status-line" style="opacity: 0.5;">
+                <span>{{ $name }}</span>
+                <span>Not in lobby</span>
+            </li>
+        @endforeach
     </ul>
 
     <button type="button" wire:click="toggleReady">

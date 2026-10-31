@@ -4,7 +4,6 @@ use App\Enums\GameMode;
 use App\Enums\GameType;
 use App\Enums\RoomStatus;
 use App\Events\RoomGameStarting;
-use App\Events\RoomGameSwitched;
 use App\Models\GameSession;
 use App\Models\Room;
 use App\Models\User;
@@ -53,10 +52,22 @@ new class extends Component
 
         $this->room->addMember(Auth::user());
 
+        // Arriving mid-game (a stale "Join" link, a shared URL) used to
+        // land on "Waiting for the host to finish setting up..." forever:
+        // there's no pending lobby while a game is active, and Word Grid
+        // has no spectating to redirect into (GameType::supportsSpectating()).
+        // The room hub explains that and updates once the game ends.
+        if ($this->room->status === RoomStatus::Active && $this->room->game_session_id !== null) {
+            $this->redirect(route('room.show', ['code' => $this->room->code]));
+
+            return;
+        }
+
         // Reflects whatever's already true rather than assuming this is a
         // fresh visit -- the host reloading after already clicking Open
         // Lobby (or a member arriving after that already happened) both
         // need to land past the config screen, not back at square one.
+        $this->fill($this->room->rememberedSettings(GameType::Boggle));
         $this->lobbyOpened = $this->room->pendingGameType() === GameType::Boggle;
     }
 
@@ -72,9 +83,22 @@ new class extends Component
     {
         abort_unless($this->isHost, 403);
 
-        $this->room->markPendingGame(GameType::Boggle);
-        RoomGameSwitched::dispatch($this->room, GameType::Boggle);
+        $this->room->openLobby(GameType::Boggle, $this->only(['size', 'minutes']));
         $this->lobbyOpened = true;
+    }
+
+    /**
+     * The host's way back to this page's config screen from a lobby that's
+     * already open -- needed now that "Play again" opens the lobby straight
+     * away with the last round's settings (Room::openLobby()). Everyone
+     * else stays in the lobby; confirming with Open Lobby again just saves
+     * the new settings without re-notifying anyone.
+     */
+    public function editSettings(): void
+    {
+        abort_unless($this->isHost, 403);
+
+        $this->lobbyOpened = false;
     }
 
     /**
@@ -116,6 +140,14 @@ new class extends Component
      */
     public function getSwitchedElsewhereProperty(): ?GameType
     {
+        // The host only ever lands here on purpose (to set this game
+        // up, e.g. from its homepage card's "play in a room you host"),
+        // so a different game's still-open lobby isn't "switched
+        // elsewhere" for them -- Open Lobby here supersedes it.
+        if ($this->isHost) {
+            return null;
+        }
+
         $pending = $this->room->pendingGameType();
 
         return $pending !== null && $pending !== GameType::Boggle ? $pending : null;
@@ -190,14 +222,12 @@ new class extends Component
     <div class="heading">Word Grid Room</div>
 
     @if ($this->switchedElsewhere)
-        <div class="setup">
-            <p class="status-line">The host switched to {{ $this->switchedElsewhere->label() }}.</p>
-            <a href="{{ route($this->switchedElsewhere->roomRoute(), ['code' => $room->code]) }}">
-                <button type="button">Join</button>
-            </a>
-        </div>
+        <x-room-switched-banner :room="$room" :type="$this->switchedElsewhere" />
     @elseif ($lobbyOpened)
         <livewire:game-lobby :room="$room" :current-game="GameType::Boggle" />
+        @if ($this->isHost)
+            <button type="button" id="change-settings-btn" wire:click="editSettings">Change settings</button>
+        @endif
     @elseif ($this->isHost)
         <div class="setup">
             <div class="setup-row">

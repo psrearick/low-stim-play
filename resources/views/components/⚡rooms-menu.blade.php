@@ -51,6 +51,23 @@ new class extends Component
     public array $notifications = [];
 
     /**
+     * The room whose own page (its hub, a {game}.room lobby, or a game's
+     * ?room= play page) this navbar was rendered on, if any. Each of those
+     * pages already shows its own banner -- and, between games, a follow
+     * countdown -- for that room, so a toast for the same event on top of
+     * it is just a duplicate. Captured at mount() because every later
+     * request here is a Livewire update, not the page's own URL.
+     */
+    public ?string $pageRoomCode = null;
+
+    public function mount(): void
+    {
+        $code = request()->route('code') ?? request()->query('room');
+
+        $this->pageRoomCode = is_string($code) ? strtoupper($code) : null;
+    }
+
+    /**
      * @return \Illuminate\Support\Collection<int, RoomMember>
      */
     public function getMyRoomsProperty(): \Illuminate\Support\Collection
@@ -95,7 +112,7 @@ new class extends Component
     {
         $room = $this->findRoomByCode($event['code'] ?? null);
 
-        if ($room === null || $this->isMyOwnAction($room)) {
+        if ($room === null || $this->shouldSkipNotification($room)) {
             return;
         }
 
@@ -119,7 +136,7 @@ new class extends Component
     {
         $room = $this->findRoomByCode($event['code'] ?? null);
 
-        if ($room === null || $this->isMyOwnAction($room)) {
+        if ($room === null || $this->shouldSkipNotification($room)) {
             return;
         }
 
@@ -164,10 +181,13 @@ new class extends Component
      * host") -- confirmed live: the host saw their own "Host is setting up
      * Hoax -- Join" toast pointing at the exact page they were already on.
      * Every other member should still be notified as normal.
+     *
+     * Also skipped for the room whose own page this navbar is on -- see
+     * $pageRoomCode.
      */
-    private function isMyOwnAction(Room $room): bool
+    private function shouldSkipNotification(Room $room): bool
     {
-        return Auth::id() === $room->host_user_id;
+        return Auth::id() === $room->host_user_id || $room->code === $this->pageRoomCode;
     }
 
     private function pushNotification(string $message, string $href): void

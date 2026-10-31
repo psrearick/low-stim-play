@@ -4,6 +4,8 @@ namespace App\Models;
 
 use App\Enums\GameType;
 use App\Enums\RoomStatus;
+use App\Events\RoomGameFinished;
+use App\Events\RoomGameSwitched;
 use Database\Factories\RoomFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -12,6 +14,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
 
 /**
  * @property RoomStatus $status
@@ -120,6 +123,89 @@ class Room extends Model
     public function markPendingGame(GameType $type): void
     {
         Cache::put($this->pendingGameCacheKey(), $type->value, now()->addMinutes(self::LIFETIME_MINUTES));
+        Cache::put($this->pendingGameTokenCacheKey(), Str::random(12), now()->addMinutes(self::LIFETIME_MINUTES));
+    }
+
+    /**
+     * A fresh random value per markPendingGame() call -- lets a client tell
+     * "the host opened a lobby *again*" (a replay of the same game type)
+     * apart from the lobby it already chose to stay away from, so
+     * <x-room-follow-countdown>'s remembered "Stay here" only ever applies
+     * to the one lobby opening it was clicked for.
+     */
+    public function pendingGameToken(): ?string
+    {
+        return $this->pendingGameType() !== null ? Cache::get($this->pendingGameTokenCacheKey()) : null;
+    }
+
+    /**
+     * The one "open this game's lobby" action every {game}.room page's
+     * openLobby() and <livewire:room-new-game-notice>'s Play Again both go
+     * through. Remembers $settings for the next round of the same game
+     * (see rememberedSettings()), and only marks/broadcasts when this game
+     * isn't *already* the open lobby -- re-confirming settings from a
+     * lobby that's already open (the host's "Change settings") shouldn't
+     * re-ping every other member or restart their follow countdown.
+     *
+     * @param  array<string, mixed>  $settings
+     */
+    public function openLobby(GameType $type, array $settings = []): void
+    {
+        if ($settings !== []) {
+            Cache::put($this->settingsCacheKey($type), $settings, now()->addMinutes(self::LIFETIME_MINUTES));
+        }
+
+        if ($this->pendingGameType() === $type) {
+            return;
+        }
+
+        $this->markPendingGame($type);
+        RoomGameSwitched::dispatch($this, $type);
+    }
+
+    /**
+     * The settings the host last opened $type's lobby with in this room,
+     * so "Play again" (and any return to that game's config screen) starts
+     * from what the group just played rather than the page defaults. Each
+     * {game}.room page fill()s these into its own public properties on
+     * mount(). Cache rather than a column for the same reason as
+     * markPendingGame().
+     *
+     * @return array<string, mixed>
+     */
+    public function rememberedSettings(GameType $type): array
+    {
+        return Cache::get($this->settingsCacheKey($type), []);
+    }
+
+    /**
+     * Called by every room game's own finish logic the moment a game ends.
+     * Puts the room back between games: status Lobby (not the old
+     * Finished, which nothing ever moved out of), the pending-game marker
+     * cleared (otherwise the lobby that started *this* game still read as
+     * "the host is setting up X" afterwards -- the stale Join/Continue
+     * Setup banners, and a replay silently skipping the config screen),
+     * and RoomGameFinished broadcast so the hub and results screens can
+     * update live. game_session_id deliberately still points at the
+     * finished session, so a results screen survives a reload.
+     *
+     * A no-op unless $gameSessionId is still the room's *active* game --
+     * Word Grid calls this once per finishing player, and a straggler
+     * finishing after the host already opened the next lobby must not
+     * wipe that lobby's marker back out.
+     */
+    public function finishCurrentGame(?int $gameSessionId): void
+    {
+        $this->refresh();
+
+        if ($this->status !== RoomStatus::Active || $gameSessionId === null || $this->game_session_id !== $gameSessionId) {
+            return;
+        }
+
+        $this->update(['status' => RoomStatus::Lobby]);
+        $this->clearPendingGame();
+
+        RoomGameFinished::dispatch($this);
     }
 
     /**
@@ -129,8 +215,8 @@ class Room extends Model
      * visit is simply never consulted rather than needing to be explicitly
      * cleared. Deliberately checks `status === RoomStatus::Active`
      * alongside `game_session_id`, not `game_session_id !== null` alone
-     * (docs/concerns.md, 2026-08-29) -- every game's own endGame() sets
-     * `status` to `RoomStatus::Finished` once a game ends but leaves
+     * (docs/concerns.md, 2026-08-29) -- every game's own endGame() moves
+     * `status` off Active once a game ends (finishCurrentGame()) but leaves
      * `game_session_id` pointing at that now-finished session (nothing
      * clears it except pages::room.show's startGame(), which a host never
      * goes through when reopening a lobby directly from a game's own
@@ -173,11 +259,22 @@ class Room extends Model
     public function clearPendingGame(): void
     {
         Cache::forget($this->pendingGameCacheKey());
+        Cache::forget($this->pendingGameTokenCacheKey());
     }
 
     private function pendingGameCacheKey(): string
     {
         return "room:{$this->code}:pending-game";
+    }
+
+    private function pendingGameTokenCacheKey(): string
+    {
+        return "room:{$this->code}:pending-game-token";
+    }
+
+    private function settingsCacheKey(GameType $type): string
+    {
+        return "room:{$this->code}:settings:{$type->value}";
     }
 
     /**

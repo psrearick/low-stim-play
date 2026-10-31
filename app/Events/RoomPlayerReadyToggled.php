@@ -35,7 +35,7 @@ class RoomPlayerReadyToggled implements ShouldBroadcastNow
     public function broadcastOn(): array
     {
         return [
-            new PresenceChannel("room.{$this->room->code}"),
+            new PresenceChannel("room.{$this->room->code}.lobby"),
         ];
     }
 

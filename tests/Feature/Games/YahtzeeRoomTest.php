@@ -579,7 +579,7 @@ test('a full online game writes one distinct GameParticipant per logged-in accou
     // now-finished game. Confirm both halves of the fix: the room no
     // longer reads as still-active, and visiting its lobby page actually
     // renders the lobby instead of redirecting away from it.
-    expect($room->fresh()->status)->toBe(RoomStatus::Finished);
+    expect($room->fresh()->status)->toBe(RoomStatus::Lobby);
 
     Livewire::actingAs($host)
         ->test('pages::yahtzee.room', ['code' => $room->code])
@@ -604,7 +604,7 @@ test('the host can end an online game early, scoring whatever categories are alr
     expect($session->state['gameOver'])->toBeTrue()
         ->and($session->ended_at)->not->toBeNull();
 
-    expect($room->fresh()->status)->toBe(RoomStatus::Finished);
+    expect($room->fresh()->status)->toBe(RoomStatus::Lobby);
     expect(GameParticipant::count())->toBe(2);
 });
 
@@ -621,5 +621,5 @@ test('a non-host cannot end an online Yahtzee game early', function () {
         ->call('endGameManually')
         ->assertForbidden();
 
-    expect($room->fresh()->status)->not->toBe(RoomStatus::Finished);
+    expect($room->fresh()->status)->toBe(RoomStatus::Active);
 });

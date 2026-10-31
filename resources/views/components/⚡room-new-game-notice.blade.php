@@ -63,6 +63,7 @@ new class extends Component
         return [
             "echo-presence:{$channel},RoomGameStarting" => 'onRoomChanged',
             "echo-presence:{$channel},RoomGameSwitched" => 'onRoomChanged',
+            "echo-presence:{$channel},RoomGameFinished" => 'onRoomChanged',
         ];
     }
 
@@ -79,7 +80,7 @@ new class extends Component
      * Null the entire time nothing's changed, or once the player has
      * dismissed this exact target.
      *
-     * @return array{signature: string, message: string, href: ?string, buttonLabel: ?string}|null
+     * @return array{signature: string, message: string, href: ?string, buttonLabel: ?string, countdownToken?: string, nextGameActions?: bool}|null
      */
     public function getNoticeProperty(): ?array
     {
@@ -107,7 +108,68 @@ new class extends Component
             return null;
         }
 
-        return $this->startedNotice() ?? $this->pendingNotice();
+        return $this->startedNotice() ?? $this->pendingNotice() ?? $this->nextGameNotice();
+    }
+
+    /**
+     * True once the game this page is showing is no longer the room's
+     * active one -- it finished (Room::finishCurrentGame() moved the room
+     * back to Lobby), or the room has already moved on to something else.
+     * Gates everything "between games" below: the follow countdown and the
+     * host's Play again/Choose another game, neither of which should ever
+     * appear on top of a game that's still being played.
+     */
+    private function myGameIsOver(): bool
+    {
+        return ! ($this->room->status === RoomStatus::Active && $this->room->game_session_id === $this->myGameSessionId);
+    }
+
+    /**
+     * The between-games state itself: this page's game is over and the host
+     * hasn't opened anything next yet. The host gets the "what's next"
+     * actions right here on the results screen; everyone else is told
+     * plainly that the host is choosing, instead of seeing nothing.
+     *
+     * @return array{signature: string, message: string, href: ?string, buttonLabel: ?string, nextGameActions?: bool}|null
+     */
+    private function nextGameNotice(): ?array
+    {
+        if ($this->room->status === RoomStatus::Active || ! $this->myGameIsOver()) {
+            return null;
+        }
+
+        if (Auth::id() === $this->room->host_user_id) {
+            return [
+                'signature' => "next:{$this->myGameSessionId}",
+                'message' => "Game over -- what's next?",
+                'href' => null,
+                'buttonLabel' => null,
+                'nextGameActions' => true,
+            ];
+        }
+
+        return [
+            'signature' => "next:{$this->myGameSessionId}",
+            'message' => 'Waiting for the host to pick the next game...',
+            'href' => null,
+            'buttonLabel' => null,
+        ];
+    }
+
+    /**
+     * Same game, same settings: reopens this game's lobby in one step
+     * (Room::openLobby() with the settings it remembered from last time)
+     * and takes the host straight there. Everyone still sitting on their
+     * own results screen gets the follow countdown from the
+     * RoomGameSwitched broadcast that fires.
+     */
+    public function playAgain(): void
+    {
+        abort_unless($this->room !== null && Auth::id() === $this->room->host_user_id, 403);
+
+        $this->room->openLobby($this->currentGame);
+
+        $this->redirect(route($this->currentGame->roomRoute(), ['code' => $this->room->code]));
     }
 
     /**
@@ -161,11 +223,16 @@ new class extends Component
             return null;
         }
 
+        $token = $this->room->pendingGameToken() ?? $type->value;
+
         return [
-            'signature' => "pending:{$type->value}",
+            'signature' => "pending:{$type->value}:{$token}",
             'message' => "The host is setting up {$type->label()} -- hasn't started yet.",
             'href' => route($type->roomRoute(), ['code' => $this->room->code]),
             'buttonLabel' => 'Join',
+            // Only auto-follow from a finished game -- a player still
+            // mid-game here just gets the plain Join link.
+            ...($this->myGameIsOver() ? ['countdownToken' => $token] : []),
         ];
     }
 
@@ -179,14 +246,23 @@ new class extends Component
     @if ($this->notice)
         <div class="setup w-full" style="margin-bottom: clamp(8px, 1.4vh, 16px);">
             <p class="status-line">{{ $this->notice['message'] }}</p>
-            <div class="flex gap-2" style="justify-content: center;">
-                @if ($this->notice['href'])
-                    <a href="{{ $this->notice['href'] }}">
-                        <button type="button">{{ $this->notice['buttonLabel'] }}</button>
-                    </a>
-                @endif
-                <button type="button" wire:click="dismiss">Dismiss</button>
-            </div>
+            @if (isset($this->notice['countdownToken']))
+                <x-room-follow-countdown :href="$this->notice['href']" :token="$this->notice['countdownToken']" />
+            @else
+                <div class="flex gap-2" style="justify-content: center;">
+                    @if ($this->notice['nextGameActions'] ?? false)
+                        <button type="button" id="play-again-btn" wire:click="playAgain">Play again</button>
+                        <a href="{{ route('room.show', ['code' => $room->code]) }}">
+                            <button type="button" id="choose-another-game-btn">Choose another game</button>
+                        </a>
+                    @elseif ($this->notice['href'])
+                        <a href="{{ $this->notice['href'] }}">
+                            <button type="button">{{ $this->notice['buttonLabel'] }}</button>
+                        </a>
+                    @endif
+                    <button type="button" wire:click="dismiss">Dismiss</button>
+                </div>
+            @endif
         </div>
     @endif
 </div>

@@ -3,7 +3,6 @@
 use App\Enums\ClearTheDeckPhase;
 use App\Enums\GameResult;
 use App\Enums\GameType;
-use App\Enums\RoomStatus;
 use App\Events\RoomGameStateUpdated;
 use App\Models\GameParticipant;
 use App\Models\GameSession;
@@ -770,7 +769,7 @@ new class extends Component
     {
         $session = GameSession::findOrFail($this->gameSessionId);
         $session->update(['ended_at' => now()]);
-        $this->resolveRoom()->update(['status' => RoomStatus::Finished]);
+        $this->resolveRoom()->finishCurrentGame($this->gameSessionId);
 
         $roomSeats = RoomSeat::where('room_id', $this->resolveRoom()->id)->get();
 

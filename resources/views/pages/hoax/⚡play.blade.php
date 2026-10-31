@@ -3,7 +3,6 @@
 use App\Enums\GameResult;
 use App\Enums\GameType;
 use App\Enums\HoaxPhase;
-use App\Enums\RoomStatus;
 use App\Events\RoomGameStateUpdated;
 use App\Models\GameParticipant;
 use App\Models\GameSession;
@@ -720,7 +719,7 @@ new class extends Component
         $session = GameSession::findOrFail($this->gameSessionId);
         $session->update(['ended_at' => now()]);
 
-        $this->resolveRoom()->update(['status' => RoomStatus::Finished]);
+        $this->resolveRoom()->finishCurrentGame($this->gameSessionId);
 
         $topScore = $this->scores === [] ? 0 : max($this->scores);
         $seats = RoomSeat::where('room_id', $this->resolveRoom()->id)->get();

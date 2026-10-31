@@ -4,7 +4,6 @@ use App\Enums\FamilyFeudPhase;
 use App\Enums\GameMode;
 use App\Enums\GameResult;
 use App\Enums\GameType;
-use App\Enums\RoomStatus;
 use App\Events\RoomGameStateUpdated;
 use App\Models\FamilyFeudQuestion;
 use App\Models\GameParticipant;
@@ -604,7 +603,7 @@ new class extends Component
             // startGame() left them, and pages::family-feud.room's own
             // redirectIfAlreadyStarted() bounces "Back to room" straight
             // back into this now-finished game instead of the lobby.
-            $this->resolveRoom()->update(['status' => RoomStatus::Finished]);
+            $this->resolveRoom()->finishCurrentGame($this->gameSessionId);
 
             // Every seat is a real (if possibly guest) account -- one
             // GameParticipant per seat (not per team), each carrying its

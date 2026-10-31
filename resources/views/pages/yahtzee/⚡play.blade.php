@@ -3,7 +3,6 @@
 use App\Enums\GameMode;
 use App\Enums\GameResult;
 use App\Enums\GameType;
-use App\Enums\RoomStatus;
 use App\Enums\YahtzeeCategory;
 use App\Events\RoomGameStateUpdated;
 use App\Models\GameParticipant;
@@ -558,7 +557,7 @@ new class extends Component
             // startGame() left them, and pages::yahtzee.room's own
             // redirectIfAlreadyStarted() bounces "Back to room" straight
             // back into this now-finished game instead of the lobby.
-            $this->resolveRoom()->update(['status' => RoomStatus::Finished]);
+            $this->resolveRoom()->finishCurrentGame($this->gameSessionId);
 
             // Every seat is a real (if possibly guest) account -- see
             // pages::yahtzee.room::onRoomStarting() -- so online games

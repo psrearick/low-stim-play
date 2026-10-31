@@ -4,7 +4,6 @@ use App\Enums\GameMode;
 use App\Enums\GameType;
 use App\Enums\RoomStatus;
 use App\Events\RoomGameStarting;
-use App\Events\RoomGameSwitched;
 use App\Models\GameSession;
 use App\Models\Room;
 use App\Models\RoomSeat;
@@ -95,6 +94,7 @@ new class extends Component
         // fresh visit -- the host reloading after already clicking Open
         // Lobby (or a member arriving after that already happened) both
         // need to land past the config screen, not back at square one.
+        $this->fill($this->room->rememberedSettings(GameType::Farkle));
         $this->lobbyOpened = $this->room->pendingGameType() === GameType::Farkle;
     }
 
@@ -110,9 +110,22 @@ new class extends Component
     {
         abort_unless($this->isHost, 403);
 
-        $this->room->markPendingGame(GameType::Farkle);
-        RoomGameSwitched::dispatch($this->room, GameType::Farkle);
+        $this->room->openLobby(GameType::Farkle, $this->only(['targetScore', 'withFinalRound', 'spicyEnabled', 'highStakesEnabled']));
         $this->lobbyOpened = true;
+    }
+
+    /**
+     * The host's way back to this page's config screen from a lobby that's
+     * already open -- needed now that "Play again" opens the lobby straight
+     * away with the last round's settings (Room::openLobby()). Everyone
+     * else stays in the lobby; confirming with Open Lobby again just saves
+     * the new settings without re-notifying anyone.
+     */
+    public function editSettings(): void
+    {
+        abort_unless($this->isHost, 403);
+
+        $this->lobbyOpened = false;
     }
 
     private function redirectIfAlreadyStarted(): void
@@ -155,6 +168,14 @@ new class extends Component
      */
     public function getSwitchedElsewhereProperty(): ?GameType
     {
+        // The host only ever lands here on purpose (to set this game
+        // up, e.g. from its homepage card's "play in a room you host"),
+        // so a different game's still-open lobby isn't "switched
+        // elsewhere" for them -- Open Lobby here supersedes it.
+        if ($this->isHost) {
+            return null;
+        }
+
         $pending = $this->room->pendingGameType();
 
         return $pending !== null && $pending !== GameType::Farkle ? $pending : null;
@@ -264,14 +285,12 @@ new class extends Component
     <div class="heading">10,000 Room</div>
 
     @if ($this->switchedElsewhere)
-        <div class="setup">
-            <p class="status-line">The host switched to {{ $this->switchedElsewhere->label() }}.</p>
-            <a href="{{ route($this->switchedElsewhere->roomRoute(), ['code' => $room->code]) }}">
-                <button type="button">Join</button>
-            </a>
-        </div>
+        <x-room-switched-banner :room="$room" :type="$this->switchedElsewhere" />
     @elseif ($lobbyOpened)
         <livewire:game-lobby :room="$room" :current-game="GameType::Farkle" />
+        @if ($this->isHost)
+            <button type="button" id="change-settings-btn" wire:click="editSettings">Change settings</button>
+        @endif
     @elseif ($this->isHost)
         <div class="setup">
             <div class="setup-row">

@@ -3,7 +3,6 @@
 use App\Enums\AppleMatchPhase;
 use App\Enums\GameResult;
 use App\Enums\GameType;
-use App\Enums\RoomStatus;
 use App\Events\RoomGameStateUpdated;
 use App\Models\AppleMatchCard;
 use App\Models\AppleMatchPrompt;
@@ -523,7 +522,7 @@ new class extends Component
         // Room.status/game_session_id stay exactly as onRoomStarting() left
         // them, and pages::apple-match.room's own redirectIfAlreadyStarted()
         // bounces "Back to room" straight back into this now-finished game.
-        $this->resolveRoom()->update(['status' => RoomStatus::Finished]);
+        $this->resolveRoom()->finishCurrentGame($this->gameSessionId);
 
         $seats = RoomSeat::where('room_id', $this->resolveRoom()->id)->get();
 

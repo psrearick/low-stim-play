@@ -591,7 +591,7 @@ test('a full 5-round game ends with one GameParticipant per seat carrying points
     }
 
     $room->refresh();
-    expect($room->status)->toBe(RoomStatus::Finished);
+    expect($room->status)->toBe(RoomStatus::Lobby);
 
     $session = GameSession::find($room->game_session_id);
     expect($session->ended_at)->not->toBeNull();
@@ -672,7 +672,7 @@ test('the host can end the game early, scoring whatever partial round progress e
     Livewire::actingAs($host)->test('pages::hoax.play', ['room' => $room->code])->call('endGameManually');
 
     $room->refresh();
-    expect($room->status)->toBe(RoomStatus::Finished);
+    expect($room->status)->toBe(RoomStatus::Lobby);
 
     $session = GameSession::find($room->game_session_id);
     expect($session->state['phase'])->toBe(HoaxPhase::GameEnd->value);

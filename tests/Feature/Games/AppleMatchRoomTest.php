@@ -323,7 +323,7 @@ test('reaching the target score ends the game and records a GameParticipant per 
         ->assertSet('phase', AppleMatchPhase::GameEnd);
 
     $room->refresh();
-    expect($room->status)->toBe(RoomStatus::Finished);
+    expect($room->status)->toBe(RoomStatus::Lobby);
 
     $session = GameSession::find($room->game_session_id);
     expect($session->ended_at)->not->toBeNull();
@@ -355,7 +355,7 @@ test('the host can end the game early, scoring whoever currently has the most gr
         ->assertSet('phase', AppleMatchPhase::GameEnd);
 
     $room->refresh();
-    expect($room->status)->toBe(RoomStatus::Finished);
+    expect($room->status)->toBe(RoomStatus::Lobby);
 
     $session = GameSession::find($room->game_session_id);
     expect($session->ended_at)->not->toBeNull();
@@ -379,5 +379,5 @@ test('a non-host cannot end a Best Match game early', function () {
         ->call('endGameManually')
         ->assertForbidden();
 
-    expect($room->fresh()->status)->not->toBe(RoomStatus::Finished);
+    expect($room->fresh()->status)->toBe(RoomStatus::Active);
 });

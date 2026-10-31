@@ -6,7 +6,6 @@ use App\Enums\PunchlineMatchupStatus;
 use App\Enums\PunchlinePhase;
 use App\Enums\RoomStatus;
 use App\Events\RoomGameStarting;
-use App\Events\RoomGameSwitched;
 use App\Models\GameSession;
 use App\Models\PunchlinePrompt;
 use App\Models\Room;
@@ -77,8 +76,7 @@ new class extends Component
     {
         abort_unless($this->isHost, 403);
 
-        $this->room->markPendingGame(GameType::Punchline);
-        RoomGameSwitched::dispatch($this->room, GameType::Punchline);
+        $this->room->openLobby(GameType::Punchline);
         $this->lobbyOpened = true;
     }
 
@@ -122,6 +120,14 @@ new class extends Component
      */
     public function getSwitchedElsewhereProperty(): ?GameType
     {
+        // The host only ever lands here on purpose (to set this game
+        // up, e.g. from its homepage card's "play in a room you host"),
+        // so a different game's still-open lobby isn't "switched
+        // elsewhere" for them -- Open Lobby here supersedes it.
+        if ($this->isHost) {
+            return null;
+        }
+
         $pending = $this->room->pendingGameType();
 
         return $pending !== null && $pending !== GameType::Punchline ? $pending : null;
@@ -288,12 +294,7 @@ new class extends Component
     <div class="heading">Punchline Room</div>
 
     @if ($this->switchedElsewhere)
-        <div class="setup">
-            <p class="status-line">The host switched to {{ $this->switchedElsewhere->label() }}.</p>
-            <a href="{{ route($this->switchedElsewhere->roomRoute(), ['code' => $room->code]) }}">
-                <button type="button">Join</button>
-            </a>
-        </div>
+        <x-room-switched-banner :room="$room" :type="$this->switchedElsewhere" />
     @elseif ($lobbyOpened)
         @if ($startError)
             <p class="status-line" style="color: var(--warn);">{{ $startError }}</p>

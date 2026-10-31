@@ -4,7 +4,6 @@ use App\Enums\GameResult;
 use App\Enums\GameType;
 use App\Enums\PunchlineMatchupStatus;
 use App\Enums\PunchlinePhase;
-use App\Enums\RoomStatus;
 use App\Events\RoomGameStateUpdated;
 use App\Models\GameParticipant;
 use App\Models\GameSession;
@@ -974,7 +973,7 @@ new class extends Component
         // Room.status/game_session_id stay exactly as onRoomStarting() left
         // them, and pages::punchline.room's own redirectIfAlreadyStarted()
         // bounces "Back to room" straight back into this now-finished game.
-        $this->resolveRoom()->update(['status' => RoomStatus::Finished]);
+        $this->resolveRoom()->finishCurrentGame($this->gameSessionId);
 
         $topScore = $this->scores === [] ? 0 : max($this->scores);
         $seats = RoomSeat::where('room_id', $this->resolveRoom()->id)->get();

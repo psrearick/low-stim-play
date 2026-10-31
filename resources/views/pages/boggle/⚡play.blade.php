@@ -2,7 +2,6 @@
 
 use App\Enums\GameMode;
 use App\Enums\GameType;
-use App\Enums\RoomStatus;
 use App\Events\RoomGameEnded;
 use App\Models\GameParticipant;
 use App\Models\GameSession;
@@ -158,7 +157,20 @@ new class extends Component
         }
 
         if ($this->room !== null) {
-            $session = Room::where('code', $this->room)->firstOrFail()->gameSession;
+            $roomModel = Room::where('code', $this->room)->firstOrFail();
+            $session = $roomModel->gameSession;
+
+            // Same guard every other room game's play page already has: a
+            // reload after the host moved the room on (pages::room.show's
+            // startGame() nulls game_session_id) or to a different game
+            // previously crashed here reading ->id/->settings off a
+            // null/foreign session.
+            if ($session === null || $session->type !== GameType::Boggle) {
+                $this->redirect(route('room.show', ['code' => $roomModel->code]));
+
+                return;
+            }
+
             $this->isSharedSession = true;
         } elseif ($this->challenge !== null) {
             $session = GameSession::where('type', GameType::Boggle)->findOrFail($this->challenge);
@@ -512,7 +524,7 @@ new class extends Component
             // redirectIfAlreadyStarted() bounces "Back to room" straight
             // back into this now-finished game instead of the lobby.
             if ($this->room !== null) {
-                Room::where('code', $this->room)->update(['status' => RoomStatus::Finished]);
+                Room::where('code', $this->room)->first()?->finishCurrentGame($this->gameSessionId);
             }
         } elseif ($this->isDaily && $this->gameSessionId !== null) {
             // Today's daily, signed in -- the early row from
