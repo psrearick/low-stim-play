@@ -187,7 +187,12 @@ new class extends Component
         $this->size = in_array($this->size, [4, 5], true) ? $this->size : 4;
         $this->minutes = max(0, $this->minutes);
 
-        $this->board = $boardGenerator->generate($this->size, $this->seed);
+        // An explicit seed (a room's or challenge's stored one, a share
+        // link) replays that exact board; only a genuinely fresh solo game
+        // gets dealt a new one, with the minimum-words guarantee.
+        $this->board = $this->seed === null
+            ? $boardGenerator->generatePlayable($this->size, $solver)
+            : $boardGenerator->generate($this->size, $this->seed);
         $this->startedAt = now()->timestamp;
         $this->endsAt = $this->minutes > 0 ? now()->addMinutes($this->minutes)->timestamp : null;
 
@@ -236,9 +241,12 @@ new class extends Component
         $date = Carbon::parse($this->dailyDate)->startOfDay();
         $this->size = 4;
         $this->minutes = 0;
-        $this->seed = $dailyPuzzle->seedFor(GameType::Boggle, $date);
-
-        $this->board = $boardGenerator->generate($this->size, $this->seed);
+        // generatePlayable() rerolls deterministically from the date's seed,
+        // so every player still gets the same daily board -- just never a
+        // near-empty one. $seed then holds the board's actual accepted seed
+        // (what startDailySession() stores).
+        $this->board = $boardGenerator->generatePlayable($this->size, $solver, $dailyPuzzle->seedFor(GameType::Boggle, $date));
+        $this->seed = $this->board['seed'];
         $this->startedAt = now()->timestamp;
         $this->endsAt = null;
 
@@ -602,13 +610,13 @@ new class extends Component
         }
     }
 
-    public function resetGame(BoardGenerator $boardGenerator): void
+    public function resetGame(BoardGenerator $boardGenerator, Solver $solver): void
     {
         if ($this->isSharedSession || $this->isDaily) {
             return;
         }
 
-        $this->board = $boardGenerator->generate($this->size);
+        $this->board = $boardGenerator->generatePlayable($this->size, $solver);
         $this->path = [];
         $this->foundWords = [];
         $this->score = 0;

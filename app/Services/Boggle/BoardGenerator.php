@@ -9,6 +9,20 @@ use Random\Randomizer;
 class BoardGenerator
 {
     /**
+     * The fewest findable words a freshly dealt board may have -- see
+     * generatePlayable(). Measured over 500 random boards: a 4x4 board's
+     * median is ~56 words, but about 1 in 4 falls under 40 and the worst
+     * had just 2; 5x5 boards almost never get near this (median ~137).
+     */
+    public const int MIN_WORDS = 40;
+
+    /**
+     * A safety cap, not an expected count -- with ~27% of 4x4 boards under
+     * MIN_WORDS, needing even 10 rerolls is a ~1-in-500,000 event.
+     */
+    private const int MAX_PLAYABLE_ATTEMPTS = 100;
+
+    /**
      * Standard 4x4 Boggle -- 16 dice (New Boggle set, post-1990).
      *
      * @var list<list<string>>
@@ -111,6 +125,51 @@ class BoardGenerator
             'cells' => $cells,
             'neighbors' => $this->buildAdjacency($size),
         ];
+    }
+
+    /**
+     * A new board with at least MIN_WORDS findable words, for dealing a
+     * *fresh* game (solo New Game, a room starting, group play, a daily).
+     * generate() itself stays an exact seed -> board mapping, since that's
+     * what replays an already-dealt board (a room's stored seed, a share
+     * link, a challenge) and must never change underneath it.
+     *
+     * Rerolls deterministically from $seed (candidate seeds derived from
+     * it, not fresh randomness), so the same starting seed -- e.g. a daily
+     * puzzle's date seed -- always settles on the same board. The returned
+     * board's 'seed' is the candidate that was actually accepted, so
+     * storing it and later calling generate() with it reproduces this exact
+     * board with no reroll. If the cap is ever hit, the richest board seen
+     * is returned rather than failing the game.
+     *
+     * @return array{
+     *     size: int,
+     *     seed: int,
+     *     cells: list<array{index: int, row: int, col: int, display: string, match: string}>,
+     *     neighbors: list<list<int>>,
+     * }
+     */
+    public function generatePlayable(int $size, Solver $solver, ?int $seed = null): array
+    {
+        $seed ??= random_int(0, PHP_INT_MAX);
+        $richestBoard = null;
+        $richestCount = -1;
+
+        for ($attempt = 0; $attempt < self::MAX_PLAYABLE_ATTEMPTS; $attempt++) {
+            $board = $this->generate($size, $attempt === 0 ? $seed : crc32("{$seed}-{$attempt}"));
+            $wordCount = count($solver->solve($board));
+
+            if ($wordCount >= self::MIN_WORDS) {
+                return $board;
+            }
+
+            if ($wordCount > $richestCount) {
+                $richestBoard = $board;
+                $richestCount = $wordCount;
+            }
+        }
+
+        return $richestBoard;
     }
 
     /**

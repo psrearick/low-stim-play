@@ -4,6 +4,7 @@ A terse, commit-by-commit record of what changed, newest first. No rationale or 
 
 ## 2026-10-31
 
+- Word Grid now guarantees at least 40 findable words on every freshly dealt board (solo, New Game, rooms, group play, and the daily), rerolling deterministically when a board falls short; replaying a stored seed still reproduces the exact original board.
 - Reworked the room game-to-game transition: a finished game now returns the room to Lobby and clears the stale pending-game marker; the host's results screen gets Play again (reopens the same lobby with remembered settings) and Choose another game, and non-hosts see "Waiting for the host to pick the next game"; room lobbies remember each game's last settings and the host can go back to Change settings; non-hosts between games are taken to a newly opened lobby after a 10-second countdown unless they choose Stay here; lobby presence moved to its own `room.{code}.lobby` channel so only players actually in the lobby count toward "all ready"; the room hub updates live when a game starts or ends; Word Grid no longer crashes on a results-screen reload after the room moves on, and a mid-game arrival at its room page goes to the hub instead of a dead-end waiting screen.
 
 ## 2026-10-18

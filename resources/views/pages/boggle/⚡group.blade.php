@@ -46,9 +46,9 @@ new class extends Component
      */
     public array $allValidWords = [];
 
-    public function startGame(BoardGenerator $boardGenerator): void
+    public function startGame(BoardGenerator $boardGenerator, Solver $solver): void
     {
-        $this->board = $boardGenerator->generate($this->size);
+        $this->board = $boardGenerator->generatePlayable($this->size, $solver);
         $this->started = true;
         $this->ended = false;
         $this->allValidWords = [];

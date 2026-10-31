@@ -8,6 +8,7 @@ use App\Models\GameSession;
 use App\Models\Room;
 use App\Models\User;
 use App\Services\Boggle\BoardGenerator;
+use App\Services\Boggle\Solver;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 
@@ -153,12 +154,12 @@ new class extends Component
         return $pending !== null && $pending !== GameType::Boggle ? $pending : null;
     }
 
-    public function onRoomStarting(BoardGenerator $boardGenerator): void
+    public function onRoomStarting(BoardGenerator $boardGenerator, Solver $solver): void
     {
         $this->room->refresh();
 
         if ($this->room->game_session_id === null) {
-            $board = $boardGenerator->generate($this->size);
+            $board = $boardGenerator->generatePlayable($this->size, $solver);
 
             $session = GameSession::create([
                 'type' => GameType::Boggle,
